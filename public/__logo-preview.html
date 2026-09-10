@@ -1,0 +1,136 @@
+<!doctype html><meta charset="utf-8"><title>Logo variants</title>
+<style>
+  :root{--ink:#17181b;--paper:#f4f1ea}
+  body{margin:0;background:var(--paper);font-family:ui-sans-serif,system-ui,sans-serif;color:var(--ink)}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;padding:32px}
+  .cell{text-align:center}
+  .cell svg{width:100%;height:auto;display:block}
+  .cap{font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.55;margin-top:8px}
+  .row2{display:flex;gap:34px;align-items:center;padding:0 32px 40px}
+  .row2 .s{width:104px}.row2 .m{width:56px}.row2 .t{width:30px}
+  text{font-family:"Arial Black","Helvetica Neue",Helvetica,sans-serif;font-weight:900}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="tools">
+    <g transform="rotate(-45 16 16)"><path d="M17.57 3.28A4.6 4.6 0 1 1 14.43 3.28L15.18 5.34A2.4 2.4 0 1 0 16.82 5.34Z M13.6 7.6L18.4 7.6L18.4 24.6L13.6 24.6Z M12 24.6A4 4 0 1 1 20 24.6A4 4 0 1 1 12 24.6Z M14.1 24.6A1.9 1.9 0 1 0 17.9 24.6A1.9 1.9 0 1 0 14.1 24.6Z"/></g>
+    <g transform="rotate(45 16 16)"><path d="M12.2 5.4A2.4 2.4 0 0 1 14.6 3L17.4 3A2.4 2.4 0 0 1 19.8 5.4L19.8 14L12.2 14Z M14.6 14L17.4 14L17.4 24.2L14.6 24.2Z M14.2 24.2L17.8 24.2L18.4 27.2L18.4 29L13.6 29L13.6 27.2Z"/></g>
+  </g>
+  <g id="gear">
+    <path d="M16 1.5a2 2 0 0 1 2 2v4a2 2 0 0 1-4 0v-4a2 2 0 0 1 2-2Z"/>
+    <path d="M16 22.5a2 2 0 0 1 2 2v4a2 2 0 0 1-4 0v-4a2 2 0 0 1 2-2Z"/>
+    <path d="M1.5 16a2 2 0 0 1 2-2h4a2 2 0 0 1 0 4h-4a2 2 0 0 1-2-2Z"/>
+    <path d="M22.5 16a2 2 0 0 1 2-2h4a2 2 0 0 1 0 4h-4a2 2 0 0 1-2-2Z"/>
+    <path d="M5.74 5.74a2 2 0 0 1 2.83 0l2.83 2.83a2 2 0 1 1-2.83 2.83L5.74 8.57a2 2 0 0 1 0-2.83Z"/>
+    <path d="M20.6 20.6a2 2 0 0 1 2.83 0l2.83 2.83a2 2 0 1 1-2.83 2.83L20.6 23.43a2 2 0 0 1 0-2.83Z"/>
+    <path d="M26.26 5.74a2 2 0 0 1 0 2.83l-2.83 2.83a2 2 0 1 1-2.83-2.83l2.83-2.83a2 2 0 0 1 2.83 0Z"/>
+    <path d="M11.4 20.6a2 2 0 0 1 0 2.83L8.57 26.26a2 2 0 0 1-2.83-2.83l2.83-2.83a2 2 0 0 1 2.83 0Z"/>
+    <path d="M16 11.6A4.4 4.4 0 1 1 16 20.4A4.4 4.4 0 1 1 16 11.6Z M16 14.6A1.4 1.4 0 1 0 16 17.4A1.4 1.4 0 1 0 16 14.6Z"/>
+  </g>
+  <path id="arcTop" d="M29 100A71 71 0 0 1 171 100"/>
+  <path id="arcBot" d="M34 100A66 66 0 0 0 166 100"/>
+  <path id="arcTop2" d="M24 100A76 76 0 0 1 176 100"/>
+  <path id="arcBot2" d="M28 100A72 72 0 0 0 172 100"/>
+  <g id="t5"><path d="M92 2h16l-2.5 18h-11Z"/></g>
+</defs></svg>
+
+<div class="grid">
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" stroke-width="7"/>
+    <circle cx="100" cy="100" r="83" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <text font-size="17" letter-spacing="3.2" text-anchor="middle"><textPath href="#arcTop" startOffset="50%">KALEB&#39;S SHOP</textPath></text>
+    <text font-size="11" letter-spacing="5" text-anchor="middle"><textPath href="#arcBot" startOffset="50%">SERVICE LOG</textPath></text>
+    <path d="M29 95l5 5-5 5-5-5Z"/><path d="M171 95l5 5-5 5-5-5Z"/>
+    <use href="#gear" transform="translate(100 66) scale(0.78) translate(-16 -16)"/>
+    <use href="#tools" transform="translate(100 108) scale(2.3) translate(-16 -16)"/>
+  </svg><div class="cap">01 &middot; roundel</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="98" fill="currentColor"/>
+    <circle cx="100" cy="100" r="86" fill="none" stroke="var(--paper)" stroke-width="3"/>
+    <g fill="var(--paper)">
+      <text font-size="17" letter-spacing="3.2" text-anchor="middle"><textPath href="#arcTop" startOffset="50%">KALEB&#39;S SHOP</textPath></text>
+      <text font-size="11" letter-spacing="5" text-anchor="middle"><textPath href="#arcBot" startOffset="50%">SERVICE LOG</textPath></text>
+      <path d="M27 95l5 5-5 5-5-5Z"/><path d="M173 95l5 5-5 5-5-5Z"/>
+      <use href="#gear" transform="translate(100 66) scale(0.78) translate(-16 -16)"/>
+      <use href="#tools" transform="translate(100 108) scale(2.3) translate(-16 -16)"/>
+    </g>
+  </svg><div class="cap">02 &middot; solid disc</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <path d="M12 100 60 22H140L188 100 140 178H60Z" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M26 100 68 32H132L174 100 132 168H68Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+    <use href="#gear" transform="translate(100 56) scale(0.8) translate(-16 -16)"/>
+    <text x="100" y="100" font-size="19" letter-spacing="1.5" text-anchor="middle">KALEB&#39;S</text>
+    <text x="100" y="120" font-size="19" letter-spacing="1.5" text-anchor="middle">SHOP</text>
+    <path d="M56 130h88v2.5H56Z"/>
+    <text x="102" y="146" font-size="10" letter-spacing="3.5" text-anchor="middle">SERVICE LOG</text>
+  </svg><div class="cap">03 &middot; hexagon plate</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <path d="M100 8 180 38v66c0 46-38 74-80 88-42-14-80-42-80-88V38Z" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M100 20 170 46v58c0 39-33 64-70 76-37-12-70-37-70-76V46Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+    <use href="#gear" transform="translate(100 56) scale(0.75) translate(-16 -16)"/>
+    <use href="#tools" transform="translate(100 100) scale(2) translate(-16 -16)"/>
+    <path d="M30 132h140l-13 15 13 15H30l13-15Z"/>
+    <text x="100" y="153" font-size="12" letter-spacing="3" text-anchor="middle" fill="var(--paper)">SERVICE LOG</text>
+  </svg><div class="cap">04 &middot; crest</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <g>
+      <use href="#t5"/>
+      <use href="#t5" transform="rotate(30 100 100)"/><use href="#t5" transform="rotate(60 100 100)"/>
+      <use href="#t5" transform="rotate(90 100 100)"/><use href="#t5" transform="rotate(120 100 100)"/>
+      <use href="#t5" transform="rotate(150 100 100)"/><use href="#t5" transform="rotate(180 100 100)"/>
+      <use href="#t5" transform="rotate(210 100 100)"/><use href="#t5" transform="rotate(240 100 100)"/>
+      <use href="#t5" transform="rotate(270 100 100)"/><use href="#t5" transform="rotate(300 100 100)"/>
+      <use href="#t5" transform="rotate(330 100 100)"/>
+    </g>
+    <circle cx="100" cy="100" r="82" fill="currentColor"/>
+    <circle cx="100" cy="100" r="74" fill="none" stroke="var(--paper)" stroke-width="2.5"/>
+    <g fill="var(--paper)">
+      <text font-size="15" letter-spacing="2.6" text-anchor="middle"><textPath href="#arcBot" startOffset="50%">SERVICE LOG</textPath></text>
+      <use href="#tools" transform="translate(100 88) scale(2.5) translate(-16 -16)"/>
+    </g>
+  </svg><div class="cap">05 &middot; gear border</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <path d="M62 8h76l54 54v76l-54 54H62L8 138V62Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M68 22h64l46 46v64l-46 46H68l-46-46V68Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="46" cy="46" r="4"/><circle cx="154" cy="46" r="4"/><circle cx="46" cy="154" r="4"/><circle cx="154" cy="154" r="4"/>
+    <text x="100" y="58" font-size="10" letter-spacing="5" text-anchor="middle">EST. 2026</text>
+    <use href="#tools" transform="translate(100 102) scale(2.4) translate(-16 -16)"/>
+    <path d="M40 138h120v2.5H40Z"/>
+    <text x="100" y="159" font-size="15" letter-spacing="1.4" text-anchor="middle">KALEB&#39;S SHOP</text>
+  </svg><div class="cap">06 &middot; octagon rivets</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <circle cx="100" cy="100" r="96" fill="currentColor"/>
+    <circle cx="100" cy="100" r="86" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round"/>
+    <g fill="var(--paper)">
+      <text font-size="15" letter-spacing="2.8" text-anchor="middle"><textPath href="#arcTop2" startOffset="50%">KALEB&#39;S SHOP</textPath></text>
+      <use href="#tools" transform="translate(100 96) scale(2.7) translate(-16 -16)"/>
+    </g>
+    <path d="M4 128h192l-14 16 14 16H4l14-16Z" fill="var(--paper)"/>
+    <text x="100" y="151" font-size="15" letter-spacing="3.4" text-anchor="middle">SERVICE LOG</text>
+  </svg><div class="cap">07 &middot; ribbon</div></div>
+
+  <div class="cell"><svg viewBox="0 0 200 200" fill="currentColor">
+    <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" stroke-width="6"/>
+    <circle cx="100" cy="100" r="86" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text font-size="15" letter-spacing="2.8" text-anchor="middle"><textPath href="#arcTop2" startOffset="50%">KALEB&#39;S SHOP</textPath></text>
+    <text font-size="10" letter-spacing="5" text-anchor="middle"><textPath href="#arcBot2" startOffset="50%">SERVICE LOG</textPath></text>
+    <g opacity="0.15"><use href="#gear" transform="translate(100 102) scale(3.4) translate(-16 -16)"/></g>
+    
+    <use href="#tools" transform="translate(100 102) scale(2.2) translate(-16 -16)"/>
+  </svg><div class="cap">08 &middot; ghost gear</div></div>
+
+</div>
+
+<div class="row2">
+  <div class="s"><svg viewBox="0 0 200 200" fill="currentColor"><circle cx="100" cy="100" r="98" fill="currentColor"/><g fill="var(--paper)"><circle cx="100" cy="100" r="86" fill="none" stroke="var(--paper)" stroke-width="3"/><use href="#tools" transform="translate(100 100) scale(3.1) translate(-16 -16)"/></g></svg></div>
+  <div class="m"><svg viewBox="0 0 200 200" fill="currentColor"><circle cx="100" cy="100" r="98" fill="currentColor"/><g fill="var(--paper)"><circle cx="100" cy="100" r="86" fill="none" stroke="var(--paper)" stroke-width="3"/><use href="#tools" transform="translate(100 100) scale(3.1) translate(-16 -16)"/></g></svg></div>
+  <div class="t"><svg viewBox="0 0 200 200" fill="currentColor"><circle cx="100" cy="100" r="98" fill="currentColor"/><g fill="var(--paper)"><circle cx="100" cy="100" r="86" fill="none" stroke="var(--paper)" stroke-width="3"/><use href="#tools" transform="translate(100 100) scale(3.1) translate(-16 -16)"/></g></svg></div>
+  <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.55">mark only, at 104 / 56 / 30 px</div>
+</div>
