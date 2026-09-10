@@ -12,6 +12,31 @@ use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
+/**
+ * The web app manifest, served from a route so the installed app's name always
+ * tracks APP_NAME rather than drifting in a checked-in static file.
+ */
+Route::get('site.webmanifest', function () {
+    $name = (string) config('app.name');
+
+    return response()->json([
+        'name' => $name,
+        'short_name' => $name,
+        'description' => 'Workshop service log, checklists and parts inventory.',
+        'start_url' => '/dashboard',
+        'scope' => '/',
+        'display' => 'standalone',
+        'orientation' => 'portrait',
+        'background_color' => '#171717',
+        'theme_color' => '#171717',
+        'icons' => [
+            ['src' => '/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+        ],
+    ])->withHeaders(['Content-Type' => 'application/manifest+json']);
+})->name('manifest');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
