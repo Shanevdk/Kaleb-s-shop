@@ -175,6 +175,48 @@ test('an admin cannot delete their own account from the team page', function () 
     expect(User::find($admin->id))->not->toBeNull();
 });
 
+test('an admin can let an unverified account in', function () {
+    $stranded = User::factory()->create(['email_verified_at' => null]);
+
+    $this->actingAs(admin())
+        ->post(route('admin.users.verify', $stranded))
+        ->assertRedirect();
+
+    expect($stranded->refresh()->email_verified_at)->not->toBeNull();
+});
+
+test('a non admin cannot verify anyone', function () {
+    $stranded = User::factory()->create(['email_verified_at' => null]);
+
+    $this->actingAs(User::factory()->create(['email_verified_at' => now()]))
+        ->post(route('admin.users.verify', $stranded))
+        ->assertForbidden();
+
+    expect($stranded->refresh()->email_verified_at)->toBeNull();
+});
+
+test('verifying someone already verified leaves their original timestamp alone', function () {
+    $verifiedAt = now()->subMonth();
+    $member = User::factory()->create(['email_verified_at' => $verifiedAt]);
+
+    $this->actingAs(admin())->post(route('admin.users.verify', $member));
+
+    expect($member->refresh()->email_verified_at->timestamp)->toBe($verifiedAt->timestamp);
+});
+
+test('the verify account command lets a stranded account in', function () {
+    $user = User::factory()->create(['email' => 'kaleb@example.com', 'email_verified_at' => null]);
+
+    $this->artisan('app:verify-account', ['email' => 'kaleb@example.com'])->assertSuccessful();
+
+    expect($user->refresh()->email_verified_at)->not->toBeNull()
+        ->and((bool) $user->is_admin)->toBeFalse();
+});
+
+test('the verify account command reports an unknown email', function () {
+    $this->artisan('app:verify-account', ['email' => 'nobody@example.com'])->assertFailed();
+});
+
 test('the make admin command promotes and verifies an account', function () {
     $user = User::factory()->create(['email' => 'owner@example.com', 'email_verified_at' => null]);
 

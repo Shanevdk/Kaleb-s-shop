@@ -23,9 +23,19 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="mongodb"/>
-        <!-- Never point the suite at the working database: RefreshDatabase drops it. -->
-        <env name="MONGODB_DATABASE" value="vdk_machanics_testing"/>
+        <env name="DB_CONNECTION" value="mongodb" force="true"/>
+        <!--
+            Never point the suite at the working database: the suite drops every
+            collection before it runs. `force` matters - without it a real
+            environment variable of the same name wins over this line, which on
+            a machine or CI runner that exports MONGODB_DATABASE would hand the
+            suite the working database to wipe. TestCase enforces the
+            `_testing` suffix as a second line of defence.
+
+            To run against a separate cluster rather than a separate database on
+            the same one, also force MONGODB_URI here.
+        -->
+        <env name="MONGODB_DATABASE" value="vdk_machanics_testing" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

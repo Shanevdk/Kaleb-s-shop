@@ -28,6 +28,8 @@ abstract class TestCase extends BaseTestCase
         if (! RefreshDatabaseState::$migrated && $this->usesRefreshDatabase()) {
             $database = DB::connection()->getDatabase();
 
+            $this->guardAgainstWipingTheWorkingDatabase($database->getDatabaseName());
+
             foreach ($database->listCollectionNames() as $collection) {
                 $database->dropCollection($collection);
             }
@@ -50,6 +52,25 @@ abstract class TestCase extends BaseTestCase
     {
         if (! Features::enabled($feature)) {
             $this->markTestSkipped($message ?? "Fortify feature [{$feature}] is not enabled.");
+        }
+    }
+
+    /**
+     * Refuse to run unless the connected database is clearly a test database.
+     *
+     * The next thing this class does is drop every collection it can see, so
+     * a misconfigured MONGODB_DATABASE is the difference between a test run
+     * and losing the shop's records. Failing loudly here is cheap; the
+     * alternative is not recoverable.
+     */
+    private function guardAgainstWipingTheWorkingDatabase(string $name): void
+    {
+        if (! str_ends_with($name, '_testing')) {
+            $this->fail(
+                "Refusing to run: the suite drops every collection, and [{$name}] is not a test database. "
+                .'Test database names must end in `_testing`. Check MONGODB_DATABASE in phpunit.xml '
+                .'and that no environment variable is overriding it.'
+            );
         }
     }
 

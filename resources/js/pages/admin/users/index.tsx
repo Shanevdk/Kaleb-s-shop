@@ -1,5 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus, ShieldCheck, Trash2, UserRound } from 'lucide-react';
+import {
+    MailWarning,
+    Plus,
+    ShieldCheck,
+    Trash2,
+    UserRound,
+} from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +19,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
-import { create, destroy, index, update } from '@/routes/admin/users';
+import { create, destroy, index, update, verify } from '@/routes/admin/users';
 import type { TeamMember } from '@/types';
 
 export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
@@ -23,6 +29,10 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
             { is_admin: !user.is_admin },
             { preserveScroll: true },
         );
+    };
+
+    const verifyUser = (user: TeamMember) => {
+        router.post(verify(user.id).url, {}, { preserveScroll: true });
     };
 
     return (
@@ -72,19 +82,27 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
                                         {user.email}
                                     </TableCell>
                                     <TableCell>
-                                        {user.is_admin ? (
-                                            <Badge
-                                                variant="outline"
-                                                className="gap-1"
-                                            >
-                                                <ShieldCheck className="size-3" />
-                                                Administrator
-                                            </Badge>
-                                        ) : (
-                                            <span className="text-muted-foreground text-sm">
-                                                Mechanic
-                                            </span>
-                                        )}
+                                        <span className="flex flex-wrap items-center gap-2">
+                                            {user.is_admin ? (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="gap-1"
+                                                >
+                                                    <ShieldCheck className="size-3" />
+                                                    Administrator
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground text-sm">
+                                                    Mechanic
+                                                </span>
+                                            )}
+                                            {!user.is_verified && (
+                                                <Badge className="gap-1 border-transparent bg-amber-500 text-amber-950">
+                                                    <MailWarning className="size-3" />
+                                                    Cannot sign in
+                                                </Badge>
+                                            )}
+                                        </span>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
                                         {formatDate(
@@ -94,6 +112,16 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
                                     <TableCell className="text-right">
                                         {!user.is_current_user && (
                                             <span className="flex items-center justify-end gap-2">
+                                                {!user.is_verified && (
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            verifyUser(user)
+                                                        }
+                                                    >
+                                                        Let them in
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     variant="outline"
                                                     size="sm"

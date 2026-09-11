@@ -92,6 +92,27 @@ class UserController extends Controller
     }
 
     /**
+     * Mark someone as verified by hand.
+     *
+     * Accounts created before the shop closed public sign-up are stuck
+     * behind the `verified` middleware with no mail configured to let them
+     * out, so an administrator vouches for them here instead.
+     */
+    public function verify(User $user): RedirectResponse
+    {
+        if ($user->email_verified_at === null) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __(':name can now sign in.', ['name' => $user->name]),
+        ]);
+
+        return back();
+    }
+
+    /**
      * Remove someone's access to the shop.
      */
     public function destroy(Request $request, User $user): RedirectResponse

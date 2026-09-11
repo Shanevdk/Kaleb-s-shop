@@ -39,6 +39,9 @@ Route::get('site.webmanifest', function () {
 })->name('manifest');
 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::post('admin/users/{user}/verify', [UserController::class, 'verify'])
+        ->name('admin.users.verify');
+
     Route::resource('admin/users', UserController::class)
         ->only(['index', 'create', 'store', 'update', 'destroy'])
         ->names('admin.users')
