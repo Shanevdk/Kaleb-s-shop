@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
@@ -36,6 +37,13 @@ Route::get('site.webmanifest', function () {
         ],
     ])->withHeaders(['Content-Type' => 'application/manifest+json']);
 })->name('manifest');
+
+Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::resource('admin/users', UserController::class)
+        ->only(['index', 'create', 'store', 'update', 'destroy'])
+        ->names('admin.users')
+        ->parameters(['users' => 'user']);
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');

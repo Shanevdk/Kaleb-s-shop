@@ -8,7 +8,7 @@ import {
     Wrench,
 } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, login } from '@/routes';
 
 const features = [
     {
@@ -65,20 +65,12 @@ export default function Welcome() {
                                     Dashboard
                                 </Link>
                             ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="rounded-md px-4 py-2 font-medium transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                    >
-                                        Log in
-                                    </Link>
-                                    <Link
-                                        href={register()}
-                                        className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
-                                    >
-                                        Get started
-                                    </Link>
-                                </>
+                                <Link
+                                    href={login()}
+                                    className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                                >
+                                    Log in
+                                </Link>
                             )}
                         </nav>
                     </div>
@@ -101,21 +93,16 @@ export default function Welcome() {
 
                         <div className="mt-10 flex flex-wrap items-center gap-3">
                             <Link
-                                href={auth.user ? dashboard() : register()}
+                                href={auth.user ? dashboard() : login()}
                                 className="inline-flex items-center gap-2 rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                             >
                                 <Wrench className="size-4" />
-                                {auth.user
-                                    ? 'Open the workshop'
-                                    : 'Start your log'}
+                                {auth.user ? 'Open the workshop' : 'Log in'}
                             </Link>
                             {!auth.user && (
-                                <Link
-                                    href={login()}
-                                    className="inline-flex items-center gap-2 rounded-md border border-neutral-300 px-6 py-3 text-sm font-medium transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-                                >
-                                    I already have an account
-                                </Link>
+                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                                    Accounts are set up by the shop owner.
+                                </span>
                             )}
                         </div>
                     </section>
@@ -152,12 +139,10 @@ export default function Welcome() {
                                 </p>
                             </div>
                             <Link
-                                href={auth.user ? dashboard() : register()}
+                                href={auth.user ? dashboard() : login()}
                                 className="inline-flex shrink-0 items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-200"
                             >
-                                {auth.user
-                                    ? 'Go to dashboard'
-                                    : 'Create account'}
+                                {auth.user ? 'Go to dashboard' : 'Log in'}
                             </Link>
                         </div>
                     </section>

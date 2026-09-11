@@ -161,7 +161,8 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Registration is deliberately disabled: accounts are created by a
+        // shop administrator under Settings -> Team, not by self sign-up.
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

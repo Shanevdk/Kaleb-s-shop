@@ -12,6 +12,17 @@ export type User = {
 
 export type Auth = {
     user: User;
+    isAdmin: boolean;
+};
+
+export type TeamMember = {
+    id: string;
+    name: string;
+    email: string;
+    is_admin: boolean;
+    is_verified: boolean;
+    created_at: string | null;
+    is_current_user: boolean;
 };
 
 export type Passkey = {

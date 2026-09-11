@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     Bot,
     Car,
@@ -7,6 +7,7 @@ import {
     Package,
     PlusCircle,
     ShoppingCart,
+    Users,
     Wrench,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -29,6 +30,7 @@ import {
 import { index as inspections } from '@/routes/inspections';
 import { index as inventory } from '@/routes/inventory';
 import { index as shoppingList } from '@/routes/shopping-list';
+import { index as team } from '@/routes/admin/users';
 import { index as vehicles } from '@/routes/vehicles';
 import type { NavItem } from '@/types';
 
@@ -75,7 +77,17 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+const adminNavItems: NavItem[] = [
+    {
+        title: 'Team',
+        href: team(),
+        icon: Users,
+    },
+];
+
 export function AppSidebar() {
+    const { auth } = usePage().props;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -91,7 +103,13 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain
+                    items={
+                        auth.isAdmin
+                            ? [...mainNavItems, ...adminNavItems]
+                            : mainNavItems
+                    }
+                />
             </SidebarContent>
 
             <SidebarFooter>
