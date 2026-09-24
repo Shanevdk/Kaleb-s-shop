@@ -14,7 +14,11 @@ import {
 } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
+import MachineModel from '@/components/machine-model';
+import MachineSpecsList from '@/components/machine-specs';
 import PageHeader from '@/components/page-header';
+import PhotoCapture from '@/components/photo-capture';
+import RepairGuide from '@/components/repair-guide';
 import StatCard from '@/components/stat-card';
 import StatusBadge from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +49,11 @@ import {
 import { index as shoppingList } from '@/routes/shopping-list';
 import { destroy, edit, index, show } from '@/routes/vehicles';
 import type {
+    CommonRepair,
     Inspection,
+    MaintenanceInterval,
+    PhotoAngleOption,
+    Recall,
     ServiceRecord,
     Vehicle,
     VehiclePart,
@@ -64,12 +72,20 @@ export default function VehicleShow({
     records,
     parts,
     inspections,
+    photo_angles: photoAngles,
+    maintenance,
+    repairs,
+    recalls,
     stats,
 }: {
     vehicle: Vehicle;
     records: ServiceRecord[];
     parts: VehiclePart[];
     inspections: Inspection[];
+    photo_angles: PhotoAngleOption[];
+    maintenance: MaintenanceInterval[];
+    repairs: CommonRepair[];
+    recalls?: Recall[];
     stats: Stats;
 }) {
     const short = parts.filter((part) => part.shortfall > 0);
@@ -81,9 +97,11 @@ export default function VehicleShow({
     });
 
     const details = [
+        { label: 'Type', value: vehicle.kind_label },
         { label: 'Make', value: vehicle.make },
         { label: 'Model', value: vehicle.model },
         { label: 'Year', value: String(vehicle.year) },
+        { label: 'Engine', value: vehicle.engine_summary || '—' },
         { label: 'Colour', value: vehicle.colour || '—' },
         { label: 'Plate', value: vehicle.registration || '—' },
         { label: 'VIN', value: vehicle.vin || '—' },
@@ -205,9 +223,37 @@ export default function VehicleShow({
                                 </p>
                             </div>
                         )}
+
+                        <div className="mt-6 space-y-4 border-t pt-6">
+                            <h3 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+                                Specs
+                            </h3>
+                            <MachineSpecsList
+                                specs={vehicle.specs}
+                                engine={vehicle.engine}
+                                engineSummary={vehicle.engine_summary}
+                                kindLabel={vehicle.kind_label}
+                            />
+                        </div>
                     </aside>
 
                     <div className="space-y-6">
+                        <MachineModel
+                            kind={vehicle.kind}
+                            kindLabel={vehicle.kind_label}
+                            engine={vehicle.engine}
+                            engineSummary={vehicle.engine_summary}
+                            doors={vehicle.specs?.doors ?? null}
+                            photos={vehicle.photos}
+                            photoAngles={photoAngles}
+                        />
+
+                        <PhotoCapture
+                            vehicleId={vehicle.id}
+                            angles={photoAngles}
+                            photos={vehicle.photos}
+                        />
+
                         <section className="bg-card rounded-xl border">
                             <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
                                 <div>
@@ -527,6 +573,13 @@ export default function VehicleShow({
                                 </ul>
                             )}
                         </section>
+
+                        <RepairGuide
+                            maintenance={maintenance}
+                            repairs={repairs}
+                            recalls={recalls}
+                            showRecalls={vehicle.kind !== 'trailer'}
+                        />
                     </div>
                 </div>
             </div>

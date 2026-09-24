@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\DecodeVin;
+use App\Actions\FetchRecalls;
 use App\Enums\CheckStatus;
+use App\Enums\MachineKind;
+use App\Enums\PhotoAngle;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\InspectionResource;
 use App\Http\Resources\InventoryItemResource;
@@ -52,18 +56,26 @@ class VehicleController extends Controller
 
     /**
      * Show the form for adding a vehicle.
+     *
+     * The lookup page hands over what it decoded from a VIN in the query
+     * string so the form starts filled in.
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('vehicles/create');
+        return Inertia::render('vehicles/create', [
+            'prefill' => $request->only(['vin', 'make', 'model', 'year', 'kind', 'cylinders', 'displacement_l', 'fuel']),
+            'kinds' => MachineKind::options(),
+        ]);
     }
 
     /**
      * Store a newly added vehicle.
      */
-    public function store(VehicleRequest $request): RedirectResponse
+    public function store(VehicleRequest $request, DecodeVin $decoder): RedirectResponse
     {
-        $vehicle = $request->user()->vehicles()->create($request->validated());
+        $vehicle = $request->user()->vehicles()->create(
+            $this->withSpecs($request->validated(), null, $decoder),
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Vehicle added.')]);
 
@@ -71,12 +83,60 @@ class VehicleController extends Controller
     }
 
     /**
+     * Fold the decoded VIN and any hand-typed engine details into the
+     * attributes about to be saved.
+     *
+     * The decoder is only asked when the VIN is new or has changed; a saved
+     * decode is kept otherwise. Whatever the person typed for the engine wins
+     * over the decoder, since they can see the thing and it cannot.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function withSpecs(array $validated, ?Vehicle $existing, DecodeVin $decoder): array
+    {
+        $vin = DecodeVin::normalise($validated['vin'] ?? null);
+        $validated['vin'] = $vin !== '' ? $vin : null;
+
+        $kept = $existing?->specs;
+        $sameVin = $existing !== null && DecodeVin::normalise($existing->vin) === $vin;
+
+        $specs = $sameVin && ($kept['source'] ?? null) === 'nhtsa'
+            ? $kept
+            : ($decoder->handle($vin) ?? ['source' => 'manual', 'engine' => []]);
+
+        foreach (['cylinders', 'displacement_l', 'fuel'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                if ($validated[$field] !== null && $validated[$field] !== '') {
+                    $specs['engine'][$field] = $field === 'fuel'
+                        ? (string) $validated[$field]
+                        : ($field === 'cylinders' ? (int) $validated[$field] : round((float) $validated[$field], 2));
+                } elseif (($specs['source'] ?? null) === 'manual') {
+                    unset($specs['engine'][$field]);
+                }
+            }
+
+            unset($validated[$field]);
+        }
+
+        $validated['kind'] = $validated['kind']
+            ?? $specs['kind']
+            ?? $existing?->kind?->value
+            ?? MachineKind::Other->value;
+        $validated['specs'] = $specs;
+
+        return $validated;
+    }
+
+    /**
      * Display a single vehicle, its full service history and every checklist
      * ever run against it.
      */
-    public function show(Vehicle $vehicle): Response
+    public function show(Vehicle $vehicle, FetchRecalls $recalls): Response
     {
         Gate::authorize('view', $vehicle);
+
+        $kind = $vehicle->machineKind();
 
         $records = $vehicle->serviceRecords()
             ->latest('performed_on')
@@ -109,6 +169,12 @@ class VehicleController extends Controller
                 ])
                 ->all(),
             'inspections' => InspectionResource::collection($inspections)->resolve(),
+            'photo_angles' => PhotoAngle::catalog(),
+            'maintenance' => $kind->maintenanceSchedule($vehicle->engine()['fuel']),
+            'repairs' => $kind->commonRepairs(),
+            'recalls' => Inertia::defer(fn (): array => $kind === MachineKind::Trailer
+                ? []
+                : $recalls->handle($vehicle->make, $vehicle->model, $vehicle->year)),
             'stats' => [
                 'records' => $records->count(),
                 'hours' => round((float) $records->sum(fn (ServiceRecord $record): float => (float) $record->hours), 2),
@@ -154,15 +220,16 @@ class VehicleController extends Controller
 
         return Inertia::render('vehicles/edit', [
             'vehicle' => VehicleResource::make($vehicle)->resolve(),
+            'kinds' => MachineKind::options(),
         ]);
     }
 
     /**
      * Update the given vehicle.
      */
-    public function update(VehicleRequest $request, Vehicle $vehicle): RedirectResponse
+    public function update(VehicleRequest $request, Vehicle $vehicle, DecodeVin $decoder): RedirectResponse
     {
-        $vehicle->update($request->validated());
+        $vehicle->update($this->withSpecs($request->validated(), $vehicle, $decoder));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Vehicle updated.')]);
 

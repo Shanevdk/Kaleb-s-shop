@@ -1,3 +1,95 @@
+export type MachineKind =
+    | 'car'
+    | 'ute'
+    | 'suv'
+    | 'van'
+    | 'truck'
+    | 'bus'
+    | 'motorcycle'
+    | 'atv'
+    | 'tractor'
+    | 'mower'
+    | 'outboard'
+    | 'generator'
+    | 'trailer'
+    | 'other';
+
+export type EngineSpecs = {
+    cylinders: number | null;
+    displacement_l: number | null;
+    configuration: string | null;
+    fuel: string | null;
+    horsepower: number | null;
+    kilowatts?: number | null;
+    model?: string | null;
+    manufacturer?: string | null;
+    turbo?: boolean | null;
+    valve_train?: string | null;
+};
+
+export type MachineSpecs = {
+    source: 'nhtsa' | 'manual';
+    vin?: string;
+    decoded_at?: string;
+    kind?: MachineKind;
+    make?: string | null;
+    model?: string | null;
+    year?: number | null;
+    trim?: string | null;
+    series?: string | null;
+    body_class?: string | null;
+    vehicle_type?: string | null;
+    doors?: number | null;
+    drive_type?: string | null;
+    transmission?: string | null;
+    gvwr?: string | null;
+    manufacturer?: string | null;
+    plant?: string | null;
+    engine: Partial<EngineSpecs>;
+    warnings?: string | null;
+};
+
+export type MaintenanceInterval = {
+    interval: string;
+    items: string[];
+};
+
+export type CommonRepair = {
+    symptom: string;
+    causes: string[];
+    fix: string;
+};
+
+export type PhotoAngle =
+    | 'front'
+    | 'front_right'
+    | 'right'
+    | 'rear_right'
+    | 'rear'
+    | 'rear_left'
+    | 'left'
+    | 'front_left'
+    | 'top'
+    | 'engine';
+
+export type PhotoAngleOption = {
+    value: PhotoAngle;
+    label: string;
+    hint: string;
+    degrees: number | null;
+};
+
+export type VehiclePhotos = Partial<Record<PhotoAngle, string>>;
+
+export type Recall = {
+    campaign: string;
+    date: string | null;
+    component: string | null;
+    summary: string | null;
+    consequence: string | null;
+    remedy: string | null;
+};
+
 export type Vehicle = {
     id: string;
     make: string;
@@ -10,6 +102,12 @@ export type Vehicle = {
     odometer: number | null;
     notes: string | null;
     display_name: string;
+    kind: MachineKind;
+    kind_label: string;
+    specs: MachineSpecs | null;
+    engine: EngineSpecs;
+    engine_summary: string | null;
+    photos: VehiclePhotos;
     service_records_count?: number;
     spend?: number;
     last_serviced_on?: string | null;

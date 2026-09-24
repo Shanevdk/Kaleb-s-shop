@@ -1,9 +1,16 @@
 import { Head } from '@inertiajs/react';
 import PageHeader from '@/components/page-header';
-import VehicleForm from '@/components/vehicle-form';
+import VehicleForm, { type VehiclePrefill } from '@/components/vehicle-form';
 import { create, index } from '@/routes/vehicles';
+import type { SelectOption } from '@/types';
 
-export default function VehicleCreate() {
+export default function VehicleCreate({
+    prefill,
+    kinds,
+}: {
+    prefill: VehiclePrefill;
+    kinds: SelectOption[];
+}) {
     return (
         <>
             <Head title="Add vehicle" />
@@ -15,7 +22,7 @@ export default function VehicleCreate() {
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <VehicleForm />
+                    <VehicleForm prefill={prefill} kinds={kinds} />
                 </div>
             </div>
         </>

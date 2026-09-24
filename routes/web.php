@@ -6,9 +6,11 @@ use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
 use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\InventoryScanController;
+use App\Http\Controllers\LookupController;
 use App\Http\Controllers\ServiceRecordController;
 use App\Http\Controllers\ShoppingListController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehiclePhotoController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -53,6 +55,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::inertia('assistant', 'assistant')->name('assistant');
 
+    Route::get('lookup', [LookupController::class, 'index'])->name('lookup');
+    Route::get('lookup/decode', [LookupController::class, 'decode'])->name('lookup.decode');
+
+    Route::post('vehicles/{vehicle}/photos/{angle}', [VehiclePhotoController::class, 'store'])
+        ->name('vehicles.photos.store');
+    Route::delete('vehicles/{vehicle}/photos/{angle}', [VehiclePhotoController::class, 'destroy'])
+        ->name('vehicles.photos.destroy');
     Route::resource('vehicles', VehicleController::class);
     Route::resource('service-records', ServiceRecordController::class)->except('show');
 

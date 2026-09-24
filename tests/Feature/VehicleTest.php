@@ -1,11 +1,14 @@
 <?php
 
 use App\Enums\CheckStatus;
+use App\Enums\MachineKind;
 use App\Models\Inspection;
 use App\Models\InspectionItem;
 use App\Models\ServiceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\Http;
+use Inertia\Inertia;
 
 test('guests cannot see the vehicle list', function () {
     $this->get(route('vehicles.index'))->assertRedirect(route('login'));
@@ -163,4 +166,126 @@ test('a vehicle can be deleted with its checklists', function () {
 
     expect(Inspection::count())->toBe(0)
         ->and(InspectionItem::count())->toBe(0);
+});
+
+test('adding a vehicle with a vin decodes and stores its specs and kind', function () {
+    Http::fake(['vpic.nhtsa.dot.gov/*' => Http::response(['Results' => [[
+        'Make' => 'FORD',
+        'Model' => 'Ranger',
+        'ModelYear' => '2020',
+        'BodyClass' => 'Pickup',
+        'VehicleType' => 'TRUCK',
+        'EngineCylinders' => '5',
+        'DisplacementL' => '3.2',
+        'FuelTypePrimary' => 'Diesel',
+        'ErrorCode' => '0',
+    ]]])]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Ford',
+        'model' => 'Ranger',
+        'year' => 2020,
+        'vin' => 'mfbumef50lw123456',
+    ]);
+
+    $vehicle = Vehicle::firstOrFail();
+
+    expect($vehicle->vin)->toBe('MFBUMEF50LW123456')
+        ->and($vehicle->kind)->toBe(MachineKind::Ute)
+        ->and($vehicle->specs['source'])->toBe('nhtsa')
+        ->and($vehicle->engine()['cylinders'])->toBe(5)
+        ->and($vehicle->engine_summary)->toBe('3.2 L 5-cyl diesel');
+});
+
+test('typed engine details win over the decoder and a serial number needs no decode', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Kubota',
+        'model' => 'ZD1211',
+        'year' => 2019,
+        'vin' => 'KH 55321',
+        'kind' => 'mower',
+        'cylinders' => 3,
+        'displacement_l' => 1.12,
+        'fuel' => 'Diesel',
+    ]);
+
+    $vehicle = Vehicle::firstOrFail();
+
+    Http::assertNothingSent();
+    expect($vehicle->kind)->toBe(MachineKind::Mower)
+        ->and($vehicle->specs['source'])->toBe('manual')
+        ->and($vehicle->engine())->toMatchArray(['cylinders' => 3, 'displacement_l' => 1.12, 'fuel' => 'Diesel']);
+});
+
+test('updating a vehicle keeps its decoded specs when the vin has not changed', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create([
+        'vin' => 'MFBUMEF50LW123456',
+        'kind' => MachineKind::Ute,
+        'specs' => ['source' => 'nhtsa', 'kind' => 'ute', 'engine' => ['cylinders' => 5, 'fuel' => 'Diesel']],
+    ]);
+
+    $this->actingAs($user)->put(route('vehicles.update', $vehicle), [
+        'make' => $vehicle->make,
+        'model' => $vehicle->model,
+        'year' => $vehicle->year,
+        'vin' => 'MFBUMEF50LW123456',
+        'cylinders' => 5,
+        'displacement_l' => 3.2,
+    ]);
+
+    Http::assertNothingSent();
+    expect($vehicle->refresh()->specs['source'])->toBe('nhtsa')
+        ->and($vehicle->engine()['displacement_l'])->toBe(3.2);
+});
+
+test('a vehicle page carries its specs, service schedule, common repairs and deferred recalls', function () {
+    Http::fake(['api.nhtsa.gov/*' => Http::response(['results' => [[
+        'NHTSACampaignNumber' => '20V123000',
+        'ReportReceivedDate' => '24/07/2020',
+        'Component' => 'FUEL SYSTEM, DIESEL',
+        'Summary' => 'The fuel line may chafe.',
+        'Consequence' => 'A fuel leak increases the risk of a fire.',
+        'Remedy' => 'Dealers will replace the fuel line free of charge.',
+    ]]])]);
+
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create([
+        'make' => 'Ford',
+        'model' => 'Ranger',
+        'year' => 2020,
+        'kind' => MachineKind::Ute,
+        'specs' => ['source' => 'nhtsa', 'engine' => ['cylinders' => 5, 'displacement_l' => 3.2, 'fuel' => 'Diesel']],
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('vehicles.show', $vehicle))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('vehicle.kind', 'ute')
+            ->where('vehicle.engine_summary', '3.2 L 5-cyl diesel')
+            ->where('maintenance.0.items.4', 'Drain the water trap on the fuel filter')
+            ->has('repairs.0.causes')
+            ->missing('recalls')
+        );
+
+    $this->actingAs($user)
+        ->get(route('vehicles.show', $vehicle), [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => Inertia::getVersion(),
+            'X-Inertia-Partial-Component' => 'vehicles/show',
+            'X-Inertia-Partial-Data' => 'recalls',
+        ])
+        ->assertOk()
+        ->assertJsonCount(1, 'props.recalls')
+        ->assertJsonPath('props.recalls.0.campaign', '20V123000')
+        ->assertJsonPath('props.recalls.0.date', '2020-07-24');
 });

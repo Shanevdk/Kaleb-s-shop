@@ -30,6 +30,12 @@ class VehicleResource extends JsonResource
             'odometer' => $this->odometer,
             'notes' => $this->notes,
             'display_name' => $this->display_name,
+            'kind' => $this->machineKind()->value,
+            'kind_label' => $this->machineKind()->label(),
+            'specs' => $this->specs,
+            'engine' => $this->engine(),
+            'engine_summary' => $this->engine_summary,
+            'photos' => (object) $this->photoUrls(),
             'service_records_count' => $this->whenCounted('serviceRecords'),
             'spend' => $this->when(
                 isset($this->parts_spend) || isset($this->labour_spend),

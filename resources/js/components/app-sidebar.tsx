@@ -6,6 +6,7 @@ import {
     LayoutGrid,
     Package,
     PlusCircle,
+    ScanSearch,
     ShoppingCart,
     Users,
     Wrench,
@@ -22,7 +23,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { assistant, dashboard } from '@/routes';
+import { assistant, dashboard, lookup } from '@/routes';
 import {
     create as logJob,
     index as serviceLog,
@@ -44,6 +45,11 @@ const mainNavItems: NavItem[] = [
         title: 'Vehicles',
         href: vehicles(),
         icon: Car,
+    },
+    {
+        title: 'Lookup',
+        href: lookup(),
+        icon: ScanSearch,
     },
     {
         title: 'Service log',

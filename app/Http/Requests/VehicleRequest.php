@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\MachineKind;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class VehicleRequest extends FormRequest
 {
@@ -34,6 +36,10 @@ class VehicleRequest extends FormRequest
             'colour' => ['nullable', 'string', 'max:40'],
             'odometer' => ['nullable', 'integer', 'min:0', 'max:5000000'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'kind' => ['nullable', Rule::enum(MachineKind::class)],
+            'cylinders' => ['nullable', 'integer', 'min:1', 'max:16'],
+            'displacement_l' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+            'fuel' => ['nullable', 'string', 'max:40'],
         ];
     }
 }

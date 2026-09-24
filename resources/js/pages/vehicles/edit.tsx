@@ -2,9 +2,15 @@ import { Head, setLayoutProps } from '@inertiajs/react';
 import PageHeader from '@/components/page-header';
 import VehicleForm from '@/components/vehicle-form';
 import { edit, index, show } from '@/routes/vehicles';
-import type { Vehicle } from '@/types';
+import type { SelectOption, Vehicle } from '@/types';
 
-export default function VehicleEdit({ vehicle }: { vehicle: Vehicle }) {
+export default function VehicleEdit({
+    vehicle,
+    kinds,
+}: {
+    vehicle: Vehicle;
+    kinds: SelectOption[];
+}) {
     setLayoutProps({
         breadcrumbs: [
             { title: 'Vehicles', href: index() },
@@ -24,7 +30,7 @@ export default function VehicleEdit({ vehicle }: { vehicle: Vehicle }) {
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <VehicleForm vehicle={vehicle} />
+                    <VehicleForm vehicle={vehicle} kinds={kinds} />
                 </div>
             </div>
         </>
