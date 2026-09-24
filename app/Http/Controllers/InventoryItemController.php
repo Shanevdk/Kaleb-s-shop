@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\RecordStockMovement;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
+use App\Http\Requests\AssignBarcodeRequest;
 use App\Http\Requests\InventoryItemRequest;
 use App\Http\Requests\StockUsageRequest;
 use App\Http\Resources\InventoryItemResource;
@@ -188,6 +189,21 @@ class InventoryItemController extends Controller
                 ]),
             ]);
         }
+
+        return back();
+    }
+
+    /**
+     * Point a scanned QR code or barcode at the given part, replacing any it had.
+     */
+    public function assignBarcode(AssignBarcodeRequest $request, InventoryItem $inventoryItem): RedirectResponse
+    {
+        $inventoryItem->update(['barcode' => $request->validated('barcode')]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Code assigned to :name.', ['name' => $inventoryItem->name]),
+        ]);
 
         return back();
     }

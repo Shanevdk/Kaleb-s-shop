@@ -36,23 +36,26 @@ type Options = {
     licenseKey: string;
     libraryLocation: string;
     onScan: (barcode: string) => void;
+    autoStart?: boolean;
 };
 
 /**
  * Drive the Scandit camera scanner attached to the returned element ref.
  *
- * Nothing starts until `start()` is called, so the WASM engine is only fetched
- * once someone actually opens the camera.
+ * Nothing starts until `start()` is called, or the component mounts when
+ * `autoStart` is set, so the WASM engine is only fetched once someone
+ * actually opens the camera.
  */
 export function useBarcodeScanner({
     licenseKey,
     libraryLocation,
     onScan,
+    autoStart = false,
 }: Options) {
     const hostRef = useRef<HTMLDivElement | null>(null);
     const [status, setStatus] = useState<ScannerStatus>('idle');
     const [error, setError] = useState<string | null>(null);
-    const [active, setActive] = useState(false);
+    const [active, setActive] = useState(autoStart);
 
     /**
      * Held in a ref so restarting the camera never re-runs the effect and

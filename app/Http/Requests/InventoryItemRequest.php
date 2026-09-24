@@ -35,7 +35,7 @@ class InventoryItemRequest extends FormRequest
             'barcode' => [
                 'nullable',
                 'string',
-                'max:64',
+                'max:255',
                 Rule::unique('inventory_items', 'barcode')
                     ->where('user_id', $this->user()->id)
                     ->ignore($this->route('inventory_item')),

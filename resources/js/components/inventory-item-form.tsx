@@ -1,7 +1,8 @@
 import { Form, Link } from '@inertiajs/react';
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, ScanQrCode } from 'lucide-react';
 import { useState } from 'react';
 import InventoryItemController from '@/actions/App/Http/Controllers/InventoryItemController';
+import BarcodeScanDialog from '@/components/barcode-scan-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,10 @@ export default function InventoryItemForm({
     const [removeImage, setRemoveImage] = useState(false);
     const [hasNewImage, setHasNewImage] = useState(false);
     const [unit, setUnit] = useState(item?.unit ?? 'each');
+    const [barcode, setBarcode] = useState(
+        item?.barcode ?? scannedBarcode ?? '',
+    );
+    const [scanning, setScanning] = useState(false);
 
     const activeUnit = units.find((option) => option.value === unit);
 
@@ -161,21 +166,45 @@ export default function InventoryItemForm({
 
                             <div className="grid gap-2">
                                 <Label htmlFor="barcode">
-                                    Barcode{' '}
+                                    Barcode or QR{' '}
                                     <span className="text-muted-foreground font-normal">
                                         (optional)
                                     </span>
                                 </Label>
-                                <Input
-                                    id="barcode"
-                                    name="barcode"
-                                    defaultValue={
-                                        item?.barcode ?? scannedBarcode ?? ''
-                                    }
-                                    placeholder="9312345678907"
-                                    autoComplete="off"
-                                    className="font-mono"
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="barcode"
+                                        name="barcode"
+                                        value={barcode}
+                                        onChange={(event) =>
+                                            setBarcode(event.target.value)
+                                        }
+                                        placeholder="9312345678907"
+                                        autoComplete="off"
+                                        className="font-mono"
+                                    />
+                                    <BarcodeScanDialog
+                                        open={scanning}
+                                        onOpenChange={setScanning}
+                                        trigger={
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="icon"
+                                                className="shrink-0"
+                                                aria-label="Scan a QR code or barcode"
+                                            >
+                                                <ScanQrCode />
+                                            </Button>
+                                        }
+                                        title="Scan a code for this part"
+                                        description="Hold the QR code or barcode up to the camera. It fills in the box, and saving the part assigns it."
+                                        onScan={(code) => {
+                                            setBarcode(code);
+                                            setScanning(false);
+                                        }}
+                                    />
+                                </div>
                                 <InputError message={errors.barcode} />
                             </div>
 

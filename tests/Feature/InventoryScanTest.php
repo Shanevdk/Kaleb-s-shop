@@ -242,3 +242,164 @@ test('a blank barcode is stored as null so many parts can go without one', funct
 
     expect(InventoryItem::where('name', 'No barcode part')->firstOrFail()->barcode)->toBeNull();
 });
+
+test('the scanner key is shared with the part form so codes can be scanned into it', function () {
+    config()->set('services.scandit.license_key', 'test-license-key');
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('inventory.create'))
+        ->assertInertia(fn ($page) => $page->where('scandit.license_key', 'test-license-key'));
+});
+
+test('guests are not sent the scanner key', function () {
+    config()->set('services.scandit.license_key', 'test-license-key');
+
+    $this->get(route('login'))
+        ->assertInertia(fn ($page) => $page->where('scandit', null));
+});
+
+test('guests cannot assign a code to a part', function () {
+    $item = InventoryItem::factory()->create(['barcode' => null]);
+
+    $this->put(route('inventory.barcode', $item), ['barcode' => '111'])
+        ->assertRedirect(route('login'));
+
+    expect($item->refresh()->barcode)->toBeNull();
+});
+
+test('a scanned code can be assigned to a part without moving its stock', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null, 'quantity' => 3]);
+
+    $this->actingAs($user)
+        ->from(route('inventory.index'))
+        ->put(route('inventory.barcode', $item), ['barcode' => ' QR-SHELF-A1 '])
+        ->assertRedirect(route('inventory.index'))
+        ->assertSessionHasNoErrors();
+
+    expect($item->refresh()->barcode)->toBe('QR-SHELF-A1')
+        ->and($item->quantity)->toEqual(3.0);
+});
+
+test('assigning a code replaces the one a part already had', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => '111']);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => '222'])
+        ->assertSessionHasNoErrors();
+
+    expect($item->refresh()->barcode)->toBe('222');
+});
+
+test('rescanning the code a part already has is not rejected as taken', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => '111']);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => '111'])
+        ->assertSessionHasNoErrors();
+
+    expect($item->refresh()->barcode)->toBe('111');
+});
+
+test('a code already on another part cannot be assigned', function () {
+    $user = User::factory()->create();
+    InventoryItem::factory()->for($user)->create(['barcode' => '111']);
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null]);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => '111'])
+        ->assertSessionHasErrors(['barcode' => 'That code is already on another part.']);
+
+    expect($item->refresh()->barcode)->toBeNull();
+});
+
+test('a code on someone elses part does not stop it being assigned', function () {
+    $user = User::factory()->create();
+    InventoryItem::factory()->create(['barcode' => '111']);
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null]);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => '111'])
+        ->assertSessionHasNoErrors();
+
+    expect($item->refresh()->barcode)->toBe('111');
+});
+
+test('a code cannot be assigned to someone elses part', function () {
+    $item = InventoryItem::factory()->create(['barcode' => null]);
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('inventory.barcode', $item), ['barcode' => '111'])
+        ->assertForbidden();
+
+    expect($item->refresh()->barcode)->toBeNull();
+});
+
+test('assigning requires a code', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => '111']);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => '   '])
+        ->assertSessionHasErrors('barcode');
+
+    expect($item->refresh()->barcode)->toBe('111');
+});
+
+test('a code longer than 255 characters is rejected', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null]);
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => str_repeat('a', 256)])
+        ->assertSessionHasErrors('barcode');
+
+    expect($item->refresh()->barcode)->toBeNull();
+});
+
+test('a QR code holding a long link can be assigned and then scanned', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null, 'quantity' => 1]);
+    $link = 'https://labels.example.com/workshop/shelf-a1/bin-04?part=oil-filter&batch=2026-09-24-0001';
+
+    $this->actingAs($user)
+        ->put(route('inventory.barcode', $item), ['barcode' => $link])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($user)
+        ->post(route('inventory.scan.store'), ['barcode' => $link])
+        ->assertInertia(fn ($page) => $page
+            ->where('result.status', 'matched')
+            ->where('result.item.id', $item->id)
+        );
+});
+
+test('an unknown QR code holding a long link can be linked from the scanner', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['barcode' => null]);
+    $link = 'https://labels.example.com/workshop/shelf-a1/bin-04?part=oil-filter&batch=2026-09-24-0001';
+
+    $this->actingAs($user)
+        ->post(route('inventory.scan.link'), ['barcode' => $link, 'inventory_item_id' => $item->id])
+        ->assertSessionHasNoErrors();
+
+    expect($item->refresh()->barcode)->toBe($link);
+});
+
+test('a part can be saved with a QR code holding a long link', function () {
+    $user = User::factory()->create();
+    $link = 'https://labels.example.com/workshop/shelf-a1/bin-04?part=oil-filter&batch=2026-09-24-0001';
+
+    $this->actingAs($user)->post(route('inventory.store'), [
+        'name' => 'Oil filter',
+        'category' => 'filters',
+        'barcode' => $link,
+        'quantity' => 1,
+        'minimum_quantity' => 0,
+        'unit_cost' => 5,
+    ])->assertSessionHasNoErrors();
+
+    expect(InventoryItem::firstOrFail()->barcode)->toBe($link);
+});

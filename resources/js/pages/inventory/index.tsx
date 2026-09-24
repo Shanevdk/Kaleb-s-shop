@@ -13,6 +13,7 @@ import {
     Search,
     Trash2,
 } from 'lucide-react';
+import AssignBarcodeDialog from '@/components/assign-barcode-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
 import PageHeader from '@/components/page-header';
@@ -434,6 +435,7 @@ export default function InventoryIndex({
                                         </div>
 
                                         <div className="flex items-center gap-1">
+                                            <AssignBarcodeDialog item={item} />
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

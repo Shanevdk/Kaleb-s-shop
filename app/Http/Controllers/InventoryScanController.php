@@ -27,7 +27,7 @@ class InventoryScanController extends Controller
     public function store(Request $request, RecordStockMovement $recordStockMovement): Response
     {
         $validated = $request->validate([
-            'barcode' => ['required', 'string', 'max:64'],
+            'barcode' => ['required', 'string', 'max:255'],
             'delta' => ['nullable', 'integer', 'min:-100', 'max:100'],
         ]);
 
@@ -69,7 +69,7 @@ class InventoryScanController extends Controller
             'barcode' => [
                 'required',
                 'string',
-                'max:64',
+                'max:255',
                 Rule::unique('inventory_items', 'barcode')->where('user_id', $request->user()->id),
             ],
             'inventory_item_id' => [
@@ -108,10 +108,6 @@ class InventoryScanController extends Controller
     private function pageProps(Request $request): array
     {
         return [
-            'scandit' => [
-                'license_key' => (string) config('services.scandit.license_key'),
-                'library_location' => (string) config('services.scandit.library_location'),
-            ],
             'items' => $request->user()->inventoryItems()
                 ->orderBy('name')
                 ->get()

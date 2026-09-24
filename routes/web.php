@@ -68,6 +68,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::patch('inventory/{inventory_item}/adjust', [InventoryItemController::class, 'adjust'])
         ->name('inventory.adjust');
+    Route::put('inventory/{inventory_item}/barcode', [InventoryItemController::class, 'assignBarcode'])
+        ->name('inventory.barcode');
     Route::resource('inventory', InventoryItemController::class)
         ->parameters(['inventory' => 'inventory_item'])
         ->except('show');

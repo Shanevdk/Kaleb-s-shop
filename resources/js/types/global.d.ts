@@ -12,6 +12,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            scandit: { license_key: string; library_location: string } | null;
             [key: string]: unknown;
         };
     }
