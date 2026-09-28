@@ -3,8 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\ChecklistTemplate;
-use App\Models\Vehicle;
-use App\Rules\DocumentExists;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,7 +27,8 @@ class InspectionRequest extends FormRequest
         return [
             'vehicle_id' => [
                 'required',
-                new DocumentExists(Vehicle::class, ['user_id' => $this->user()->id]),
+                'string',
+                Rule::exists('vehicles', 'id')->where('user_id', $this->user()->id),
             ],
             'template' => ['required', Rule::enum(ChecklistTemplate::class)],
             'performed_on' => ['required', 'date'],

@@ -44,8 +44,8 @@ class ServiceRecordController extends Controller
             ->with('vehicle')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
-                    $query->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
+                    $query->whereLike('title', "%{$search}%")
+                        ->orWhereLike('description', "%{$search}%");
                 });
             })
             ->when(ServiceStatus::tryFrom($status), fn ($query, ServiceStatus $status) => $query->where('status', $status))
@@ -229,7 +229,7 @@ class ServiceRecordController extends Controller
             $keptIds[] = $existing->id;
         }
 
-        $dropped = $serviceRecord->parts()->whereNotIn('_id', $keptIds)->get();
+        $dropped = $serviceRecord->parts()->whereNotIn('id', $keptIds)->get();
 
         $this->syncServiceRecordStock->release($serviceRecord, $dropped);
 

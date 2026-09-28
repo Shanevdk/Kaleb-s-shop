@@ -6,14 +6,15 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use MongoDB\Laravel\Auth\User as Authenticatable;
-use MongoDB\Laravel\Relations\HasMany;
 
 /**
  * @property string $id
@@ -34,7 +35,7 @@ use MongoDB\Laravel\Relations\HasMany;
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasFactory, HasUlids, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the vehicles that belong to the user.
@@ -104,8 +105,8 @@ class User extends Authenticatable implements PasskeyUser
     /**
      * Get the default attribute values.
      *
-     * MongoDB has no column defaults, so documents written before this field
-     * existed have no `is_admin` at all.
+     * Mirrors the column default, so a freshly created user is not an admin
+     * without being reloaded.
      *
      * @var array<string, mixed>
      */

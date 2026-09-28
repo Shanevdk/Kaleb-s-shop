@@ -2,9 +2,7 @@
 
 namespace Tests;
 
-use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Fortify\Features;
@@ -12,37 +10,16 @@ use Laravel\Fortify\Features;
 abstract class TestCase extends BaseTestCase
 {
     /**
-     * Migrate before RefreshDatabase gets the chance to.
+     * Check the database before RefreshDatabase gets the chance to wipe it.
      *
-     * Two MongoDB quirks make `migrate:fresh` unusable here. It drops the whole
-     * database, which the server does in the background, so the migrations that
-     * follow race the drop and fail. And migrating leaves the connection's
-     * client null, which unlike Laravel's SQL drivers it never restores, so the
-     * transaction RefreshDatabase opens next dies on it.
-     *
-     * Dropping the collections one by one is synchronous, and reconnecting
-     * afterwards leaves the trait with nothing to do but its transaction.
+     * The trait's own `beforeRefreshingDatabase` hook cannot hold the check:
+     * a trait method wins over one inherited from here, so it would silently
+     * replace it.
      */
     protected function setUpTraits(): array
     {
-        if (! RefreshDatabaseState::$migrated && $this->usesRefreshDatabase()) {
-            $database = DB::connection()->getDatabase();
-
-            $this->guardAgainstWipingTheWorkingDatabase($database->getDatabaseName());
-
-            foreach ($database->listCollectionNames() as $collection) {
-                $database->dropCollection($collection);
-            }
-
-            $this->artisan('migrate');
-            $this->app[Kernel::class]->setArtisan(null);
-
-            // `reconnect()` only refreshes PDO handles, which MongoDB has none
-            // of; purging drops the dead instance so the next resolve builds a
-            // connection with a live client.
-            DB::purge();
-
-            RefreshDatabaseState::$migrated = true;
+        if ($this->usesRefreshDatabase()) {
+            $this->guardAgainstWipingTheWorkingDatabase(DB::connection()->getDatabaseName());
         }
 
         return parent::setUpTraits();
@@ -58,17 +35,17 @@ abstract class TestCase extends BaseTestCase
     /**
      * Refuse to run unless the connected database is clearly a test database.
      *
-     * The next thing this class does is drop every collection it can see, so
-     * a misconfigured MONGODB_DATABASE is the difference between a test run
-     * and losing the shop's records. Failing loudly here is cheap; the
+     * RefreshDatabase is about to drop every table it can see, so a
+     * misconfigured DB_DATABASE is the difference between a test run and
+     * losing the shop's records. Failing loudly here is cheap; the
      * alternative is not recoverable.
      */
     private function guardAgainstWipingTheWorkingDatabase(string $name): void
     {
         if (! str_ends_with($name, '_testing')) {
             $this->fail(
-                "Refusing to run: the suite drops every collection, and [{$name}] is not a test database. "
-                .'Test database names must end in `_testing`. Check MONGODB_DATABASE in phpunit.xml '
+                "Refusing to run: the suite drops every table, and [{$name}] is not a test database. "
+                .'Test database names must end in `_testing`. Check DB_DATABASE in phpunit.xml '
                 .'and that no environment variable is overriding it.'
             );
         }

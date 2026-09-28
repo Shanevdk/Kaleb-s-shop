@@ -38,12 +38,15 @@ class VehicleResource extends JsonResource
             'photos' => (object) $this->photoUrls(),
             'service_records_count' => $this->whenCounted('serviceRecords'),
             'spend' => $this->when(
-                isset($this->parts_spend) || isset($this->labour_spend),
-                fn (): float => round((float) $this->parts_spend + (float) $this->labour_spend, 2),
+                array_key_exists('parts_spend', $this->getAttributes()),
+                fn (): float => round(
+                    (float) $this->resource->getAttribute('parts_spend') + (float) $this->resource->getAttribute('labour_spend'),
+                    2,
+                ),
             ),
             'last_serviced_on' => $this->when(
                 array_key_exists('last_serviced_on', $this->getAttributes()),
-                fn (): ?string => $this->last_serviced_on,
+                fn (): ?string => $this->resource->getAttribute('last_serviced_on'),
             ),
         ];
     }

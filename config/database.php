@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'mongodb'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -32,6 +32,8 @@ return [
 
     'connections' => [
 
+        // The old MongoDB store, kept only so `app:import-mongodb` can copy
+        // its records into the SQL database.
         'mongodb' => [
             'driver' => 'mongodb',
             'dsn' => env('MONGODB_URI', 'mongodb://127.0.0.1:27017'),

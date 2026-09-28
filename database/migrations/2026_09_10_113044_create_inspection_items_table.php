@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use MongoDB\Laravel\Schema\Blueprint;
 
 return new class extends Migration
 {
@@ -11,8 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inspection_items', function (Blueprint $collection) {
-            $collection->index(['inspection_id' => 1, 'position' => 1]);
+        Schema::create('inspection_items', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+            $table->foreignUlid('inspection_id')->constrained()->cascadeOnDelete();
+            $table->string('section');
+            $table->string('label');
+            $table->string('status')->default('pending');
+            $table->string('notes')->nullable();
+            $table->unsignedInteger('position')->default(0);
+            $table->timestamps();
+
+            $table->index(['inspection_id', 'position']);
         });
     }
 

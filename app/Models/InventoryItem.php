@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
-use App\Concerns\CascadesDeletes;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
 use Database\Factories\InventoryItemFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
-use MongoDB\Laravel\Relations\HasMany;
 
 /**
  * @property string $id
@@ -52,14 +54,7 @@ use MongoDB\Laravel\Relations\HasMany;
 class InventoryItem extends Model
 {
     /** @use HasFactory<InventoryItemFactory> */
-    use CascadesDeletes, HasFactory;
-
-    /**
-     * The relations that go when the part goes.
-     *
-     * @var array<int, string>
-     */
-    protected array $cascadeDeletes = ['fitments', 'stockMovements'];
+    use HasFactory, HasUlids;
 
     /**
      * Get the owner of the stocked part.
@@ -99,18 +94,8 @@ class InventoryItem extends Model
      */
     public function syncFitments(array $fitments): void
     {
-        // `updateOrCreate` opens a savepoint, which MongoDB has no answer for
-        // once a transaction is already open, so the lookup is done by hand.
         foreach ($fitments as $vehicleId => $attributes) {
-            $existing = $this->fitments()->where('vehicle_id', (string) $vehicleId)->first();
-
-            if ($existing instanceof Fitment) {
-                $existing->update($attributes);
-
-                continue;
-            }
-
-            $this->fitments()->create([...$attributes, 'vehicle_id' => (string) $vehicleId]);
+            $this->fitments()->updateOrCreate(['vehicle_id' => (string) $vehicleId], $attributes);
         }
 
         $this->fitments()
@@ -142,16 +127,14 @@ class InventoryItem extends Model
     }
 
     /**
-     * Get the query for parts sitting at or below their reorder point.
+     * Only include parts sitting at or below their reorder point.
      *
-     * MongoDB cannot compare two fields of the same document with a plain
-     * `where`, so the comparison goes through an aggregation expression.
-     *
-     * @return array<string, mixed>
+     * @param  Builder<InventoryItem>  $query
      */
-    public static function lowStockExpression(): array
+    #[Scope]
+    protected function lowStock(Builder $query): void
     {
-        return ['$expr' => ['$lte' => ['$quantity', '$minimum_quantity']]];
+        $query->whereColumn('quantity', '<=', 'minimum_quantity');
     }
 
     /**

@@ -1,25 +1,26 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use MongoDB\Laravel\Schema\Blueprint;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * The cache store creates its own TTL index on `expires_at` the first time
-     * it writes, so the collections only have to exist.
      */
     public function up(): void
     {
-        Schema::create('cache', function (Blueprint $collection) {
-            $collection->index('expires_at');
+        Schema::create('cache', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->mediumText('value');
+            $table->bigInteger('expiration')->index();
         });
 
-        Schema::create('cache_locks', function (Blueprint $collection) {
-            $collection->index('expires_at');
+        Schema::create('cache_locks', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->string('owner');
+            $table->bigInteger('expiration')->index();
         });
     }
 

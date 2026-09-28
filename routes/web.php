@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
@@ -53,7 +54,10 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::inertia('assistant', 'assistant')->name('assistant');
+    Route::get('assistant', [AssistantController::class, 'show'])->name('assistant');
+    Route::post('assistant', [AssistantController::class, 'ask'])
+        ->middleware('throttle:10,1')
+        ->name('assistant.ask');
 
     Route::get('lookup', [LookupController::class, 'index'])->name('lookup');
     Route::get('lookup/decode', [LookupController::class, 'decode'])->name('lookup.decode');

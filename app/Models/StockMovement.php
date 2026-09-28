@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Database\Factories\StockMovementFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
 
 /**
  * @property string $id
@@ -24,7 +25,7 @@ use MongoDB\Laravel\Relations\BelongsTo;
 class StockMovement extends Model
 {
     /** @use HasFactory<StockMovementFactory> */
-    use HasFactory;
+    use HasFactory, HasUlids;
 
     /**
      * Get the owner of the movement.

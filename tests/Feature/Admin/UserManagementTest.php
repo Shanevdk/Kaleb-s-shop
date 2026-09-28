@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Create an account that can reach admin-only routes.
@@ -236,4 +237,72 @@ test('the make admin command can revoke access', function () {
 
 test('the make admin command reports an unknown email', function () {
     $this->artisan('app:make-admin', ['email' => 'nobody@example.com'])->assertFailed();
+});
+
+test('the create admin command makes a verified admin from the configured defaults', function () {
+    config(['app.admin' => ['name' => 'Shop Owner', 'email' => 'Owner@Example.com', 'password' => 'golfcart']]);
+
+    $this->artisan('app:create-admin')->assertSuccessful();
+
+    $user = User::where('email', 'owner@example.com')->sole();
+
+    expect($user->name)->toBe('Shop Owner')
+        ->and((bool) $user->is_admin)->toBeTrue()
+        ->and($user->email_verified_at)->not->toBeNull()
+        ->and(Hash::check('golfcart', $user->password))->toBeTrue();
+});
+
+test('the create admin command resets an existing account instead of duplicating it', function () {
+    $user = User::factory()->create(['email' => 'owner@example.com', 'name' => 'Kept Name']);
+
+    $this->artisan('app:create-admin', ['email' => 'owner@example.com', '--password' => 'new-password'])
+        ->assertSuccessful();
+
+    $user->refresh();
+
+    expect(User::where('email', 'owner@example.com')->count())->toBe(1)
+        ->and($user->name)->toBe('Kept Name')
+        ->and((bool) $user->is_admin)->toBeTrue()
+        ->and(Hash::check('new-password', $user->password))->toBeTrue();
+});
+
+test('the create admin command fails without a password', function () {
+    config(['app.admin.password' => null]);
+
+    $this->artisan('app:create-admin', ['email' => 'owner@example.com'])->assertFailed();
+
+    expect(User::where('email', 'owner@example.com')->exists())->toBeFalse();
+});
+
+test('the delete admin command removes the configured admin after confirming', function () {
+    $user = admin();
+    config(['app.admin.email' => $user->email]);
+
+    $this->artisan('app:delete-admin')
+        ->expectsConfirmation("Delete {$user->email} and all of its vehicles, records and stock?", 'yes')
+        ->assertSuccessful();
+
+    expect(User::whereKey($user->id)->exists())->toBeFalse();
+});
+
+test('the delete admin command keeps the account when not confirmed', function () {
+    $user = admin();
+
+    $this->artisan('app:delete-admin', ['email' => $user->email])
+        ->expectsConfirmation("Delete {$user->email} and all of its vehicles, records and stock?", 'no')
+        ->assertSuccessful();
+
+    expect(User::whereKey($user->id)->exists())->toBeTrue();
+});
+
+test('the delete admin command will not delete someone who is not an admin', function () {
+    $user = User::factory()->create();
+
+    $this->artisan('app:delete-admin', ['email' => $user->email, '--force' => true])->assertFailed();
+
+    expect(User::whereKey($user->id)->exists())->toBeTrue();
+});
+
+test('the delete admin command reports an unknown email', function () {
+    $this->artisan('app:delete-admin', ['email' => 'nobody@example.com', '--force' => true])->assertFailed();
 });

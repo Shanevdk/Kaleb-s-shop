@@ -1,19 +1,27 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use MongoDB\Laravel\Schema\Blueprint;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
+     *
+     * Overrides the passkeys package migration, which assumes integer user
+     * keys.
      */
     public function up(): void
     {
-        Schema::create('passkeys', function (Blueprint $collection) {
-            $collection->unique('credential_id');
-            $collection->index('user_id');
+        Schema::create('passkeys', function (Blueprint $table) {
+            $table->id();
+            $table->foreignUlid('user_id')->constrained()->cascadeOnDelete();
+            $table->string('name');
+            $table->string('credential_id')->unique();
+            $table->json('credential');
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamps();
         });
     }
 

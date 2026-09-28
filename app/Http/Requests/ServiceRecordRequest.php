@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
 use App\Enums\UnitOfMeasure;
+use App\Models\ServiceRecord;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,6 +29,8 @@ class ServiceRecordRequest extends FormRequest
      */
     public function rules(): array
     {
+        $serviceRecord = $this->route('service_record');
+
         return [
             'vehicle_id' => [
                 'required',
@@ -47,7 +50,7 @@ class ServiceRecordRequest extends FormRequest
                 'nullable',
                 'string',
                 Rule::exists('service_record_parts', 'id')
-                    ->where('service_record_id', $this->route('service_record')?->id),
+                    ->where('service_record_id', $serviceRecord instanceof ServiceRecord ? $serviceRecord->id : null),
             ],
             'parts.*.name' => ['required', 'string', 'max:120'],
             'parts.*.inventory_item_id' => [

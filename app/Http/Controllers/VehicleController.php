@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\DecodeVin;
 use App\Actions\FetchRecalls;
-use App\Enums\CheckStatus;
 use App\Enums\MachineKind;
 use App\Enums\PhotoAngle;
 use App\Http\Requests\VehicleRequest;
@@ -14,12 +13,10 @@ use App\Http\Resources\ServiceRecordResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Fitment;
 use App\Models\Inspection;
-use App\Models\InspectionItem;
 use App\Models\ServiceRecord;
 use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,17 +33,19 @@ class VehicleController extends Controller
         $vehicles = $request->user()->vehicles()
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
-                    $query->where('make', 'like', "%{$search}%")
-                        ->orWhere('model', 'like', "%{$search}%")
-                        ->orWhere('nickname', 'like', "%{$search}%")
-                        ->orWhere('registration', 'like', "%{$search}%");
+                    $query->whereLike('make', "%{$search}%")
+                        ->orWhereLike('model', "%{$search}%")
+                        ->orWhereLike('nickname', "%{$search}%")
+                        ->orWhereLike('registration', "%{$search}%");
                 });
             })
+            ->withCount('serviceRecords')
+            ->withSum('serviceRecords as parts_spend', 'parts_cost')
+            ->withSum('serviceRecords as labour_spend', 'labour_cost')
+            ->withMax('serviceRecords as last_serviced_on', 'performed_on')
             ->orderBy('make')
             ->orderBy('model')
             ->get();
-
-        $this->attachServiceTotals($request, $vehicles);
 
         return Inertia::render('vehicles/index', [
             'vehicles' => VehicleResource::collection($vehicles)->resolve(),
@@ -121,7 +120,7 @@ class VehicleController extends Controller
 
         $validated['kind'] = $validated['kind']
             ?? $specs['kind']
-            ?? $existing?->kind?->value
+            ?? $existing?->kind->value
             ?? MachineKind::Other->value;
         $validated['specs'] = $specs;
 
@@ -144,11 +143,10 @@ class VehicleController extends Controller
             ->get();
 
         $inspections = $vehicle->inspections()
+            ->withCheckTallies()
             ->latest('performed_on')
             ->latest('id')
             ->get();
-
-        $this->attachCheckTallies($inspections);
 
         $fitments = $vehicle->fitments()
             ->with('inventoryItem')
@@ -183,32 +181,6 @@ class VehicleController extends Controller
                 'needs_attention' => $inspections->sum(fn (Inspection $inspection): int => (int) $inspection->getAttribute('flagged_count')),
             ],
         ]);
-    }
-
-    /**
-     * Put the good, needs attention and fixed tallies on each checklist.
-     *
-     * MongoDB cannot join, so `withCount` is not available: the items are
-     * pulled back in one go and counted by hand.
-     *
-     * @param  Collection<int, Inspection>  $inspections
-     */
-    private function attachCheckTallies(Collection $inspections): void
-    {
-        $items = InspectionItem::query()
-            ->whereIn('inspection_id', $inspections->map(fn (Inspection $inspection): string => $inspection->id)->all())
-            ->get(['inspection_id', 'status'])
-            ->groupBy('inspection_id');
-
-        foreach ($inspections as $inspection) {
-            /** @var Collection<int, InspectionItem> $own */
-            $own = $items->get($inspection->id, new Collection);
-
-            $inspection->setAttribute('items_count', $own->count());
-            $inspection->setAttribute('checked_count', $own->filter(fn (InspectionItem $item): bool => $item->status->isChecked())->count());
-            $inspection->setAttribute('flagged_count', $own->filter(fn (InspectionItem $item): bool => $item->status->needsWork())->count());
-            $inspection->setAttribute('fixed_count', $own->filter(fn (InspectionItem $item): bool => $item->status === CheckStatus::Fixed)->count());
-        }
     }
 
     /**
@@ -248,33 +220,5 @@ class VehicleController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Vehicle removed.')]);
 
         return to_route('vehicles.index');
-    }
-
-    /**
-     * Put the job count and spend on each vehicle.
-     *
-     * MongoDB cannot join, so `withCount` and `withSum` are not available:
-     * the user's service records are pulled back once and rolled up by hand.
-     *
-     * @param  Collection<int, Vehicle>  $vehicles
-     */
-    private function attachServiceTotals(Request $request, Collection $vehicles): void
-    {
-        $records = $request->user()->serviceRecords()
-            ->get(['vehicle_id', 'parts_cost', 'labour_cost', 'performed_on'])
-            ->groupBy('vehicle_id');
-
-        foreach ($vehicles as $vehicle) {
-            /** @var Collection<int, ServiceRecord> $own */
-            $own = $records->get($vehicle->id, new Collection);
-
-            $vehicle->setAttribute('service_records_count', $own->count());
-            $vehicle->setAttribute('parts_spend', $own->sum(fn (ServiceRecord $record): float => (float) $record->parts_cost));
-            $vehicle->setAttribute('labour_spend', $own->sum(fn (ServiceRecord $record): float => (float) $record->labour_cost));
-            $vehicle->setAttribute(
-                'last_serviced_on',
-                $own->max(fn (ServiceRecord $record): string => $record->performed_on->toDateString()),
-            );
-        }
     }
 }

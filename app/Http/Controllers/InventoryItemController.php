@@ -44,19 +44,19 @@ class InventoryItemController extends Controller
             ->with('fitments.vehicle')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
-                    $query->where('name', 'like', "%{$search}%")
-                        ->orWhere('part_number', 'like', "%{$search}%")
-                        ->orWhere('barcode', 'like', "%{$search}%")
-                        ->orWhere('brand', 'like', "%{$search}%")
-                        ->orWhere('location', 'like', "%{$search}%");
+                    $query->whereLike('name', "%{$search}%")
+                        ->orWhereLike('part_number', "%{$search}%")
+                        ->orWhereLike('barcode', "%{$search}%")
+                        ->orWhereLike('brand', "%{$search}%")
+                        ->orWhereLike('location', "%{$search}%");
                 });
             })
             ->when(PartCategory::tryFrom($category), fn ($query, PartCategory $category) => $query->where('category', $category))
             ->when($vehicleId !== '', fn ($query) => $query->whereIn(
-                '_id',
+                'id',
                 Fitment::where('vehicle_id', $vehicleId)->pluck('inventory_item_id')->all(),
             ))
-            ->when($lowStockOnly, fn ($query) => $query->whereRaw(InventoryItem::lowStockExpression()))
+            ->when($lowStockOnly, fn ($query) => $query->lowStock())
             ->orderBy('name')
             ->get();
 
@@ -229,7 +229,7 @@ class InventoryItemController extends Controller
     /**
      * Get the vehicles a part can be marked as fitting.
      *
-     * @return array<int, array{id: int, display_name: string, registration: string|null}>
+     * @return array<int, array{id: string, display_name: string, registration: string|null}>
      */
     private function fitmentOptions(Request $request): array
     {

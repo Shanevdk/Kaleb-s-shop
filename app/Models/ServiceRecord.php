@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use App\Concerns\CascadesDeletes;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
 use Database\Factories\ServiceRecordFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
-use MongoDB\Laravel\Relations\HasMany;
 
 /**
  * @property string $id
@@ -34,14 +34,7 @@ use MongoDB\Laravel\Relations\HasMany;
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */
-    use CascadesDeletes, HasFactory;
-
-    /**
-     * The relations that go when the job goes.
-     *
-     * @var array<int, string>
-     */
-    protected array $cascadeDeletes = ['parts'];
+    use HasFactory, HasUlids;
 
     /**
      * Get the owner of the service record.

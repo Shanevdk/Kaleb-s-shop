@@ -6,10 +6,11 @@ use App\Enums\UnitOfMeasure;
 use Database\Factories\ServiceRecordPartFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
 
 /**
  * @property string $id
@@ -26,10 +27,11 @@ use MongoDB\Laravel\Relations\BelongsTo;
 class ServiceRecordPart extends Model
 {
     /** @use HasFactory<ServiceRecordPartFactory> */
-    use HasFactory;
+    use HasFactory, HasUlids;
 
     /**
-     * MongoDB has no column defaults, so a part line gets them here.
+     * Mirrors the column defaults, so a freshly created line has them without
+     * being reloaded.
      *
      * @var array<string, mixed>
      */

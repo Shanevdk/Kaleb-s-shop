@@ -1,5 +1,12 @@
-import { ArrowLeft, Box, Cog, Images, Orbit } from 'lucide-react';
-import { lazy, Suspense, useState } from 'react';
+import { ArrowLeft, Box, BoxSelect, Cog, Images, Orbit } from 'lucide-react';
+import {
+    Component,
+    lazy,
+    Suspense,
+    useState,
+    useSyncExternalStore,
+    type ReactNode,
+} from 'react';
 import type { ViewerView } from '@/components/machine-viewer';
 import PhotoSpin from '@/components/photo-spin';
 import { Button } from '@/components/ui/button';
@@ -25,6 +32,70 @@ import type {
 const MachineViewer = lazy(() => import('@/components/machine-viewer'));
 
 type Mode = 'model' | 'photos';
+
+let webglSupport: boolean | undefined;
+
+/**
+ * Determine whether the browser can draw 3D at all. Some have WebGL switched
+ * off (hardware acceleration disabled, or a blocklisted graphics driver), and
+ * three.js throws when it cannot get a context. The probe context is released
+ * straight away so it does not count against the browser's limit.
+ */
+function supportsWebGL(): boolean {
+    if (webglSupport === undefined) {
+        try {
+            const canvas = document.createElement('canvas');
+            const context =
+                canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+
+            webglSupport = context !== null;
+            context?.getExtension('WEBGL_lose_context')?.loseContext();
+        } catch {
+            webglSupport = false;
+        }
+    }
+
+    return webglSupport;
+}
+
+function neverChanges(): () => void {
+    return () => {};
+}
+
+/**
+ * Keep a failing 3D viewer to its own box rather than taking the whole page
+ * down with it.
+ */
+class ViewerBoundary extends Component<
+    { fallback: ReactNode; children: ReactNode },
+    { failed: boolean }
+> {
+    state = { failed: false };
+
+    static getDerivedStateFromError(): { failed: boolean } {
+        return { failed: true };
+    }
+
+    render(): ReactNode {
+        return this.state.failed ? this.props.fallback : this.props.children;
+    }
+}
+
+function NoModel({ hasPhotos }: { hasPhotos: boolean }) {
+    return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
+            <BoxSelect className="text-muted-foreground size-8" />
+            <p className="text-sm font-medium">
+                The 3D model cannot be shown in this browser
+            </p>
+            <p className="text-muted-foreground max-w-sm text-xs">
+                3D graphics (WebGL) are turned off. Switching on hardware
+                acceleration in the browser settings usually brings it back.
+                {hasPhotos && ' The photos still work.'}
+            </p>
+        </div>
+    );
+}
 
 export default function MachineModel({
     kind,
@@ -52,6 +123,12 @@ export default function MachineModel({
     const [selected, setSelected] = useState<EnginePartKey | null>(null);
     const [available, setAvailable] = useState<EnginePartKey[]>([]);
     const { resolvedAppearance } = useAppearance();
+    // Assumed possible while rendering on the server, then checked for real.
+    const canDraw3d = useSyncExternalStore(
+        neverChanges,
+        supportsWebGL,
+        () => true,
+    );
 
     const hasEngine = kind !== 'trailer';
     const photoCount = Object.values(photos).filter(Boolean).length;
@@ -60,7 +137,7 @@ export default function MachineModel({
     );
     const parts = ENGINE_PART_KEYS.filter((key) => available.includes(key));
     const detail = selected ? ENGINE_PARTS[selected] : null;
-    const showingPhotos = mode === 'photos' && photoCount > 0;
+    const showingPhotos = (mode === 'photos' || !canDraw3d) && photoCount > 0;
 
     function showMachine(): void {
         setView('machine');
@@ -69,11 +146,13 @@ export default function MachineModel({
 
     const description = showingPhotos
         ? 'Your photos, stitched into a spin-around. Drag to turn it.'
-        : view === 'machine'
-          ? hasEngine
-              ? 'Drag to spin it round. Click the glowing marker to open the engine bay.'
-              : 'Drag to spin it round. A trailer has no engine to look at.'
-          : (engineSummary ?? 'Click a part of the engine to read about it.');
+        : !canDraw3d
+          ? (engineSummary ?? 'A 3D model needs 3D graphics in the browser.')
+          : view === 'machine'
+            ? hasEngine
+                ? 'Drag to spin it round. Click the glowing marker to open the engine bay.'
+                : 'Drag to spin it round. A trailer has no engine to look at.'
+            : (engineSummary ?? 'Click a part of the engine to read about it.');
 
     return (
         <section className="bg-card overflow-hidden rounded-xl border">
@@ -92,7 +171,7 @@ export default function MachineModel({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    {photoCount > 0 && (
+                    {photoCount > 0 && canDraw3d && (
                         <div className="bg-muted inline-flex rounded-md p-0.5">
                             <button
                                 type="button"
@@ -123,19 +202,23 @@ export default function MachineModel({
                         </div>
                     )}
 
-                    {!showingPhotos && canWrap && view === 'machine' && (
-                        <Button
-                            size="sm"
-                            variant={wrap ? 'default' : 'outline'}
-                            onClick={() => setWrap((current) => !current)}
-                            aria-pressed={wrap}
-                        >
-                            <Images />
-                            {wrap ? 'Photos wrapped on' : 'Wrap photos on'}
-                        </Button>
-                    )}
+                    {!showingPhotos &&
+                        canDraw3d &&
+                        canWrap &&
+                        view === 'machine' && (
+                            <Button
+                                size="sm"
+                                variant={wrap ? 'default' : 'outline'}
+                                onClick={() => setWrap((current) => !current)}
+                                aria-pressed={wrap}
+                            >
+                                <Images />
+                                {wrap ? 'Photos wrapped on' : 'Wrap photos on'}
+                            </Button>
+                        )}
 
                     {!showingPhotos &&
+                        canDraw3d &&
                         hasEngine &&
                         (view === 'machine' ? (
                             <Button
@@ -170,34 +253,42 @@ export default function MachineModel({
                 <div className="bg-muted/30 relative aspect-[16/10] min-h-72">
                     {showingPhotos ? (
                         <PhotoSpin angles={photoAngles} photos={photos} />
+                    ) : !canDraw3d ? (
+                        <NoModel hasPhotos={photoCount > 0} />
                     ) : (
                         <>
-                            <Suspense
+                            <ViewerBoundary
                                 fallback={
-                                    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-                                        <Skeleton className="size-24 rounded-full" />
-                                        <p className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-                                            <Orbit className="size-3.5 animate-spin" />
-                                            Building the model
-                                        </p>
-                                    </div>
+                                    <NoModel hasPhotos={photoCount > 0} />
                                 }
                             >
-                                <MachineViewer
-                                    kind={kind}
-                                    engine={engine}
-                                    doors={doors}
-                                    photos={photos}
-                                    wrapPhotos={wrap && canWrap}
-                                    view={view}
-                                    selectedPart={selected}
-                                    appearance={resolvedAppearance}
-                                    onViewChange={setView}
-                                    onHoverPart={setHovered}
-                                    onSelectPart={setSelected}
-                                    onPartsReady={setAvailable}
-                                />
-                            </Suspense>
+                                <Suspense
+                                    fallback={
+                                        <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+                                            <Skeleton className="size-24 rounded-full" />
+                                            <p className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+                                                <Orbit className="size-3.5 animate-spin" />
+                                                Building the model
+                                            </p>
+                                        </div>
+                                    }
+                                >
+                                    <MachineViewer
+                                        kind={kind}
+                                        engine={engine}
+                                        doors={doors}
+                                        photos={photos}
+                                        wrapPhotos={wrap && canWrap}
+                                        view={view}
+                                        selectedPart={selected}
+                                        appearance={resolvedAppearance}
+                                        onViewChange={setView}
+                                        onHoverPart={setHovered}
+                                        onSelectPart={setSelected}
+                                        onPartsReady={setAvailable}
+                                    />
+                                </Suspense>
+                            </ViewerBoundary>
 
                             <span className="bg-background/80 text-muted-foreground pointer-events-none absolute top-3 right-3 rounded-full border px-2.5 py-0.5 text-[11px] font-medium">
                                 {kindLabel}

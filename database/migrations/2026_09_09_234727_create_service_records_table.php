@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use MongoDB\Laravel\Schema\Blueprint;
 
 return new class extends Migration
 {
@@ -11,9 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('service_records', function (Blueprint $collection) {
-            $collection->index(['user_id' => 1, 'performed_on' => -1]);
-            $collection->index('vehicle_id');
+        Schema::create('service_records', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+            $table->foreignUlid('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignUlid('vehicle_id')->constrained()->cascadeOnDelete();
+            $table->string('title');
+            $table->string('type');
+            $table->string('status');
+            $table->date('performed_on');
+            $table->unsignedInteger('odometer')->nullable();
+            $table->decimal('hours', 8, 2)->default(0);
+            $table->decimal('parts_cost', 10, 2)->default(0);
+            $table->decimal('labour_cost', 10, 2)->default(0);
+            $table->text('description')->nullable();
+            $table->timestamps();
+
+            $table->index(['user_id', 'performed_on']);
         });
     }
 

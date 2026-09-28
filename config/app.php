@@ -123,4 +123,21 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default Admin Account
+    |--------------------------------------------------------------------------
+    |
+    | The account `app:create-admin` and `app:delete-admin` act on when no
+    | email is given. Kept in the environment so the password never ends up
+    | in the repository.
+    |
+    */
+
+    'admin' => [
+        'name' => env('ADMIN_NAME', 'Admin'),
+        'email' => env('ADMIN_EMAIL'),
+        'password' => env('ADMIN_PASSWORD'),
+    ],
+
 ];

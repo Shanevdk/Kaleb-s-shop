@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use App\Concerns\CascadesDeletes;
 use App\Enums\MachineKind;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
-use MongoDB\Laravel\Relations\HasMany;
 
 /**
  * @property string $id
@@ -36,14 +36,7 @@ use MongoDB\Laravel\Relations\HasMany;
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
-    use CascadesDeletes, HasFactory;
-
-    /**
-     * The relations that go when the vehicle goes.
-     *
-     * @var array<int, string>
-     */
-    protected array $cascadeDeletes = ['serviceRecords', 'inspections', 'fitments'];
+    use HasFactory, HasUlids;
 
     /**
      * The photos go from disk when the vehicle goes.
@@ -111,7 +104,7 @@ class Vehicle extends Model
     /**
      * Get the display name for the vehicle.
      *
-     * @return Attribute<string, never>
+     * @return Attribute<non-falsy-string, never>
      */
     protected function displayName(): Attribute
     {

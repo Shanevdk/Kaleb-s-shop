@@ -5,6 +5,7 @@ use App\Enums\MachineKind;
 use App\Models\Inspection;
 use App\Models\InspectionItem;
 use App\Models\ServiceRecord;
+use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Http;
@@ -36,6 +37,17 @@ test('the vehicle list can be searched', function () {
 
     $this->actingAs($user)
         ->get(route('vehicles.index', ['search' => 'Ranger']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->has('vehicles', 1)->where('vehicles.0.model', 'Ranger'));
+});
+
+test('the vehicle list search ignores case', function () {
+    $user = User::factory()->create();
+    Vehicle::factory()->for($user)->create(['make' => 'Toyota', 'model' => 'Hilux']);
+    Vehicle::factory()->for($user)->create(['make' => 'Ford', 'model' => 'Ranger']);
+
+    $this->actingAs($user)
+        ->get(route('vehicles.index', ['search' => 'rANGER']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->has('vehicles', 1)->where('vehicles.0.model', 'Ranger'));
 });
@@ -115,6 +127,37 @@ test('a vehicle can be deleted with its service history', function () {
 
     expect(Vehicle::count())->toBe(0)
         ->and(ServiceRecord::count())->toBe(0);
+});
+
+test('the vehicle list totals each vehicle jobs, spend and last service', function () {
+    $user = User::factory()->create();
+    $worked = Vehicle::factory()->for($user)->create(['make' => 'Acme']);
+    Vehicle::factory()->for($user)->create(['make' => 'Zeta']);
+    ServiceRecord::factory()->for($user)->for($worked)->create(['parts_cost' => 100, 'labour_cost' => 50, 'performed_on' => '2026-08-01']);
+    ServiceRecord::factory()->for($user)->for($worked)->create(['parts_cost' => 20, 'labour_cost' => 5.5, 'performed_on' => '2026-09-01']);
+
+    $this->actingAs($user)
+        ->get(route('vehicles.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('vehicles.0.service_records_count', 2)
+            ->where('vehicles.0.spend', 175.5)
+            ->where('vehicles.0.last_serviced_on', '2026-09-01')
+            ->where('vehicles.1.service_records_count', 0)
+            ->where('vehicles.1.spend', 0)
+            ->where('vehicles.1.last_serviced_on', null)
+        );
+});
+
+test('deleting a vehicle keeps the stock history that went into it', function () {
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create();
+    $movement = StockMovement::factory()->for($user)->create(['vehicle_id' => $vehicle->id]);
+
+    $this->actingAs($user)->delete(route('vehicles.destroy', $vehicle));
+
+    expect($movement->fresh())->not->toBeNull()
+        ->and($movement->fresh()->vehicle_id)->toBeNull();
 });
 
 test('a user cannot view, update or delete another mechanic vehicle', function () {

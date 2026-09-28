@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\ServiceStatus;
 use App\Models\InventoryItem;
-use App\Models\ServiceRecord;
 use App\Models\ServiceRecordPart;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -49,12 +48,9 @@ class ShoppingListController extends Controller
      */
     private function shortForOpenJobs(Request $request): array
     {
-        // The parts store their job id as a string, so the ids they are matched
-        // against have to be strings too rather than raw object ids.
         $openJobIds = $request->user()->serviceRecords()
             ->whereIn('status', [ServiceStatus::Planned->value, ServiceStatus::InProgress->value])
-            ->get(['_id'])
-            ->map(fn (ServiceRecord $record): string => (string) $record->id)
+            ->pluck('id')
             ->all();
 
         $parts = ServiceRecordPart::query()
@@ -105,9 +101,9 @@ class ShoppingListController extends Controller
     private function belowReorderPoint(Request $request, array $alreadyListed): array
     {
         return $request->user()->inventoryItems()
-            ->whereRaw(InventoryItem::lowStockExpression())
+            ->lowStock()
             ->where('minimum_quantity', '>', 0)
-            ->whereNotIn('_id', array_filter($alreadyListed))
+            ->whereNotIn('id', array_filter($alreadyListed))
             ->orderBy('name')
             ->get()
             ->map(fn (InventoryItem $item): array => [

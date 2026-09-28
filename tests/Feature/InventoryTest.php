@@ -41,6 +41,17 @@ test('the inventory can be searched and filtered by category', function () {
         ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.name', 'Oil filter'));
 });
 
+test('the inventory search ignores case', function () {
+    $user = User::factory()->create();
+    InventoryItem::factory()->for($user)->create(['name' => 'Oil filter']);
+    InventoryItem::factory()->for($user)->create(['name' => 'Brake pads']);
+
+    $this->actingAs($user)
+        ->get(route('inventory.index', ['search' => 'brake PADS']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->has('items', 1)->where('items.0.name', 'Brake pads'));
+});
+
 test('the inventory can be narrowed to parts that need reordering', function () {
     $user = User::factory()->create();
     $low = InventoryItem::factory()->for($user)->lowStock()->create();

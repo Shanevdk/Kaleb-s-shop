@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
 
 /**
  * The vehicles a stocked part is known to fit, and how much of it each one
- * takes. MongoDB has no pivot tables, so what used to be pivot columns lives
- * in its own collection.
+ * takes.
  *
  * @property string $id
  * @property string $inventory_item_id
@@ -23,6 +23,8 @@ use MongoDB\Laravel\Relations\BelongsTo;
 #[Fillable(['inventory_item_id', 'vehicle_id', 'quantity_needed', 'notes'])]
 class Fitment extends Model
 {
+    use HasUlids;
+
     /**
      * Get the stocked part the fitment is for.
      *

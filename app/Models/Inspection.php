@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
-use App\Concerns\CascadesDeletes;
 use App\Enums\ChecklistTemplate;
+use App\Enums\CheckStatus;
 use Database\Factories\InspectionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
-use MongoDB\Laravel\Eloquent\Model;
-use MongoDB\Laravel\Relations\BelongsTo;
-use MongoDB\Laravel\Relations\HasMany;
 
 /**
  * @property string $id
@@ -30,14 +33,7 @@ use MongoDB\Laravel\Relations\HasMany;
 class Inspection extends Model
 {
     /** @use HasFactory<InspectionFactory> */
-    use CascadesDeletes, HasFactory;
-
-    /**
-     * The relations that go when the checklist goes.
-     *
-     * @var array<int, string>
-     */
-    protected array $cascadeDeletes = ['items'];
+    use HasFactory, HasUlids;
 
     /**
      * Get the owner of the checklist.
@@ -67,6 +63,28 @@ class Inspection extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InspectionItem::class)->orderBy('position');
+    }
+
+    /**
+     * Count the items, and how many have been checked, still need work or
+     * were fixed on the day.
+     *
+     * @param  Builder<Inspection>  $query
+     */
+    #[Scope]
+    protected function withCheckTallies(Builder $query): void
+    {
+        $needingWork = array_values(array_filter(
+            CheckStatus::cases(),
+            fn (CheckStatus $status): bool => $status->needsWork(),
+        ));
+
+        $query->withCount([
+            'items',
+            'items as checked_count' => fn (Builder $items) => $items->where('status', '!=', CheckStatus::Pending),
+            'items as flagged_count' => fn (Builder $items) => $items->whereIn('status', $needingWork),
+            'items as fixed_count' => fn (Builder $items) => $items->where('status', CheckStatus::Fixed),
+        ]);
     }
 
     /**
