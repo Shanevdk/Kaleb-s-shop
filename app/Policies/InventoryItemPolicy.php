@@ -12,7 +12,7 @@ class InventoryItemPolicy
      */
     public function view(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->id === $inventoryItem->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -20,7 +20,7 @@ class InventoryItemPolicy
      */
     public function update(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->id === $inventoryItem->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -28,6 +28,6 @@ class InventoryItemPolicy
      */
     public function delete(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->id === $inventoryItem->user_id;
+        return $user->role->canWorkOnRecords();
     }
 }

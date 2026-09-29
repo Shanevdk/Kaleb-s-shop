@@ -17,7 +17,10 @@ export type EnginePartKey =
     | 'radiator'
     | 'fins'
     | 'fuel'
-    | 'filter';
+    | 'filter'
+    | 'motor'
+    | 'inverter'
+    | 'reducer';
 
 export type EnginePart = {
     label: string;
@@ -100,6 +103,21 @@ export const ENGINE_PARTS: Record<EnginePartKey, EnginePart> = {
         label: 'Oil filter',
         does: 'Traps the grit and metal the oil picks up before it goes back round the bearings.',
         watch: 'Change it with every oil change. Pre-fill it where you can, and check the old gasket came off with it.',
+    },
+    motor: {
+        label: 'Drive motor',
+        does: 'Turns the battery’s power into torque at the wheels, and runs as a generator to recover energy when slowing down.',
+        watch: 'Bearing whine that rises with speed, coolant weeping at the housing, and insulation faults logged by the battery management system.',
+    },
+    inverter: {
+        label: 'Inverter and high-voltage cables',
+        does: 'Converts the battery’s direct current into the three-phase current the motor runs on, and controls its speed and torque.',
+        watch: 'Treat the orange cables as live. Isolate the pack and wait for the capacitors to discharge before touching connectors; look for coolant leaks and corroded terminals.',
+    },
+    reducer: {
+        label: 'Reduction gearbox',
+        does: 'A single-speed gear set and differential between the motor and the drive shafts.',
+        watch: 'Oil leaks at the axle seals and a gear whine that changes with road speed. Most need an oil change far less often than an engine.',
     },
 };
 

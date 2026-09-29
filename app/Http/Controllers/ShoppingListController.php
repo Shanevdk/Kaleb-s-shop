@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\ServiceStatus;
 use App\Models\InventoryItem;
+use App\Models\PartOrder;
+use App\Models\ServiceRecord;
 use App\Models\ServiceRecordPart;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,6 +25,14 @@ class ShoppingListController extends Controller
         $shortLines = $this->shortForOpenJobs($request);
         $reorderLines = $this->belowReorderPoint($request, array_column($shortLines, 'inventory_item_id'));
 
+        $openOrders = PartOrder::query()
+            ->pending()
+            ->get()
+            ->keyBy(fn (PartOrder $order): string => PartOrder::lineKey($order->inventory_item_id, $order->name));
+
+        $shortLines = $this->withOrders($shortLines, $openOrders);
+        $reorderLines = $this->withOrders($reorderLines, $openOrders);
+
         $jobIds = collect($shortLines)->flatMap(fn (array $line): array => array_column($line['jobs'], 'id'));
 
         return Inertia::render('shopping-list/index', [
@@ -30,6 +41,7 @@ class ShoppingListController extends Controller
             'stats' => [
                 'lines' => count($shortLines) + count($reorderLines),
                 'not_stocked' => count(array_filter($shortLines, fn (array $line): bool => ! $line['in_inventory'])),
+                'ordered' => count(array_filter([...$shortLines, ...$reorderLines], fn (array $line): bool => $line['order'] !== null)),
                 'jobs' => $jobIds->unique()->count(),
                 'estimated_cost' => round(
                     array_sum(array_column($shortLines, 'estimated_cost'))
@@ -48,7 +60,7 @@ class ShoppingListController extends Controller
      */
     private function shortForOpenJobs(Request $request): array
     {
-        $openJobIds = $request->user()->serviceRecords()
+        $openJobIds = ServiceRecord::query()
             ->whereIn('status', [ServiceStatus::Planned->value, ServiceStatus::InProgress->value])
             ->pluck('id')
             ->all();
@@ -100,7 +112,7 @@ class ShoppingListController extends Controller
      */
     private function belowReorderPoint(Request $request, array $alreadyListed): array
     {
-        return $request->user()->inventoryItems()
+        return InventoryItem::query()
             ->lowStock()
             ->where('minimum_quantity', '>', 0)
             ->whereNotIn('id', array_filter($alreadyListed))
@@ -112,6 +124,7 @@ class ShoppingListController extends Controller
                 'part_number' => $item->part_number,
                 'brand' => $item->brand,
                 'supplier' => $item->supplier,
+                'unit' => $item->unit->value,
                 'unit_abbreviation' => $item->unit->abbreviation(),
                 'on_hand' => (float) $item->quantity,
                 'minimum_quantity' => (float) $item->minimum_quantity,
@@ -120,6 +133,29 @@ class ShoppingListController extends Controller
                 'estimated_cost' => round((round(max(0, (float) $item->minimum_quantity - (float) $item->quantity), 2) ?: 1.0) * (float) $item->unit_cost, 2),
             ])
             ->all();
+    }
+
+    /**
+     * Mark each line with the order already placed for it, so it shows as
+     * ticked off with the amount that was ordered.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @param  Collection<string, PartOrder>  $openOrders
+     * @return array<int, array<string, mixed>>
+     */
+    private function withOrders(array $lines, Collection $openOrders): array
+    {
+        return array_map(function (array $line) use ($openOrders): array {
+            $order = $openOrders->get(PartOrder::lineKey($line['inventory_item_id'], $line['name']));
+
+            $line['order'] = $order === null ? null : [
+                'id' => $order->id,
+                'quantity_ordered' => (float) $order->quantity_ordered,
+                'quantity_received' => (float) $order->quantity_received,
+            ];
+
+            return $line;
+        }, $lines);
     }
 
     /**
@@ -138,6 +174,7 @@ class ShoppingListController extends Controller
             'part_number' => $item->part_number ?? null,
             'brand' => $item->brand ?? null,
             'supplier' => $item->supplier ?? null,
+            'unit' => $part->unit->value,
             'unit_abbreviation' => $part->unit->abbreviation(),
             'on_hand' => $item === null ? 0.0 : (float) $item->quantity,
             'unit_cost' => $item === null ? 0.0 : (float) $item->unit_cost,

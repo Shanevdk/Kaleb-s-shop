@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Concerns\PasswordValidationRules;
+use App\Enums\UserRole;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,7 @@ class UserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return (bool) $this->user()?->is_admin;
+        return (bool) $this->user()?->can('manage-team');
     }
 
     /**
@@ -37,7 +38,7 @@ class UserRequest extends FormRequest
                 Rule::unique('users', 'email'),
             ],
             'password' => $this->passwordRules(),
-            'is_admin' => ['nullable', 'boolean'],
+            'role' => ['required', Rule::enum(UserRole::class)],
         ];
     }
 

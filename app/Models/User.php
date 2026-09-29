@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -22,7 +23,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
- * @property bool $is_admin
+ * @property UserRole $role
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -88,6 +89,16 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the parts the user has ticked off the shopping list as ordered.
+     *
+     * @return HasMany<PartOrder, $this>
+     */
+    public function partOrders(): HasMany
+    {
+        return $this->hasMany(PartOrder::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -97,7 +108,7 @@ class User extends Authenticatable implements PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'is_admin' => 'boolean',
+            'role' => UserRole::class,
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -105,12 +116,12 @@ class User extends Authenticatable implements PasskeyUser
     /**
      * Get the default attribute values.
      *
-     * Mirrors the column default, so a freshly created user is not an admin
+     * Mirrors the column default, so a freshly created user is a mechanic
      * without being reloaded.
      *
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'is_admin' => false,
+        'role' => 'mechanic',
     ];
 }

@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\UserRole;
 use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -8,11 +10,7 @@ use Illuminate\Support\Facades\Hash;
  */
 function admin(): User
 {
-    $user = User::factory()->create(['email_verified_at' => now()]);
-    $user->is_admin = true;
-    $user->save();
-
-    return $user;
+    return User::factory()->admin()->create(['email_verified_at' => now()]);
 }
 
 test('public registration is switched off', function () {
@@ -33,8 +31,12 @@ test('guests cannot reach the team page', function () {
     $this->get(route('admin.users.index'))->assertRedirect(route('login'));
 });
 
-test('a non admin cannot reach the team page', function () {
+test('mechanics and shoppers cannot reach the team page', function () {
     $this->actingAs(User::factory()->create(['email_verified_at' => now()]))
+        ->get(route('admin.users.index'))
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->shopper()->create(['email_verified_at' => now()]))
         ->get(route('admin.users.index'))
         ->assertForbidden();
 });
@@ -49,6 +51,7 @@ test('an admin sees everyone on the team page', function () {
         ->assertInertia(fn ($page) => $page
             ->component('admin/users/index')
             ->has('users', 2)
+            ->has('roles', count(UserRole::cases()))
         );
 });
 
@@ -61,13 +64,14 @@ test('an admin can add someone who can sign in immediately', function () {
             'email' => 'kaleb@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
+            'role' => 'mechanic',
         ])
         ->assertRedirect(route('admin.users.index'));
 
     $created = User::where('email', 'kaleb@example.com')->firstOrFail();
 
     expect($created->name)->toBe('Kaleb Van De Krol')
-        ->and((bool) $created->is_admin)->toBeFalse()
+        ->and($created->role)->toBe(UserRole::Mechanic)
         ->and($created->email_verified_at)->not->toBeNull();
 
     $this->post(route('logout'));
@@ -80,17 +84,17 @@ test('an admin can add someone who can sign in immediately', function () {
     $this->assertAuthenticatedAs($created);
 });
 
-test('an admin can add another admin', function () {
+test('an admin can add someone in each role', function (string $role) {
     $this->actingAs(admin())->post(route('admin.users.store'), [
-        'name' => 'Second Admin',
-        'email' => 'second@example.com',
+        'name' => 'New Starter',
+        'email' => 'starter@example.com',
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
-        'is_admin' => true,
-    ]);
+        'role' => $role,
+    ])->assertRedirect(route('admin.users.index'));
 
-    expect((bool) User::where('email', 'second@example.com')->firstOrFail()->is_admin)->toBeTrue();
-});
+    expect(User::where('email', 'starter@example.com')->firstOrFail()->role)->toBe(UserRole::from($role));
+})->with(['admin', 'mechanic', 'shopper']);
 
 test('adding someone requires a name, unique email and confirmed password', function () {
     $admin = admin();
@@ -101,8 +105,9 @@ test('adding someone requires a name, unique email and confirmed password', func
             'email' => $admin->email,
             'password' => 'Password123!',
             'password_confirmation' => 'different',
+            'role' => 'owner',
         ])
-        ->assertSessionHasErrors(['name', 'email', 'password']);
+        ->assertSessionHasErrors(['name', 'email', 'password', 'role']);
 });
 
 test('a non admin cannot add anyone', function () {
@@ -112,58 +117,67 @@ test('a non admin cannot add anyone', function () {
             'email' => 'sneaky@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
+            'role' => 'admin',
         ])
         ->assertForbidden();
 
     expect(User::where('email', 'sneaky@example.com')->exists())->toBeFalse();
 });
 
-test('a new account cannot be made admin through mass assignment', function () {
-    $this->actingAs(admin())->post(route('admin.users.store'), [
-        'name' => 'Mechanic',
-        'email' => 'mechanic@example.com',
-        'password' => 'Password123!',
-        'password_confirmation' => 'Password123!',
-        'is_admin' => false,
-    ]);
+test('a role has to be picked when adding someone', function () {
+    $this->actingAs(admin())
+        ->post(route('admin.users.store'), [
+            'name' => 'Mechanic',
+            'email' => 'mechanic@example.com',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ])
+        ->assertSessionHasErrors('role');
 
-    expect((bool) User::where('email', 'mechanic@example.com')->firstOrFail()->is_admin)->toBeFalse();
+    expect(User::where('email', 'mechanic@example.com')->exists())->toBeFalse();
 });
 
-test('an admin can promote and demote someone else', function () {
+test('an admin can change what someone else can do', function () {
     $admin = admin();
     $member = User::factory()->create(['email_verified_at' => now()]);
 
     $this->actingAs($admin)
-        ->patch(route('admin.users.update', $member), ['is_admin' => true])
+        ->patch(route('admin.users.update', $member), ['role' => 'shopper'])
         ->assertRedirect();
 
-    expect((bool) $member->refresh()->is_admin)->toBeTrue();
+    expect($member->refresh()->role)->toBe(UserRole::Shopper);
 
-    $this->actingAs($admin)->patch(route('admin.users.update', $member), ['is_admin' => false]);
+    $this->actingAs($admin)->patch(route('admin.users.update', $member), ['role' => 'admin']);
 
-    expect((bool) $member->refresh()->is_admin)->toBeFalse();
+    expect($member->refresh()->role)->toBe(UserRole::Admin);
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.update', $member), ['role' => 'owner'])
+        ->assertSessionHasErrors('role');
 });
 
 test('an admin cannot demote themselves and get locked out', function () {
     $admin = admin();
 
     $this->actingAs($admin)
-        ->patch(route('admin.users.update', $admin), ['is_admin' => false])
-        ->assertSessionHasErrors('is_admin');
+        ->patch(route('admin.users.update', $admin), ['role' => 'mechanic'])
+        ->assertSessionHasErrors('role');
 
-    expect((bool) $admin->refresh()->is_admin)->toBeTrue();
+    expect($admin->refresh()->role)->toBe(UserRole::Admin);
 });
 
-test('an admin can remove someone else', function () {
+test('an admin can remove someone else while what they logged stays with the shop', function () {
     $admin = admin();
     $member = User::factory()->create(['email_verified_at' => now()]);
+    $vehicle = Vehicle::factory()->for($member)->create();
 
     $this->actingAs($admin)
         ->delete(route('admin.users.destroy', $member))
         ->assertRedirect(route('admin.users.index'));
 
-    expect(User::find($member->id))->toBeNull();
+    expect(User::find($member->id))->toBeNull()
+        ->and($vehicle->fresh())->not->toBeNull()
+        ->and($vehicle->fresh()->user_id)->toBeNull();
 });
 
 test('an admin cannot delete their own account from the team page', function () {
@@ -211,7 +225,7 @@ test('the verify account command lets a stranded account in', function () {
     $this->artisan('app:verify-account', ['email' => 'kaleb@example.com'])->assertSuccessful();
 
     expect($user->refresh()->email_verified_at)->not->toBeNull()
-        ->and((bool) $user->is_admin)->toBeFalse();
+        ->and($user->role)->toBe(UserRole::Mechanic);
 });
 
 test('the verify account command reports an unknown email', function () {
@@ -223,7 +237,7 @@ test('the make admin command promotes and verifies an account', function () {
 
     $this->artisan('app:make-admin', ['email' => 'owner@example.com'])->assertSuccessful();
 
-    expect((bool) $user->refresh()->is_admin)->toBeTrue()
+    expect($user->refresh()->role)->toBe(UserRole::Admin)
         ->and($user->email_verified_at)->not->toBeNull();
 });
 
@@ -232,7 +246,7 @@ test('the make admin command can revoke access', function () {
 
     $this->artisan('app:make-admin', ['email' => $user->email, '--revoke' => true])->assertSuccessful();
 
-    expect((bool) $user->refresh()->is_admin)->toBeFalse();
+    expect($user->refresh()->role)->toBe(UserRole::Mechanic);
 });
 
 test('the make admin command reports an unknown email', function () {
@@ -247,7 +261,7 @@ test('the create admin command makes a verified admin from the configured defaul
     $user = User::where('email', 'owner@example.com')->sole();
 
     expect($user->name)->toBe('Shop Owner')
-        ->and((bool) $user->is_admin)->toBeTrue()
+        ->and($user->role)->toBe(UserRole::Admin)
         ->and($user->email_verified_at)->not->toBeNull()
         ->and(Hash::check('golfcart', $user->password))->toBeTrue();
 });
@@ -262,7 +276,7 @@ test('the create admin command resets an existing account instead of duplicating
 
     expect(User::where('email', 'owner@example.com')->count())->toBe(1)
         ->and($user->name)->toBe('Kept Name')
-        ->and((bool) $user->is_admin)->toBeTrue()
+        ->and($user->role)->toBe(UserRole::Admin)
         ->and(Hash::check('new-password', $user->password))->toBeTrue();
 });
 
@@ -279,7 +293,7 @@ test('the delete admin command removes the configured admin after confirming', f
     config(['app.admin.email' => $user->email]);
 
     $this->artisan('app:delete-admin')
-        ->expectsConfirmation("Delete {$user->email} and all of its vehicles, records and stock?", 'yes')
+        ->expectsConfirmation("Delete {$user->email}? What it logged stays with the shop.", 'yes')
         ->assertSuccessful();
 
     expect(User::whereKey($user->id)->exists())->toBeFalse();
@@ -289,7 +303,7 @@ test('the delete admin command keeps the account when not confirmed', function (
     $user = admin();
 
     $this->artisan('app:delete-admin', ['email' => $user->email])
-        ->expectsConfirmation("Delete {$user->email} and all of its vehicles, records and stock?", 'no')
+        ->expectsConfirmation("Delete {$user->email}? What it logged stays with the shop.", 'no')
         ->assertSuccessful();
 
     expect(User::whereKey($user->id)->exists())->toBeTrue();

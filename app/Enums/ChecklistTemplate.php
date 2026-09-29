@@ -4,6 +4,8 @@ namespace App\Enums;
 
 enum ChecklistTemplate: string
 {
+    case MonthlyCheck = 'monthly_check';
+    case AnnualInspection = 'annual_inspection';
     case BasicService = 'basic_service';
     case FullService = 'full_service';
     case SafetyCheck = 'safety_check';
@@ -16,6 +18,8 @@ enum ChecklistTemplate: string
     public function label(): string
     {
         return match ($this) {
+            self::MonthlyCheck => 'Monthly check',
+            self::AnnualInspection => 'Annual inspection',
             self::BasicService => 'Basic service',
             self::FullService => 'Full service',
             self::SafetyCheck => 'Safety / roadworthy check',
@@ -30,6 +34,8 @@ enum ChecklistTemplate: string
     public function description(): string
     {
         return match ($this) {
+            self::MonthlyCheck => 'A quick look over the main things, once a month.',
+            self::AnnualInspection => 'The thorough once-a-year going over, bumper to bumper.',
             self::BasicService => 'Oil, filters, fluids and a quick look over.',
             self::FullService => 'The long list, from engine bay to underbody.',
             self::SafetyCheck => 'Lights, brakes, steering, tyres and structure.',
@@ -46,6 +52,95 @@ enum ChecklistTemplate: string
     public function sections(): array
     {
         return match ($this) {
+            self::MonthlyCheck => [
+                'Fluids' => [
+                    'Engine oil level',
+                    'Coolant level',
+                    'Brake fluid level',
+                    'Washer fluid level',
+                    'No fresh leaks under the vehicle',
+                ],
+                'Tyres' => [
+                    'Tyre pressures',
+                    'Tread and sidewalls look okay',
+                    'Wheel nuts all present',
+                ],
+                'Lights and glass' => [
+                    'Headlights, indicators and brake lights',
+                    'Windscreen free of new chips or cracks',
+                    'Wipers and horn',
+                ],
+                'Walk around' => [
+                    'Battery secure and terminals clean',
+                    'No new body damage or rust',
+                    'No warning lights on the dash',
+                    'Brakes feel right on a short drive',
+                ],
+            ],
+            self::AnnualInspection => [
+                'Paperwork' => [
+                    'Registration current',
+                    'Insurance current',
+                    'Service history up to date',
+                    'Check for open recalls',
+                ],
+                'Engine bay' => [
+                    'Oil level and condition',
+                    'Coolant level, strength and hoses',
+                    'Brake and clutch fluid condition',
+                    'Power steering fluid and lines',
+                    'Drive belts and tensioners',
+                    'Battery load test and terminals',
+                    'Air filter condition',
+                    'Engine and gearbox mounts',
+                    'Oil, coolant and fuel leaks',
+                ],
+                'Brakes' => [
+                    'Front pads and discs',
+                    'Rear pads, shoes, discs or drums',
+                    'Brake lines and hoses',
+                    'Handbrake holds on an incline',
+                ],
+                'Steering and suspension' => [
+                    'Steering play and rack boots',
+                    'Tie rod ends and ball joints',
+                    'Shocks and springs',
+                    'Suspension bushes',
+                    'Wheel bearings free of play',
+                ],
+                'Wheels and tyres' => [
+                    'Tread depth on every tyre',
+                    'Sidewalls and wear pattern',
+                    'Spare tyre, jack and wheel brace',
+                    'Torque wheel nuts',
+                ],
+                'Underbody' => [
+                    'CV boots and driveshafts',
+                    'Gearbox and diff oil level',
+                    'Exhaust system and mounts',
+                    'Chassis and floor free of rust or damage',
+                    'Fuel lines and tank',
+                ],
+                'Electrical and cabin' => [
+                    'Every exterior light',
+                    'Horn, wipers and washers',
+                    'Dash warning lights and gauges',
+                    'Scan for fault codes',
+                    'Air conditioning and heater',
+                    'Seatbelts latch and retract',
+                    'Seats and mirrors secure',
+                ],
+                'Body and glass' => [
+                    'Windscreen and windows',
+                    'Doors, locks and latches',
+                    'Body panels and paint',
+                    'Safety gear on board',
+                ],
+                'Finish' => [
+                    'Road test',
+                    'Book in anything that needs work',
+                ],
+            ],
             self::BasicService => [
                 'Engine bay' => [
                     'Drain and replace engine oil',
@@ -203,6 +298,17 @@ enum ChecklistTemplate: string
                 ],
             ],
         };
+    }
+
+    /**
+     * Determine whether the checklist ticks off a vehicle's monthly check.
+     *
+     * The annual inspection covers everything the monthly check does, so
+     * the month it is run in needs nothing more.
+     */
+    public function coversMonthlyCheck(): bool
+    {
+        return $this === self::MonthlyCheck || $this === self::AnnualInspection;
     }
 
     /**

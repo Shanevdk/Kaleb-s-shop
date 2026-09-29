@@ -30,7 +30,7 @@ class VehicleController extends Controller
     {
         $search = trim((string) $request->string('search'));
 
-        $vehicles = $request->user()->vehicles()
+        $vehicles = Vehicle::query()
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->whereLike('make', "%{$search}%")

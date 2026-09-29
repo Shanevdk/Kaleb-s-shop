@@ -112,11 +112,11 @@ test('the assistant answers with what the model says', function () {
         && collect($request['tools'])->pluck('function.name')->contains('search_parts'));
 });
 
-test('the assistant looks up the user stock before answering', function () {
+test('the assistant looks up the shop stock before answering', function () {
     $user = User::factory()->create();
     InventoryItem::factory()->for($user)->create(['name' => 'Oil filter', 'quantity' => 1, 'minimum_quantity' => 4]);
     InventoryItem::factory()->for($user)->create(['name' => 'Wiper blade', 'quantity' => 10, 'minimum_quantity' => 2]);
-    InventoryItem::factory()->create(['name' => 'Someone elses filter', 'quantity' => 0, 'minimum_quantity' => 5]);
+    InventoryItem::factory()->create(['name' => 'Air filter', 'quantity' => 0, 'minimum_quantity' => 5]);
 
     Http::fake(['openrouter.ai/*' => Http::sequence()
         ->push(toolCall('search_parts', ['low_stock_only' => true]))
@@ -132,26 +132,32 @@ test('the assistant looks up the user stock before answering', function () {
 
     $found = collect(toolResultSent(Http::recorded()[1][0]))->pluck('name')->all();
 
-    expect($found)->toBe(['Oil filter']);
+    expect($found)->toBe(['Air filter', 'Oil filter']);
 });
 
-test('the assistant cannot read another mechanic vehicle', function () {
-    $user = User::factory()->create();
-    $theirs = Vehicle::factory()->create(['make' => 'Secret']);
+test('shoppers cannot use the assistant', function () {
+    Http::fake();
+    $shopper = User::factory()->shopper()->create();
 
+    $this->actingAs($shopper)->get(route('assistant'))->assertForbidden();
+    $this->actingAs($shopper)
+        ->postJson(route('assistant.ask'), ['messages' => [['role' => 'user', 'content' => 'Hi']]])
+        ->assertForbidden();
+
+    Http::assertNothingSent();
+});
+
+test('the assistant tells the model when a vehicle id does not exist', function () {
     Http::fake(['openrouter.ai/*' => Http::sequence()
-        ->push(toolCall('get_vehicle', ['vehicle_id' => $theirs->id]))
+        ->push(toolCall('get_vehicle', ['vehicle_id' => '01m3nonexistentvehicle0000']))
         ->push(answer('I could not find that vehicle.')),
     ]);
 
-    $this->actingAs($user)
+    $this->actingAs(User::factory()->create())
         ->postJson(route('assistant.ask'), ['messages' => [['role' => 'user', 'content' => 'Tell me about it']]])
         ->assertOk();
 
-    $result = toolResultSent(Http::recorded()[1][0]);
-
-    expect($result)->toHaveKey('error')
-        ->and(json_encode($result))->not->toContain('Secret');
+    expect(toolResultSent(Http::recorded()[1][0]))->toHaveKey('error');
 });
 
 test('the assistant gives the model its own vehicle with its history', function () {

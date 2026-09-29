@@ -181,6 +181,8 @@ export default function Lookup({
                                 engine={engine}
                                 engineSummary={engineSummary}
                                 doors={specs?.doors ?? null}
+                                bodyClass={specs?.body_class ?? null}
+                                driveType={specs?.drive_type ?? null}
                             />
 
                             <aside className="bg-card h-fit rounded-xl border p-6">

@@ -113,15 +113,19 @@ test('stock at its reorder point is listed separately', function () {
         );
 });
 
-test('the shopping list only covers the current user', function () {
+test('a shopper sees the whole shop shopping list', function () {
     $record = ServiceRecord::factory()->create(['status' => ServiceStatus::Planned]);
 
-    ServiceRecordPart::factory()->for($record)->create(['name' => 'Someone elses bearing']);
+    ServiceRecordPart::factory()->for($record)->create(['name' => 'Rear wheel bearing']);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->get(route('shopping-list.index'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->has('shortLines', 0)->has('reorderLines', 0));
+        ->assertInertia(fn ($page) => $page
+            ->has('shortLines', 1)
+            ->where('shortLines.0.name', 'Rear wheel bearing')
+            ->where('auth.can.workOnRecords', false)
+        );
 });
 
 test('a job can be logged with the parts it needs', function () {

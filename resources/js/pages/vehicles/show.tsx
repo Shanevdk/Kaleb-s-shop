@@ -244,6 +244,10 @@ export default function VehicleShow({
                             engine={vehicle.engine}
                             engineSummary={vehicle.engine_summary}
                             doors={vehicle.specs?.doors ?? null}
+                            bodyClass={vehicle.specs?.body_class ?? null}
+                            driveType={vehicle.specs?.drive_type ?? null}
+                            colour={vehicle.colour}
+                            registration={vehicle.registration}
                             photos={vehicle.photos}
                             photoAngles={photoAngles}
                         />

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addPatch } from '@/lib/three/shading';
 
 export type ProjectionSide = 'front' | 'rear' | 'left' | 'right' | 'top';
 
@@ -23,7 +24,8 @@ const FILL = 0.88;
  * Every face of the body is projected from whichever of the five box sides
  * it mostly faces, using the machine's bounding box to line the photo up
  * with the shape. It is a box projection, not photogrammetry, so straight-on
- * shots framed the same way give the best result.
+ * shots framed the same way give the best result. It stacks with the
+ * paint's own shader changes rather than replacing them.
  */
 export function installPhotoProjection(
     materials: THREE.Material[],
@@ -61,82 +63,93 @@ export function installPhotoProjection(
     const loader = new THREE.TextureLoader();
 
     for (const material of materials) {
-        material.onBeforeCompile = (shader) => {
-            Object.assign(shader.uniforms, uniforms);
+        addPatch(material, {
+            key: 'photo-projection',
+            apply(shader) {
+                Object.assign(shader.uniforms, uniforms);
 
-            shader.vertexShader = shader.vertexShader
-                .replace(
-                    '#include <common>',
-                    '#include <common>\nvarying vec3 vPhotoPos;\nvarying vec3 vPhotoNormal;',
-                )
-                .replace(
-                    '#include <begin_vertex>',
-                    '#include <begin_vertex>\nvPhotoPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvPhotoNormal = normalize(mat3(modelMatrix) * objectNormal);',
-                );
+                shader.vertexShader = shader.vertexShader
+                    .replace(
+                        '#include <common>',
+                        '#include <common>\nvarying vec3 vPhotoPos;\nvarying vec3 vPhotoNormal;',
+                    )
+                    .replace(
+                        '#include <begin_vertex>',
+                        `#include <begin_vertex>
+                        {
+                            vec4 photoWorld = vec4(transformed, 1.0);
+                            vec3 photoNormal = objectNormal;
+                            #ifdef USE_INSTANCING
+                                photoWorld = instanceMatrix * photoWorld;
+                                photoNormal = mat3(instanceMatrix) * photoNormal;
+                            #endif
+                            vPhotoPos = (modelMatrix * photoWorld).xyz;
+                            vPhotoNormal = normalize(mat3(modelMatrix) * photoNormal);
+                        }`,
+                    );
 
-            shader.fragmentShader = shader.fragmentShader
-                .replace(
-                    '#include <common>',
-                    `#include <common>
-varying vec3 vPhotoPos;
-varying vec3 vPhotoNormal;
-uniform float photoEnabled;
-uniform vec3 photoMin;
-uniform vec3 photoMax;
-uniform sampler2D photoFront;
-uniform sampler2D photoRear;
-uniform sampler2D photoLeft;
-uniform sampler2D photoRight;
-uniform sampler2D photoTop;
-uniform float hasFront;
-uniform float hasRear;
-uniform float hasLeft;
-uniform float hasRight;
-uniform float hasTop;
-uniform vec2 fitFront;
-uniform vec2 fitRear;
-uniform vec2 fitLeft;
-uniform vec2 fitRight;
-uniform vec2 fitTop;
-vec2 photoFit(vec2 uv, vec2 fit) {
-    return 0.5 + (uv - 0.5) * fit;
-}`,
-                )
-                .replace(
-                    '#include <color_fragment>',
-                    `#include <color_fragment>
-if (photoEnabled > 0.5) {
-    vec3 pn = normalize(vPhotoNormal);
-    vec3 pa = abs(pn);
-    vec3 pp = clamp((vPhotoPos - photoMin) / max(photoMax - photoMin, vec3(0.001)), 0.0, 1.0);
-    vec4 photo = vec4(0.0);
-    float has = 0.0;
-    if (pa.y > pa.x && pa.y > pa.z && pn.y > 0.0) {
-        photo = texture2D(photoTop, photoFit(vec2(pp.z, pp.x), fitTop));
-        has = hasTop;
-    } else if (pa.x >= pa.z) {
-        if (pn.x > 0.0) {
-            photo = texture2D(photoFront, photoFit(vec2(1.0 - pp.z, pp.y), fitFront));
-            has = hasFront;
-        } else {
-            photo = texture2D(photoRear, photoFit(vec2(pp.z, pp.y), fitRear));
-            has = hasRear;
-        }
-    } else {
-        if (pn.z > 0.0) {
-            photo = texture2D(photoRight, photoFit(vec2(pp.x, pp.y), fitRight));
-            has = hasRight;
-        } else {
-            photo = texture2D(photoLeft, photoFit(vec2(1.0 - pp.x, pp.y), fitLeft));
-            has = hasLeft;
-        }
-    }
-    diffuseColor.rgb = mix(diffuseColor.rgb, photo.rgb, has);
-}`,
-                );
-        };
-        material.customProgramCacheKey = () => 'photo-projection';
-        material.needsUpdate = true;
+                shader.fragmentShader = shader.fragmentShader
+                    .replace(
+                        '#include <common>',
+                        `#include <common>
+                        varying vec3 vPhotoPos;
+                        varying vec3 vPhotoNormal;
+                        uniform float photoEnabled;
+                        uniform vec3 photoMin;
+                        uniform vec3 photoMax;
+                        uniform sampler2D photoFront;
+                        uniform sampler2D photoRear;
+                        uniform sampler2D photoLeft;
+                        uniform sampler2D photoRight;
+                        uniform sampler2D photoTop;
+                        uniform float hasFront;
+                        uniform float hasRear;
+                        uniform float hasLeft;
+                        uniform float hasRight;
+                        uniform float hasTop;
+                        uniform vec2 fitFront;
+                        uniform vec2 fitRear;
+                        uniform vec2 fitLeft;
+                        uniform vec2 fitRight;
+                        uniform vec2 fitTop;
+                        vec2 photoFit(vec2 uv, vec2 fit) {
+                            return 0.5 + (uv - 0.5) * fit;
+                        }`,
+                    )
+                    .replace(
+                        '#include <color_fragment>',
+                        `#include <color_fragment>
+                        if (photoEnabled > 0.5) {
+                            vec3 pn = normalize(vPhotoNormal);
+                            vec3 pa = abs(pn);
+                            vec3 pp = clamp((vPhotoPos - photoMin) / max(photoMax - photoMin, vec3(0.001)), 0.0, 1.0);
+                            vec4 photo = vec4(0.0);
+                            float has = 0.0;
+                            if (pa.y > pa.x && pa.y > pa.z && pn.y > 0.0) {
+                                photo = texture2D(photoTop, photoFit(vec2(pp.z, pp.x), fitTop));
+                                has = hasTop;
+                            } else if (pa.x >= pa.z) {
+                                if (pn.x > 0.0) {
+                                    photo = texture2D(photoFront, photoFit(vec2(1.0 - pp.z, pp.y), fitFront));
+                                    has = hasFront;
+                                } else {
+                                    photo = texture2D(photoRear, photoFit(vec2(pp.z, pp.y), fitRear));
+                                    has = hasRear;
+                                }
+                            } else {
+                                if (pn.z > 0.0) {
+                                    photo = texture2D(photoRight, photoFit(vec2(pp.x, pp.y), fitRight));
+                                    has = hasRight;
+                                } else {
+                                    photo = texture2D(photoLeft, photoFit(vec2(1.0 - pp.x, pp.y), fitLeft));
+                                    has = hasLeft;
+                                }
+                            }
+                            diffuseColor.rgb = mix(diffuseColor.rgb, photo.rgb, has);
+                        }`,
+                    );
+            },
+        });
     }
 
     const uniformFor = (side: ProjectionSide) => {

@@ -11,9 +11,9 @@ test('guests cannot see the checklist list', function () {
     $this->get(route('inspections.index'))->assertRedirect(route('login'));
 });
 
-test('the checklist list only shows checklists owned by the user', function () {
+test('the checklist list shows every checklist in the shop, whoever ran it', function () {
     $user = User::factory()->create();
-    $own = Inspection::factory()->for($user)->withItems()->create();
+    Inspection::factory()->for($user)->withItems()->create();
     Inspection::factory()->create();
 
     $this->actingAs($user)
@@ -21,8 +21,7 @@ test('the checklist list only shows checklists owned by the user', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('inspections/index')
-            ->has('inspections', 1)
-            ->where('inspections.0.id', $own->id)
+            ->has('inspections', 2)
         );
 });
 
@@ -72,7 +71,7 @@ test('starting a checklist builds its items from the template', function () {
         ->and($inspection->items()->first()->status)->toBe(CheckStatus::Pending);
 });
 
-test('a checklist cannot be started against someone elses vehicle', function () {
+test('a checklist can be started against a vehicle another mechanic added', function () {
     $user = User::factory()->create();
     $vehicle = Vehicle::factory()->create();
 
@@ -82,9 +81,9 @@ test('a checklist cannot be started against someone elses vehicle', function () 
             'template' => ChecklistTemplate::BasicService->value,
             'performed_on' => '2026-09-10',
         ])
-        ->assertSessionHasErrors('vehicle_id');
+        ->assertSessionHasNoErrors();
 
-    expect(Inspection::count())->toBe(0);
+    expect(Inspection::sole()->user_id)->toBe($user->id);
 });
 
 test('starting a checklist requires a vehicle and a known template', function () {
@@ -110,10 +109,10 @@ test('a checklist page lists every item to check', function () {
         );
 });
 
-test('a checklist belonging to someone else cannot be viewed', function () {
+test('a shopper cannot view a checklist', function () {
     $inspection = Inspection::factory()->create();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->get(route('inspections.show', $inspection))
         ->assertForbidden();
 });
@@ -134,10 +133,10 @@ test('an item can be checked off with a note', function () {
         ->and($item->notes)->toBe('Weeping slightly.');
 });
 
-test('an item on someone elses checklist cannot be changed', function () {
+test('a shopper cannot change a checklist item', function () {
     $item = InspectionItem::factory()->for(Inspection::factory())->create();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->patch(route('inspection-items.update', $item), ['status' => CheckStatus::Good->value])
         ->assertForbidden();
 

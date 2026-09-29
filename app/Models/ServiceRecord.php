@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string $id
  * @property string $user_id
  * @property string $vehicle_id
+ * @property string|null $inspection_item_id
  * @property string $title
  * @property ServiceType $type
  * @property ServiceStatus $status
@@ -30,7 +31,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['vehicle_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description'])]
+#[Fillable(['vehicle_id', 'inspection_item_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description'])]
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */

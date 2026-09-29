@@ -103,6 +103,10 @@ export default function MachineModel({
     engine,
     engineSummary,
     doors = null,
+    bodyClass = null,
+    driveType = null,
+    colour = null,
+    registration = null,
     photos = {},
     photoAngles = [],
 }: {
@@ -111,6 +115,10 @@ export default function MachineModel({
     engine: Partial<EngineSpecs>;
     engineSummary?: string | null;
     doors?: number | null;
+    bodyClass?: string | null;
+    driveType?: string | null;
+    colour?: string | null;
+    registration?: string | null;
     photos?: VehiclePhotos;
     photoAngles?: PhotoAngleOption[];
 }) {
@@ -150,7 +158,7 @@ export default function MachineModel({
           ? (engineSummary ?? 'A 3D model needs 3D graphics in the browser.')
           : view === 'machine'
             ? hasEngine
-                ? 'Drag to spin it round. Click the glowing marker to open the engine bay.'
+                ? 'Drag to spin it round. Click the glowing marker over the engine to look inside.'
                 : 'Drag to spin it round. A trailer has no engine to look at.'
             : (engineSummary ?? 'Click a part of the engine to read about it.');
 
@@ -277,6 +285,10 @@ export default function MachineModel({
                                         kind={kind}
                                         engine={engine}
                                         doors={doors}
+                                        bodyClass={bodyClass}
+                                        driveType={driveType}
+                                        colour={colour}
+                                        registration={registration}
                                         photos={photos}
                                         wrapPhotos={wrap && canWrap}
                                         view={view}

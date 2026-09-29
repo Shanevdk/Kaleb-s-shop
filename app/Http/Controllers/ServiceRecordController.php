@@ -12,6 +12,7 @@ use App\Models\Fitment;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
 use App\Models\ServiceRecordPart;
+use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -32,7 +33,7 @@ class ServiceRecordController extends Controller
         $status = (string) $request->string('status');
         $vehicleId = (string) $request->string('vehicle');
 
-        if ($vehicleId !== '' && ! $request->user()->vehicles()->whereKey($vehicleId)->exists()) {
+        if ($vehicleId !== '' && ! Vehicle::query()->whereKey($vehicleId)->exists()) {
             $vehicleId = '';
         }
 
@@ -40,7 +41,7 @@ class ServiceRecordController extends Controller
             $status = '';
         }
 
-        $records = $request->user()->serviceRecords()
+        $records = ServiceRecord::query()
             ->with('vehicle')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -180,7 +181,7 @@ class ServiceRecordController extends Controller
      */
     private function stockedParts(Request $request): array
     {
-        return $request->user()->inventoryItems()
+        return InventoryItem::query()
             ->with('fitments')
             ->orderBy('name')
             ->get()
@@ -243,7 +244,7 @@ class ServiceRecordController extends Controller
      */
     private function vehicleOptions(Request $request): array
     {
-        return $request->user()->vehicles()
+        return Vehicle::query()
             ->orderBy('make')
             ->orderBy('model')
             ->get()

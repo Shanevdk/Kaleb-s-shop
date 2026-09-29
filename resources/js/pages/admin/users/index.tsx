@@ -11,6 +11,13 @@ import PageHeader from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     Table,
     TableBody,
     TableCell,
@@ -20,15 +27,17 @@ import {
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { create, destroy, index, update, verify } from '@/routes/admin/users';
-import type { TeamMember } from '@/types';
+import type { RoleOption, TeamMember } from '@/types';
 
-export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
-    const toggleAdmin = (user: TeamMember) => {
-        router.patch(
-            update(user.id).url,
-            { is_admin: !user.is_admin },
-            { preserveScroll: true },
-        );
+export default function AdminUsersIndex({
+    users,
+    roles,
+}: {
+    users: TeamMember[];
+    roles: RoleOption[];
+}) {
+    const changeRole = (user: TeamMember, role: string) => {
+        router.patch(update(user.id).url, { role }, { preserveScroll: true });
     };
 
     const verifyUser = (user: TeamMember) => {
@@ -83,18 +92,42 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
                                     </TableCell>
                                     <TableCell>
                                         <span className="flex flex-wrap items-center gap-2">
-                                            {user.is_admin ? (
+                                            {user.is_current_user ? (
                                                 <Badge
                                                     variant="outline"
                                                     className="gap-1"
                                                 >
-                                                    <ShieldCheck className="size-3" />
-                                                    Administrator
+                                                    {user.role === 'admin' && (
+                                                        <ShieldCheck className="size-3" />
+                                                    )}
+                                                    {user.role_label}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-muted-foreground text-sm">
-                                                    Mechanic
-                                                </span>
+                                                <Select
+                                                    value={user.role}
+                                                    onValueChange={(role) =>
+                                                        changeRole(user, role)
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className="h-8 w-40"
+                                                        aria-label={`Role for ${user.name}`}
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {roles.map((role) => (
+                                                            <SelectItem
+                                                                key={role.value}
+                                                                value={
+                                                                    role.value
+                                                                }
+                                                            >
+                                                                {role.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             )}
                                             {!user.is_verified && (
                                                 <Badge className="gap-1 border-transparent bg-amber-500 text-amber-950">
@@ -122,17 +155,6 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
                                                         Let them in
                                                     </Button>
                                                 )}
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        toggleAdmin(user)
-                                                    }
-                                                >
-                                                    {user.is_admin
-                                                        ? 'Revoke admin'
-                                                        : 'Make admin'}
-                                                </Button>
                                                 <DeleteConfirm
                                                     trigger={
                                                         <Button
@@ -144,7 +166,7 @@ export default function AdminUsersIndex({ users }: { users: TeamMember[] }) {
                                                         </Button>
                                                     }
                                                     title={`Remove ${user.name}?`}
-                                                    description="They lose access immediately. Anything they logged stays on their account and is removed with it."
+                                                    description="They lose access immediately. Anything they logged stays with the shop."
                                                     confirmLabel="Remove access"
                                                     form={destroy.form(user.id)}
                                                 />

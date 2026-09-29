@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Console\Command;
 
@@ -40,12 +41,12 @@ class CreateAdminAccount extends Command
         $user = User::firstOrNew(['email' => $email]);
         $isNew = ! $user->exists;
 
-        // Force filled rather than mass assigned: `is_admin` is deliberately
-        // left out of the model's fillable attributes.
+        // Force filled rather than mass assigned: `role` is deliberately left
+        // out of the model's fillable attributes.
         $user->forceFill([
             'name' => $this->option('name') ?? ($isNew ? config('app.admin.name') : $user->name),
             'password' => $password,
-            'is_admin' => true,
+            'role' => UserRole::Admin,
             'email_verified_at' => $user->email_verified_at ?? now(),
         ])->save();
 

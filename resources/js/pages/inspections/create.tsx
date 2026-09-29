@@ -24,12 +24,16 @@ export default function InspectionCreate({
     vehicles,
     templates,
     selectedVehicle,
+    selectedTemplate,
 }: {
     vehicles: SelectOption[];
     templates: ChecklistTemplate[];
     selectedVehicle?: string;
+    selectedTemplate?: string | null;
 }) {
-    const [template, setTemplate] = useState(templates[0]?.value ?? '');
+    const [template, setTemplate] = useState(
+        selectedTemplate ?? templates[0]?.value ?? '',
+    );
 
     return (
         <>

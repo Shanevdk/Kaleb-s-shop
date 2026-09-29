@@ -1,6 +1,6 @@
 import { Form, Link } from '@inertiajs/react';
 import { ImagePlus, ScanQrCode } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import InventoryItemController from '@/actions/App/Http/Controllers/InventoryItemController';
 import BarcodeScanDialog from '@/components/barcode-scan-dialog';
 import InputError from '@/components/input-error';
@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useBarcodeDecoder } from '@/hooks/use-barcode-decoder';
 import VehicleFitmentPicker from '@/components/vehicle-fitment-picker';
 import { index } from '@/routes/inventory';
 import type {
@@ -47,6 +48,58 @@ export default function InventoryItemForm({
         item?.barcode ?? scannedBarcode ?? '',
     );
     const [scanning, setScanning] = useState(false);
+    const [name, setName] = useState(item?.name ?? '');
+    const [brand, setBrand] = useState(item?.brand ?? '');
+    const [decodeNote, setDecodeNote] = useState<string | null>(null);
+    const { decodeBarcode, decoding } = useBarcodeDecoder();
+
+    /**
+     * Name the part from its barcode, without writing over anything already
+     * typed in.
+     */
+    const describeFromBarcode = (code: string) => {
+        const trimmed = code.trim();
+
+        if (trimmed === '') {
+            return;
+        }
+
+        decodeBarcode(trimmed)
+            .then((decoded) => {
+                if (decoded.source === 'inventory') {
+                    setDecodeNote(
+                        `That code is already on ${decoded.description}.`,
+                    );
+
+                    return;
+                }
+
+                if (!decoded.description) {
+                    setDecodeNote(
+                        'None of the free barcode databases know this code. Type a name, or save and the barcode is used as the name.',
+                    );
+
+                    return;
+                }
+
+                setName((current) => current || (decoded.description ?? ''));
+                setBrand((current) => current || (decoded.brand ?? ''));
+                setDecodeNote(`Decoded: ${decoded.description}.`);
+            })
+            .catch(() =>
+                setDecodeNote(
+                    'Could not reach the decoder. Type the name in, or save and it is looked up then.',
+                ),
+            );
+    };
+
+    // A code handed over from the scanner page is described straight away.
+    useEffect(() => {
+        if (!item && scannedBarcode) {
+            describeFromBarcode(scannedBarcode);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const activeUnit = units.find((option) => option.value === unit);
 
@@ -82,13 +135,27 @@ export default function InventoryItemForm({
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                                <Label htmlFor="name">
+                                    Name{' '}
+                                    {barcode.trim() !== '' && (
+                                        <span className="text-muted-foreground font-normal">
+                                            (optional with a barcode)
+                                        </span>
+                                    )}
+                                </Label>
                                 <Input
                                     id="name"
                                     name="name"
-                                    defaultValue={item?.name ?? ''}
-                                    placeholder="Oil filter"
-                                    required
+                                    value={name}
+                                    onChange={(event) =>
+                                        setName(event.target.value)
+                                    }
+                                    placeholder={
+                                        decoding
+                                            ? 'Looking the barcode up…'
+                                            : 'Oil filter'
+                                    }
+                                    required={barcode.trim() === ''}
                                     autoFocus
                                 />
                                 <InputError message={errors.name} />
@@ -179,6 +246,20 @@ export default function InventoryItemForm({
                                         onChange={(event) =>
                                             setBarcode(event.target.value)
                                         }
+                                        onKeyDown={(event) => {
+                                            // A USB scanner types the code and
+                                            // hits enter; describe the part
+                                            // rather than save it half done.
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                describeFromBarcode(barcode);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            if (!item && name.trim() === '') {
+                                                describeFromBarcode(barcode);
+                                            }
+                                        }}
                                         placeholder="9312345678907"
                                         autoComplete="off"
                                         className="font-mono"
@@ -198,13 +279,19 @@ export default function InventoryItemForm({
                                             </Button>
                                         }
                                         title="Scan a code for this part"
-                                        description="Hold the QR code or barcode up to the camera. It fills in the box, and saving the part assigns it."
+                                        description="Hold the QR code or barcode up to the camera. It fills in the box and names the part, and saving the part assigns it."
                                         onScan={(code) => {
                                             setBarcode(code);
                                             setScanning(false);
+                                            describeFromBarcode(code);
                                         }}
                                     />
                                 </div>
+                                {decodeNote && (
+                                    <p className="text-muted-foreground text-xs">
+                                        {decodeNote}
+                                    </p>
+                                )}
                                 <InputError message={errors.barcode} />
                             </div>
 
@@ -213,7 +300,10 @@ export default function InventoryItemForm({
                                 <Input
                                     id="brand"
                                     name="brand"
-                                    defaultValue={item?.brand ?? ''}
+                                    value={brand}
+                                    onChange={(event) =>
+                                        setBrand(event.target.value)
+                                    }
                                     placeholder="Bosch"
                                 />
                                 <InputError message={errors.brand} />

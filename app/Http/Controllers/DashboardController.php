@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\ServiceStatus;
 use App\Http\Resources\ServiceRecordResource;
+use App\Models\ServiceRecord;
+use App\Models\Vehicle;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -12,20 +16,28 @@ class DashboardController extends Controller
 {
     /**
      * Display the workshop overview.
+     *
+     * Schedulers only have the schedule and shoppers only the shopping list,
+     * so those are their home pages.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
-        $user = $request->user();
+        if (Gate::denies('work-on-records')) {
+            return Gate::allows('manage-schedule')
+                ? to_route('schedule.index')
+                : to_route('shopping-list.index');
+        }
+
         $startOfMonth = now()->startOfMonth();
 
-        $recentRecords = $user->serviceRecords()
+        $recentRecords = ServiceRecord::query()
             ->with('vehicle')
             ->latest('performed_on')
             ->latest('id')
             ->limit(6)
             ->get();
 
-        $openRecords = $user->serviceRecords()
+        $openRecords = ServiceRecord::query()
             ->with('vehicle')
             ->whereIn('status', [ServiceStatus::Planned, ServiceStatus::InProgress])
             ->oldest('performed_on')
@@ -34,21 +46,20 @@ class DashboardController extends Controller
 
         return Inertia::render('dashboard', [
             'stats' => [
-                'vehicles' => $user->vehicles()->count(),
-                'jobs' => $user->serviceRecords()->count(),
-                'jobs_this_month' => $user->serviceRecords()->where('performed_on', '>=', $startOfMonth)->count(),
-                'open_jobs' => $user->serviceRecords()
+                'vehicles' => Vehicle::count(),
+                'jobs' => ServiceRecord::count(),
+                'jobs_this_month' => ServiceRecord::where('performed_on', '>=', $startOfMonth)->count(),
+                'open_jobs' => ServiceRecord::query()
                     ->whereIn('status', [ServiceStatus::Planned, ServiceStatus::InProgress])
                     ->count(),
-                'hours' => round((float) $user->serviceRecords()->sum('hours'), 2),
+                'hours' => round((float) ServiceRecord::sum('hours'), 2),
                 'spend' => round(
-                    (float) $user->serviceRecords()->sum('parts_cost')
-                    + (float) $user->serviceRecords()->sum('labour_cost'),
+                    (float) ServiceRecord::sum('parts_cost') + (float) ServiceRecord::sum('labour_cost'),
                     2,
                 ),
                 'spend_this_month' => round(
-                    (float) $user->serviceRecords()->where('performed_on', '>=', $startOfMonth)->sum('parts_cost')
-                    + (float) $user->serviceRecords()->where('performed_on', '>=', $startOfMonth)->sum('labour_cost'),
+                    (float) ServiceRecord::where('performed_on', '>=', $startOfMonth)->sum('parts_cost')
+                    + (float) ServiceRecord::where('performed_on', '>=', $startOfMonth)->sum('labour_cost'),
                     2,
                 ),
             ],

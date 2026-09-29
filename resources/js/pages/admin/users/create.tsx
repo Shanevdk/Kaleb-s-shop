@@ -3,12 +3,12 @@ import UserController from '@/actions/App/Http/Controllers/Admin/UserController'
 import InputError from '@/components/input-error';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { create, index } from '@/routes/admin/users';
+import type { RoleOption } from '@/types';
 
-export default function AdminUserCreate() {
+export default function AdminUserCreate({ roles }: { roles: RoleOption[] }) {
     return (
         <>
             <Head title="Add someone" />
@@ -88,25 +88,39 @@ export default function AdminUserCreate() {
                                     Settings.
                                 </p>
 
-                                <div className="flex items-start gap-3 rounded-lg border p-4">
-                                    <Checkbox
-                                        id="is_admin"
-                                        name="is_admin"
-                                        value="1"
-                                    />
-                                    <div className="grid gap-1">
-                                        <Label
-                                            htmlFor="is_admin"
-                                            className="font-medium"
-                                        >
-                                            Make them an administrator
-                                        </Label>
-                                        <p className="text-muted-foreground text-sm">
-                                            Administrators can add and remove
-                                            people from the shop.
-                                        </p>
+                                <fieldset className="grid gap-2">
+                                    <legend className="mb-2 text-sm font-medium">
+                                        What can they do?
+                                    </legend>
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        {roles.map((role) => (
+                                            <label
+                                                key={role.value}
+                                                className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="role"
+                                                    value={role.value}
+                                                    defaultChecked={
+                                                        role.value ===
+                                                        'mechanic'
+                                                    }
+                                                    className="accent-primary mt-1"
+                                                />
+                                                <span className="grid gap-1">
+                                                    <span className="text-sm font-medium">
+                                                        {role.label}
+                                                    </span>
+                                                    <span className="text-muted-foreground text-sm">
+                                                        {role.description}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        ))}
                                     </div>
-                                </div>
+                                    <InputError message={errors.role} />
+                                </fieldset>
 
                                 <div className="flex items-center gap-3 border-t pt-6">
                                     <Button type="submit" disabled={processing}>

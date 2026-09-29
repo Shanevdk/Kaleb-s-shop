@@ -20,10 +20,10 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * The lookups the assistant can make into one mechanic's records.
+ * The lookups the assistant can make into the shop's records.
  *
- * Every query starts from the user, so the assistant can never see another
- * mechanic's vehicles, jobs or parts, and nothing here writes.
+ * The records belong to the whole shop, the same as on every other page, and
+ * nothing here writes.
  */
 class ShopTools
 {
@@ -31,8 +31,6 @@ class ShopTools
      * The most rows a list tool hands back in one go.
      */
     private const MAX_ROWS = 50;
-
-    public function __construct(private User $user) {}
 
     /**
      * Describe the tools in the shape the chat completions API expects.
@@ -99,20 +97,20 @@ class ShopTools
     private function shopSummary(): array
     {
         $startOfMonth = now()->startOfMonth();
-        $thisMonth = $this->user->serviceRecords()->where('performed_on', '>=', $startOfMonth);
-        $items = $this->user->inventoryItems()->get();
+        $thisMonth = ServiceRecord::query()->where('performed_on', '>=', $startOfMonth);
+        $items = InventoryItem::query()->get();
 
         return [
             'today' => now()->toDateString(),
-            'vehicles' => $this->user->vehicles()->count(),
-            'jobs' => $this->user->serviceRecords()->count(),
-            'open_jobs' => $this->user->serviceRecords()
+            'vehicles' => Vehicle::query()->count(),
+            'jobs' => ServiceRecord::query()->count(),
+            'open_jobs' => ServiceRecord::query()
                 ->whereIn('status', [ServiceStatus::Planned, ServiceStatus::InProgress])
                 ->count(),
             'jobs_this_month' => (clone $thisMonth)->count(),
-            'spend_total' => round((float) $this->user->serviceRecords()->sum('parts_cost') + (float) $this->user->serviceRecords()->sum('labour_cost'), 2),
+            'spend_total' => round((float) ServiceRecord::query()->sum('parts_cost') + (float) ServiceRecord::query()->sum('labour_cost'), 2),
             'spend_this_month' => round((float) (clone $thisMonth)->sum('parts_cost') + (float) (clone $thisMonth)->sum('labour_cost'), 2),
-            'hours_total' => round((float) $this->user->serviceRecords()->sum('hours'), 2),
+            'hours_total' => round((float) ServiceRecord::query()->sum('hours'), 2),
             'parts_stocked' => $items->count(),
             'parts_low_on_stock' => $items->filter(fn (InventoryItem $item): bool => $this->needsReordering($item))->count(),
             'stock_value' => round($items->sum(fn (InventoryItem $item): float => $item->stock_value), 2),
@@ -125,7 +123,7 @@ class ShopTools
      */
     private function listVehicles(): array
     {
-        return $this->user->vehicles()
+        return Vehicle::query()
             ->withCount('serviceRecords')
             ->withSum('serviceRecords as parts_spend', 'parts_cost')
             ->withSum('serviceRecords as labour_spend', 'labour_cost')
@@ -203,7 +201,7 @@ class ShopTools
         $from = $this->date($arguments, 'from');
         $to = $this->date($arguments, 'to');
 
-        return $this->user->serviceRecords()
+        return ServiceRecord::query()
             ->with(['vehicle', 'parts'])
             ->when($status, fn ($query, ServiceStatus $status) => $query->where('status', $status))
             ->when($vehicleId !== '', fn ($query) => $query->where('vehicle_id', $vehicleId))
@@ -230,7 +228,7 @@ class ShopTools
         $category = PartCategory::tryFrom($this->string($arguments, 'category'));
         $lowStockOnly = ($arguments['low_stock_only'] ?? false) === true;
 
-        return $this->user->inventoryItems()
+        return InventoryItem::query()
             ->with('fitments.vehicle')
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->whereLike('name', "%{$search}%")
@@ -304,7 +302,7 @@ class ShopTools
         $partId = $this->string($arguments, 'part_id');
         $vehicleId = $this->string($arguments, 'vehicle_id');
 
-        return $this->user->stockMovements()
+        return StockMovement::query()
             ->with(['inventoryItem', 'vehicle', 'serviceRecord'])
             ->when($partId !== '', fn ($query) => $query->where('inventory_item_id', $partId))
             ->when($vehicleId !== '', fn ($query) => $query->where('vehicle_id', $vehicleId))
@@ -390,13 +388,13 @@ class ShopTools
     private function attentionItems(): Builder
     {
         return InspectionItem::query()
-            ->whereIn('inspection_id', $this->user->inspections()->select('id'))
+            ->whereIn('inspection_id', Inspection::query()->select('id'))
             ->where('status', CheckStatus::Attention);
     }
 
     private function findVehicle(string $vehicleId): ?Vehicle
     {
-        return $vehicleId === '' ? null : $this->user->vehicles()->whereKey($vehicleId)->first();
+        return $vehicleId === '' ? null : Vehicle::query()->whereKey($vehicleId)->first();
     }
 
     /**

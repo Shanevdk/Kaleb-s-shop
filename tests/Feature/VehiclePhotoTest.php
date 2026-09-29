@@ -91,9 +91,9 @@ test('a photo can be removed, and all photos go with the vehicle', function () {
     Storage::disk('public')->assertMissing($paths['engine']);
 });
 
-test('a user cannot add or remove photos on another mechanic vehicle', function () {
+test('a shopper cannot add or remove vehicle photos', function () {
     Storage::fake('public');
-    $user = User::factory()->create();
+    $user = User::factory()->shopper()->create();
     $vehicle = Vehicle::factory()->create(['photos' => ['rear' => 'vehicles/x/rear.jpg']]);
 
     $this->actingAs($user)

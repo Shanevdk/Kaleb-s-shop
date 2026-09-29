@@ -1,5 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { AlertTriangle, ClipboardCheck, Plus } from 'lucide-react';
+import {
+    AlertTriangle,
+    CalendarCheck,
+    ClipboardCheck,
+    Plus,
+} from 'lucide-react';
 import EmptyState from '@/components/empty-state';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -12,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { formatDate } from '@/lib/format';
 import { create, index, show } from '@/routes/inspections';
+import { index as schedule } from '@/routes/schedule';
 import type { Inspection, SelectOption } from '@/types';
 
 export default function InspectionsIndex({
@@ -42,12 +48,20 @@ export default function InspectionsIndex({
                     title="Checklists"
                     description="Pick a vehicle, work down the list, sign it off."
                     actions={
-                        <Button asChild>
-                            <Link href={create()}>
-                                <Plus />
-                                Start checklist
-                            </Link>
-                        </Button>
+                        <>
+                            <Button variant="outline" asChild>
+                                <Link href={schedule()}>
+                                    <CalendarCheck />
+                                    Schedule
+                                </Link>
+                            </Button>
+                            <Button asChild>
+                                <Link href={create()}>
+                                    <Plus />
+                                    Start checklist
+                                </Link>
+                            </Button>
+                        </>
                     }
                 />
 

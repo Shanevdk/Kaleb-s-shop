@@ -12,7 +12,7 @@ class ServiceRecordPolicy
      */
     public function view(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->id === $serviceRecord->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -20,7 +20,7 @@ class ServiceRecordPolicy
      */
     public function update(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->id === $serviceRecord->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -28,6 +28,6 @@ class ServiceRecordPolicy
      */
     public function delete(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->id === $serviceRecord->user_id;
+        return $user->role->canWorkOnRecords();
     }
 }

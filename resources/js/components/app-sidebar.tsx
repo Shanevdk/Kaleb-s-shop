@@ -1,12 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Bot,
+    CalendarCheck,
     Car,
     ClipboardCheck,
     LayoutGrid,
     Package,
-    PlusCircle,
-    ScanSearch,
     ShoppingCart,
     Users,
     Wrench,
@@ -23,63 +22,64 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { assistant, dashboard, lookup } from '@/routes';
+import { assistant, dashboard, diagnose, lookup } from '@/routes';
 import {
     create as logJob,
     index as serviceLog,
 } from '@/routes/service-records';
 import { index as inspections } from '@/routes/inspections';
 import { index as inventory } from '@/routes/inventory';
+import { index as receiving } from '@/routes/receiving';
+import { index as schedule } from '@/routes/schedule';
 import { index as shoppingList } from '@/routes/shopping-list';
 import { index as team } from '@/routes/admin/users';
 import { index as vehicles } from '@/routes/vehicles';
-import type { NavItem } from '@/types';
+import type { NavEntry, NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+const mainNavItems: NavEntry[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
     },
     {
-        title: 'Vehicles',
-        href: vehicles(),
+        title: 'Fleet',
         icon: Car,
+        items: [
+            { title: 'Vehicles', href: vehicles() },
+            { title: 'Lookup', href: lookup() },
+        ],
     },
     {
-        title: 'Lookup',
-        href: lookup(),
-        icon: ScanSearch,
-    },
-    {
-        title: 'Service log',
-        href: serviceLog(),
+        title: 'Service',
         icon: Wrench,
+        items: [
+            { title: 'Diagnose', href: diagnose() },
+            { title: 'Service log', href: serviceLog() },
+            { title: 'Log job', href: logJob() },
+        ],
     },
     {
-        title: 'Checklists',
-        href: inspections(),
+        title: 'Inspections',
         icon: ClipboardCheck,
+        items: [
+            { title: 'Checklists', href: inspections() },
+            { title: 'Schedule', href: schedule() },
+        ],
     },
     {
-        title: 'Inventory',
-        href: inventory(),
+        title: 'Parts',
         icon: Package,
-    },
-    {
-        title: 'Shopping list',
-        href: shoppingList(),
-        icon: ShoppingCart,
+        items: [
+            { title: 'Inventory', href: inventory() },
+            { title: 'Shopping list', href: shoppingList() },
+            { title: 'Receive parts', href: receiving() },
+        ],
     },
     {
         title: 'Assistant',
         href: assistant(),
         icon: Bot,
-    },
-    {
-        title: 'Log job',
-        href: logJob(),
-        icon: PlusCircle,
     },
 ];
 
@@ -91,8 +91,37 @@ const adminNavItems: NavItem[] = [
     },
 ];
 
+/** Schedulers only have the schedule. */
+const schedulerNavItems: NavItem[] = [
+    {
+        title: 'Schedule',
+        href: schedule(),
+        icon: CalendarCheck,
+    },
+];
+
+/** Shoppers only have the shopping list. */
+const shopperNavItems: NavItem[] = [
+    {
+        title: 'Shopping list',
+        href: shoppingList(),
+        icon: ShoppingCart,
+    },
+];
+
 export function AppSidebar() {
     const { auth } = usePage().props;
+
+    const roleNavItems = auth.can.workOnRecords
+        ? mainNavItems
+        : auth.can.manageSchedule
+          ? schedulerNavItems
+          : shopperNavItems;
+
+    const items = [
+        ...roleNavItems,
+        ...(auth.can.manageTeam ? adminNavItems : []),
+    ];
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -109,13 +138,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain
-                    items={
-                        auth.isAdmin
-                            ? [...mainNavItems, ...adminNavItems]
-                            : mainNavItems
-                    }
-                />
+                <NavMain items={items} />
             </SidebarContent>
 
             <SidebarFooter>

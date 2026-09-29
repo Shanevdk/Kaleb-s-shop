@@ -28,7 +28,7 @@ class InspectionRequest extends FormRequest
             'vehicle_id' => [
                 'required',
                 'string',
-                Rule::exists('vehicles', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('vehicles', 'id'),
             ],
             'template' => ['required', Rule::enum(ChecklistTemplate::class)],
             'performed_on' => ['required', 'date'],

@@ -15,19 +15,20 @@ test('guests cannot see the vehicle list', function () {
     $this->get(route('vehicles.index'))->assertRedirect(route('login'));
 });
 
-test('the vehicle list only shows vehicles owned by the user', function () {
+test('the vehicle list shows every vehicle in the shop, whoever added it', function () {
     $user = User::factory()->create();
-    $own = Vehicle::factory()->for($user)->create(['make' => 'Toyota']);
-    Vehicle::factory()->create(['make' => 'Ferrari']);
+    Vehicle::factory()->for($user)->create(['make' => 'Toyota']);
+    $theirs = Vehicle::factory()->create(['make' => 'Ferrari']);
 
     $this->actingAs($user)
         ->get(route('vehicles.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('vehicles/index')
-            ->has('vehicles', 1)
-            ->where('vehicles.0.id', $own->id)
+            ->has('vehicles', 2)
         );
+
+    $this->actingAs($user)->get(route('vehicles.show', $theirs))->assertOk();
 });
 
 test('the vehicle list can be searched', function () {
@@ -160,8 +161,8 @@ test('deleting a vehicle keeps the stock history that went into it', function ()
         ->and($movement->fresh()->vehicle_id)->toBeNull();
 });
 
-test('a user cannot view, update or delete another mechanic vehicle', function () {
-    $user = User::factory()->create();
+test('a shopper cannot view, update or delete a vehicle', function () {
+    $user = User::factory()->shopper()->create();
     $vehicle = Vehicle::factory()->create();
 
     $this->actingAs($user)->get(route('vehicles.show', $vehicle))->assertForbidden();

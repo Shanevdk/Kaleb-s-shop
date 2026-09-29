@@ -12,7 +12,7 @@ class InspectionPolicy
      */
     public function view(User $user, Inspection $inspection): bool
     {
-        return $user->id === $inspection->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -20,7 +20,7 @@ class InspectionPolicy
      */
     public function update(User $user, Inspection $inspection): bool
     {
-        return $user->id === $inspection->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -28,6 +28,6 @@ class InspectionPolicy
      */
     public function delete(User $user, Inspection $inspection): bool
     {
-        return $user->id === $inspection->user_id;
+        return $user->role->canWorkOnRecords();
     }
 }

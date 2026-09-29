@@ -7,6 +7,7 @@ use App\Enums\CheckStatus;
 use App\Http\Requests\InspectionRequest;
 use App\Http\Resources\InspectionResource;
 use App\Models\Inspection;
+use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,7 +28,7 @@ class InspectionController extends Controller
             $vehicleId = '';
         }
 
-        $inspections = $request->user()->inspections()
+        $inspections = Inspection::query()
             ->with('vehicle')
             ->withCheckTallies()
             ->when($vehicleId !== '', fn ($query) => $query->where('vehicle_id', $vehicleId))
@@ -51,6 +52,7 @@ class InspectionController extends Controller
             'vehicles' => $this->vehicleOptions($request),
             'templates' => ChecklistTemplate::catalog(),
             'selectedVehicle' => (string) $request->string('vehicle'),
+            'selectedTemplate' => ChecklistTemplate::tryFrom((string) $request->string('template'))?->value,
         ]);
     }
 
@@ -80,7 +82,7 @@ class InspectionController extends Controller
     {
         Gate::authorize('view', $inspection);
 
-        $inspection->load(['vehicle', 'items']);
+        $inspection->load(['vehicle', 'items.repairJob.parts.inventoryItem']);
 
         return Inertia::render('inspections/show', [
             'inspection' => InspectionResource::make($inspection)->resolve(),
@@ -134,7 +136,7 @@ class InspectionController extends Controller
      */
     private function vehicleOptions(Request $request): array
     {
-        return $request->user()->vehicles()
+        return Vehicle::query()
             ->orderBy('make')
             ->orderBy('model')
             ->get()

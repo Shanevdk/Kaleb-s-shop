@@ -1,0 +1,201 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Actions\PlanInspectionSchedule;
+use App\Enums\ChecklistTemplate;
+use App\Enums\ScheduledCheckStatus;
+use App\Enums\ServiceStatus;
+use App\Enums\ServiceType;
+use App\Models\Inspection;
+use App\Models\PlannedInspection;
+use App\Models\ServiceRecord;
+use App\Models\Vehicle;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class ScheduleController extends Controller
+{
+    /**
+     * Display a month of the calendar: every vehicle's monthly check and
+     * annual inspection, booked in automatically, and the jobs planned in.
+     */
+    public function index(Request $request, PlanInspectionSchedule $planSchedule): Response
+    {
+        $today = today();
+        $month = $this->requestedMonth($request, $today);
+        $startOfMonth = $month->startOfMonth();
+        $endOfMonth = $month->endOfMonth();
+
+        $planSchedule->handle($month);
+
+        $inspections = Inspection::query()
+            ->whereIn('template', [ChecklistTemplate::MonthlyCheck, ChecklistTemplate::AnnualInspection])
+            ->whereBetween('performed_on', [$startOfMonth->startOfYear()->toDateString(), $endOfMonth->endOfYear()->toDateString()])
+            ->latest('performed_on')
+            ->get()
+            ->groupBy('vehicle_id');
+
+        $checks = PlannedInspection::query()
+            ->with('vehicle')
+            ->where(fn ($query) => $query
+                ->where(fn ($monthly) => $monthly
+                    ->where('template', ChecklistTemplate::MonthlyCheck)
+                    ->where('period', PlannedInspection::periodFor(ChecklistTemplate::MonthlyCheck, $month)))
+                ->orWhere(fn ($annual) => $annual
+                    ->where('template', ChecklistTemplate::AnnualInspection)
+                    ->where('period', PlannedInspection::periodFor(ChecklistTemplate::AnnualInspection, $month))))
+            ->get()
+            ->map(fn (PlannedInspection $planned): array => $this->checkEntry(
+                $planned,
+                $inspections->get($planned->vehicle_id, collect()),
+                $today,
+            ));
+
+        $annualChecks = $checks->where('kind', ChecklistTemplate::AnnualInspection->value);
+        $checks = $checks->filter(fn (array $entry): bool => str_starts_with($entry['date'], $startOfMonth->format('Y-m')));
+
+        $jobs = ServiceRecord::query()
+            ->with('vehicle')
+            ->whereBetween('performed_on', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+            ->get()
+            ->map(fn (ServiceRecord $job): array => $this->jobEntry($job, $today));
+
+        $entries = $checks->concat($jobs)
+            ->sortBy(fn (array $entry): array => [$entry['date'], $entry['kind'] === 'job' ? 1 : 0, $entry['vehicle']['display_name'] ?? ''])
+            ->values();
+
+        return Inertia::render('schedule/index', [
+            'month' => $startOfMonth->format('Y-m'),
+            'today' => $today->toDateString(),
+            'entries' => $entries->all(),
+            'stats' => [
+                'checks' => $checks->count(),
+                'checks_done' => $checks->where('status', ScheduledCheckStatus::Done->value)->count(),
+                'annual' => $annualChecks->count(),
+                'annual_done' => $annualChecks->where('status', ScheduledCheckStatus::Done->value)->count(),
+                'behind' => $entries->whereIn('status', [ScheduledCheckStatus::Overdue->value, ScheduledCheckStatus::Missed->value])->count(),
+                'jobs' => $jobs->count(),
+            ],
+            'vehicles' => Vehicle::query()
+                ->orderBy('make')
+                ->orderBy('model')
+                ->get()
+                ->map(fn (Vehicle $vehicle): array => ['value' => $vehicle->id, 'label' => $vehicle->display_name])
+                ->all(),
+            'types' => ServiceType::options(),
+        ]);
+    }
+
+    /**
+     * Get the month asked for, kept within five years back and one ahead.
+     */
+    private function requestedMonth(Request $request, CarbonImmutable $today): CarbonImmutable
+    {
+        $requested = (string) $request->string('month');
+
+        $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $requested) === 1
+            ? CarbonImmutable::createFromFormat('!Y-m', $requested)
+            : $today;
+
+        if ($month->lessThan($today->subYears(5)->startOfMonth()) || $month->greaterThan($today->addYear()->endOfMonth())) {
+            $month = $today;
+        }
+
+        return $month->startOfMonth();
+    }
+
+    /**
+     * Describe a booked check, shown on the day it was done if it has been
+     * and on the day it is booked for if not.
+     *
+     * @param  Collection<int, Inspection>  $inspections  the vehicle's checks this year
+     * @return array<string, mixed>
+     */
+    private function checkEntry(PlannedInspection $planned, Collection $inspections, CarbonImmutable $today): array
+    {
+        $windowStart = $planned->windowStart();
+        $windowEnd = $planned->windowEnd();
+
+        $candidates = $inspections->filter(fn (Inspection $inspection): bool => $inspection->performed_on->betweenIncluded($windowStart, $windowEnd)
+            && ($planned->template === ChecklistTemplate::AnnualInspection
+                ? $inspection->template === ChecklistTemplate::AnnualInspection
+                : $inspection->template->coversMonthlyCheck()));
+
+        $inspection = $candidates->first(fn (Inspection $inspection): bool => $inspection->is_complete)
+            ?? $candidates->first();
+
+        $status = match (true) {
+            $inspection?->is_complete === true => ScheduledCheckStatus::Done,
+            $inspection !== null => ScheduledCheckStatus::InProgress,
+            $windowEnd->lessThan($today) => ScheduledCheckStatus::Missed,
+            $planned->due_on->lessThan($today) => ScheduledCheckStatus::Overdue,
+            $planned->due_on->isSameDay($today) => ScheduledCheckStatus::Due,
+            default => ScheduledCheckStatus::Upcoming,
+        };
+
+        return [
+            'id' => $planned->id,
+            'kind' => $planned->template->value,
+            'title' => $planned->template->label(),
+            'date' => ($inspection?->performed_on ?? $planned->due_on)->toDateString(),
+            'due_on' => $planned->due_on->toDateString(),
+            'status' => $status->value,
+            'vehicle' => $this->vehicle($planned->vehicle),
+            'inspection_id' => $inspection?->id,
+            'service_record_id' => null,
+            'can_move' => $inspection === null && $windowEnd->greaterThanOrEqualTo($today),
+            'can_remove' => false,
+            'window' => [
+                'from' => $windowStart->max($today)->toDateString(),
+                'to' => $windowEnd->toDateString(),
+            ],
+        ];
+    }
+
+    /**
+     * Describe a job planned in, or done, on a day of the month.
+     *
+     * @return array<string, mixed>
+     */
+    private function jobEntry(ServiceRecord $job, CarbonImmutable $today): array
+    {
+        $status = match (true) {
+            $job->status === ServiceStatus::Completed => ScheduledCheckStatus::Done,
+            $job->status === ServiceStatus::InProgress => ScheduledCheckStatus::InProgress,
+            $job->performed_on->lessThan($today) => ScheduledCheckStatus::Overdue,
+            $job->performed_on->isSameDay($today) => ScheduledCheckStatus::Due,
+            default => ScheduledCheckStatus::Upcoming,
+        };
+
+        return [
+            'id' => $job->id,
+            'kind' => 'job',
+            'title' => $job->title,
+            'date' => $job->performed_on->toDateString(),
+            'due_on' => $job->performed_on->toDateString(),
+            'status' => $status->value,
+            'vehicle' => $this->vehicle($job->vehicle),
+            'inspection_id' => null,
+            'service_record_id' => $job->id,
+            'can_move' => $job->status !== ServiceStatus::Completed,
+            'can_remove' => $job->status === ServiceStatus::Planned,
+            'window' => null,
+        ];
+    }
+
+    /**
+     * @return array{id: string, display_name: string, registration: string|null}|null
+     */
+    private function vehicle(?Vehicle $vehicle): ?array
+    {
+        return $vehicle === null ? null : [
+            'id' => $vehicle->id,
+            'display_name' => $vehicle->display_name,
+            'registration' => $vehicle->registration,
+        ];
+    }
+}

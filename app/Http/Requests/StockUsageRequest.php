@@ -28,12 +28,12 @@ class StockUsageRequest extends FormRequest
             'vehicle_id' => [
                 'nullable',
                 'string',
-                Rule::exists('vehicles', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('vehicles', 'id'),
             ],
             'service_record_id' => [
                 'nullable',
                 'string',
-                Rule::exists('service_records', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('service_records', 'id'),
             ],
             'note' => ['nullable', 'string', 'max:120'],
         ];

@@ -44,7 +44,7 @@ test('a part can be marked as fitting vehicles when it is stocked', function () 
         ->and((float) $item->fitments->firstWhere('vehicle_id', $golf->id)->quantity_needed)->toBe(2.0);
 });
 
-test('a part cannot be marked as fitting someone elses vehicle', function () {
+test('a part can be marked as fitting a vehicle another mechanic added', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)->post(route('inventory.store'), [
@@ -55,7 +55,9 @@ test('a part cannot be marked as fitting someone elses vehicle', function () {
         'minimum_quantity' => 2,
         'unit_cost' => 14.5,
         'fitments' => [['vehicle_id' => Vehicle::factory()->create()->id, 'quantity_needed' => 1]],
-    ])->assertSessionHasErrors('fitments.0.vehicle_id');
+    ])->assertSessionHasNoErrors();
+
+    expect(InventoryItem::sole()->fitments)->toHaveCount(1);
 });
 
 test('editing a part replaces the vehicles it fits', function () {
@@ -149,12 +151,15 @@ test('using more fluid than is on the shelf only logs what was there', function 
         ->and((float) StockMovement::firstWhere('inventory_item_id', $oil->id)->quantity)->toBe(-2.0);
 });
 
-test('an adjustment cannot name someone elses vehicle', function () {
+test('an adjustment can name a vehicle another mechanic added', function () {
     $user = User::factory()->create();
     $oil = InventoryItem::factory()->for($user)->fluid()->create();
+    $vehicle = Vehicle::factory()->create();
 
     $this->actingAs($user)->patch(route('inventory.adjust', $oil), [
         'delta' => -1,
-        'vehicle_id' => Vehicle::factory()->create()->id,
-    ])->assertSessionHasErrors('vehicle_id');
+        'vehicle_id' => $vehicle->id,
+    ])->assertSessionHasNoErrors();
+
+    expect(StockMovement::sole()->vehicle_id)->toBe($vehicle->id);
 });

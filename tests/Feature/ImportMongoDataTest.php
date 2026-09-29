@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\UserRole;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
 use App\Models\StockMovement;
@@ -137,7 +138,7 @@ test('the import copies every record and keeps them linked to each other', funct
     $movement = StockMovement::sole();
 
     expect($user->email)->toBe('kaleb@example.com')
-        ->and($user->is_admin)->toBeTrue()
+        ->and($user->role)->toBe(UserRole::Admin)
         ->and($user->created_at->toDateTimeString())->toBe('2026-09-10 14:30:00')
         ->and($vehicle->user_id)->toBe($user->id)
         ->and($vehicle->year)->toBe(2019)
@@ -166,7 +167,7 @@ test('the import can sign the copied user in with their old password', function 
     $this->assertAuthenticatedAs(User::sole());
 });
 
-test('the import skips records whose owner is gone and drops links to missing context', function () {
+test('the import keeps records whose author is gone but skips ones missing a part they need', function () {
     $ids = seedMongoShop();
 
     mongo()->selectCollection('vehicles')->insertOne([
@@ -179,9 +180,17 @@ test('the import skips records whose owner is gone and drops links to missing co
 
     mongo()->selectCollection('stock_movements')->updateMany([], ['$set' => ['vehicle_id' => (string) new ObjectId]]);
 
+    mongo()->selectCollection('stock_movements')->insertOne([
+        '_id' => new ObjectId,
+        'user_id' => (string) $ids['user'],
+        'inventory_item_id' => (string) new ObjectId,
+        'quantity' => new Decimal128('-1'),
+    ]);
+
     $this->artisan('app:import-mongodb')->assertSuccessful();
 
-    expect(Vehicle::pluck('make')->all())->toBe(['Kubota'])
+    expect(Vehicle::orderBy('make')->pluck('make')->all())->toBe(['Kubota', 'Orphan'])
+        ->and(Vehicle::where('make', 'Orphan')->sole()->user_id)->toBeNull()
         ->and(StockMovement::sole()->vehicle_id)->toBeNull()
         ->and(StockMovement::sole()->inventory_item_id)->not->toBeNull();
 });

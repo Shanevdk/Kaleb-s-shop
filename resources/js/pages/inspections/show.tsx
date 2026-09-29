@@ -1,8 +1,17 @@
-import { Form, Head, Link, router, setLayoutProps } from '@inertiajs/react';
+import {
+    Form,
+    Head,
+    Link,
+    router,
+    setLayoutProps,
+    usePoll,
+} from '@inertiajs/react';
 import { AlertTriangle, CheckCircle2, ListChecks, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
 import CheckStatusButtons from '@/components/check-status-buttons';
 import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
+import RepairPartsNote from '@/components/repair-parts-note';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +44,23 @@ export default function InspectionShow({
     const progress = items.length
         ? Math.round((checked.length / items.length) * 100)
         : 0;
+
+    const isPlanningParts = items.some(
+        (item) => item.parts_status === 'pending',
+    );
+    const { start: startPolling, stop: stopPolling } = usePoll(
+        3000,
+        { only: ['inspection'] },
+        { autoStart: false, mode: 'rest' },
+    );
+
+    useEffect(() => {
+        if (isPlanningParts) {
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    }, [isPlanningParts, startPolling, stopPolling]);
 
     const sections = items.reduce<Record<string, InspectionItem[]>>(
         (grouped, item) => {
@@ -181,6 +207,15 @@ export default function InspectionShow({
                                                             )
                                                         }
                                                     />
+                                                    {item.status ===
+                                                        'attention' && (
+                                                        <RepairPartsNote
+                                                            item={item}
+                                                            disabled={
+                                                                inspection.is_complete
+                                                            }
+                                                        />
+                                                    )}
                                                 </div>
 
                                                 <CheckStatusButtons

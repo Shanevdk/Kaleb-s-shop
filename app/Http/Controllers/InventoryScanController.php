@@ -34,7 +34,7 @@ class InventoryScanController extends Controller
         $barcode = trim($validated['barcode']);
         $delta = $validated['delta'] ?? 1;
 
-        $item = $request->user()->inventoryItems()->where('barcode', $barcode)->first();
+        $item = InventoryItem::query()->where('barcode', $barcode)->first();
 
         if (! $item instanceof InventoryItem) {
             return Inertia::render('inventory/scan', [
@@ -70,16 +70,16 @@ class InventoryScanController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('inventory_items', 'barcode')->where('user_id', $request->user()->id),
+                Rule::unique('inventory_items', 'barcode'),
             ],
             'inventory_item_id' => [
                 'required',
-                Rule::exists('inventory_items', 'id')->where('user_id', $request->user()->id),
+                Rule::exists('inventory_items', 'id'),
             ],
             'delta' => ['nullable', 'integer', 'min:-100', 'max:100'],
         ]);
 
-        $item = $request->user()->inventoryItems()
+        $item = InventoryItem::query()
             ->where('id', $validated['inventory_item_id'])
             ->firstOrFail();
 
@@ -108,7 +108,7 @@ class InventoryScanController extends Controller
     private function pageProps(Request $request): array
     {
         return [
-            'items' => $request->user()->inventoryItems()
+            'items' => InventoryItem::query()
                 ->orderBy('name')
                 ->get()
                 ->map(fn (InventoryItem $item): array => [

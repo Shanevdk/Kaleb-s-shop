@@ -1,17 +1,21 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     Banknote,
     CircleSlash,
     ListChecks,
     Package,
+    PackageCheck,
     ShoppingCart,
     Wrench,
 } from 'lucide-react';
+import { useState } from 'react';
 import EmptyState from '@/components/empty-state';
 import PageHeader from '@/components/page-header';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import {
     Table,
     TableBody,
@@ -21,14 +25,17 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatQuantity } from '@/lib/format';
+import { index as receiving } from '@/routes/receiving';
 import { create as addPart, edit as editPart } from '@/routes/inventory';
 import { edit as editRecord } from '@/routes/service-records';
 import { index } from '@/routes/shopping-list';
+import { destroy as cancelOrder, store as placeOrder } from '@/routes/shopping-list/orders';
 import type { ShoppingListLine } from '@/types';
 
 type Stats = {
     lines: number;
     not_stocked: number;
+    ordered: number;
     jobs: number;
     estimated_cost: number;
 };
@@ -42,6 +49,9 @@ export default function ShoppingList({
     reorderLines: ShoppingListLine[];
     stats: Stats;
 }) {
+    // Shoppers see the list but cannot open the parts or jobs behind it.
+    const canEdit = usePage().props.auth.can.workOnRecords;
+
     return (
         <>
             <Head title="Shopping list" />
@@ -49,13 +59,24 @@ export default function ShoppingList({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="Shopping list"
-                    description="What the open jobs need that the shelves cannot cover, plus anything down to its reorder point."
+                    description="What the open jobs need that the shelves cannot cover, plus anything down to its reorder point. Tick a line once it is ordered."
+                    actions={
+                        canEdit && (
+                            <Button variant="outline" asChild>
+                                <Link href={receiving()}>
+                                    <PackageCheck />
+                                    Receive parts
+                                </Link>
+                            </Button>
+                        )
+                    }
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard
                         label="Lines to buy"
                         value={String(stats.lines)}
+                        hint={`${stats.ordered} ordered`}
                         icon={ListChecks}
                     />
                     <StatCard
@@ -100,6 +121,9 @@ export default function ShoppingList({
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-40">
+                                                Ordered
+                                            </TableHead>
                                             <TableHead>Part</TableHead>
                                             <TableHead>Needed for</TableHead>
                                             <TableHead className="text-right">
@@ -120,9 +144,18 @@ export default function ShoppingList({
                                         {shortLines.map((line) => (
                                             <TableRow
                                                 key={`${line.inventory_item_id ?? 'x'}-${line.name}`}
+                                                className={
+                                                    line.order
+                                                        ? 'bg-muted/40'
+                                                        : undefined
+                                                }
                                             >
+                                                <TableCell className="align-top">
+                                                    <OrderToggle line={line} />
+                                                </TableCell>
                                                 <TableCell className="max-w-xs">
-                                                    {line.inventory_item_id ? (
+                                                    {line.inventory_item_id &&
+                                                    canEdit ? (
                                                         <Link
                                                             href={editPart(
                                                                 line.inventory_item_id,
@@ -145,10 +178,10 @@ export default function ShoppingList({
                                                             ]
                                                                 .filter(Boolean)
                                                                 .join(' · ') ||
-                                                            'In your inventory'
+                                                            'In the inventory'
                                                         ) : (
                                                             <span className="text-amber-600 dark:text-amber-500">
-                                                                Not in your
+                                                                Not in the
                                                                 inventory
                                                             </span>
                                                         )}
@@ -157,20 +190,32 @@ export default function ShoppingList({
                                                 <TableCell className="max-w-xs">
                                                     <div className="flex flex-wrap gap-1">
                                                         {line.jobs?.map(
-                                                            (job) => (
-                                                                <Link
-                                                                    key={job.id}
-                                                                    href={editRecord(
-                                                                        job.id,
-                                                                    )}
-                                                                    className="bg-muted hover:bg-accent rounded-full px-2 py-0.5 text-xs"
-                                                                >
-                                                                    {job.title}
-                                                                    {job.vehicle
-                                                                        ? ` · ${job.vehicle}`
-                                                                        : ''}
-                                                                </Link>
-                                                            ),
+                                                            (job) => {
+                                                                const label = `${job.title}${job.vehicle ? ` · ${job.vehicle}` : ''}`;
+
+                                                                return canEdit ? (
+                                                                    <Link
+                                                                        key={
+                                                                            job.id
+                                                                        }
+                                                                        href={editRecord(
+                                                                            job.id,
+                                                                        )}
+                                                                        className="bg-muted hover:bg-accent rounded-full px-2 py-0.5 text-xs"
+                                                                    >
+                                                                        {label}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span
+                                                                        key={
+                                                                            job.id
+                                                                        }
+                                                                        className="bg-muted rounded-full px-2 py-0.5 text-xs"
+                                                                    >
+                                                                        {label}
+                                                                    </span>
+                                                                );
+                                                            },
                                                         )}
                                                     </div>
                                                 </TableCell>
@@ -207,7 +252,7 @@ export default function ShoppingList({
                                     </TableBody>
                                 </Table>
 
-                                {stats.not_stocked > 0 && (
+                                {stats.not_stocked > 0 && canEdit && (
                                     <footer className="border-t px-6 py-4">
                                         <Button
                                             variant="outline"
@@ -239,6 +284,9 @@ export default function ShoppingList({
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-40">
+                                                Ordered
+                                            </TableHead>
                                             <TableHead>Part</TableHead>
                                             <TableHead className="text-right">
                                                 Have
@@ -258,16 +306,30 @@ export default function ShoppingList({
                                         {reorderLines.map((line) => (
                                             <TableRow
                                                 key={line.inventory_item_id}
+                                                className={
+                                                    line.order
+                                                        ? 'bg-muted/40'
+                                                        : undefined
+                                                }
                                             >
+                                                <TableCell className="align-top">
+                                                    <OrderToggle line={line} />
+                                                </TableCell>
                                                 <TableCell className="max-w-xs">
-                                                    <Link
-                                                        href={editPart(
-                                                            line.inventory_item_id as string,
-                                                        )}
-                                                        className="font-medium hover:underline"
-                                                    >
-                                                        {line.name}
-                                                    </Link>
+                                                    {canEdit ? (
+                                                        <Link
+                                                            href={editPart(
+                                                                line.inventory_item_id as string,
+                                                            )}
+                                                            className="font-medium hover:underline"
+                                                        >
+                                                            {line.name}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="font-medium">
+                                                            {line.name}
+                                                        </span>
+                                                    )}
                                                     <p className="text-muted-foreground text-xs">
                                                         {[
                                                             line.part_number,
@@ -311,6 +373,109 @@ export default function ShoppingList({
                 )}
             </div>
         </>
+    );
+}
+
+/**
+ * Tick a line off as ordered and say how many were ordered. Changing the
+ * amount on a ticked line updates the order; unticking it takes the order
+ * back off, unless part of it has already been received.
+ */
+function OrderToggle({ line }: { line: ShoppingListLine }) {
+    const [quantity, setQuantity] = useState(() =>
+        String(line.order?.quantity_ordered ?? line.shortfall),
+    );
+    const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState<string>();
+
+    const order = line.order;
+    const partlyReceived = (order?.quantity_received ?? 0) > 0;
+
+    const requestOptions = {
+        preserveScroll: true,
+        preserveState: true,
+        onStart: () => {
+            setProcessing(true);
+            setError(undefined);
+        },
+        onError: (errors: Record<string, string>) =>
+            setError(errors.quantity ?? Object.values(errors)[0]),
+        onFinish: () => setProcessing(false),
+    };
+
+    const submitOrder = () => {
+        router.post(
+            placeOrder.url(),
+            {
+                inventory_item_id: line.inventory_item_id,
+                name: line.name,
+                part_number: line.part_number,
+                brand: line.brand,
+                supplier: line.supplier,
+                unit: line.unit,
+                quantity,
+            },
+            requestOptions,
+        );
+    };
+
+    const withdrawOrder = () => {
+        if (order) {
+            router.delete(cancelOrder(order.id).url, requestOptions);
+        }
+    };
+
+    return (
+        <div className="grid gap-1">
+            <div className="flex items-center gap-2">
+                <Checkbox
+                    checked={order !== null}
+                    disabled={processing || partlyReceived}
+                    onCheckedChange={(checked) =>
+                        checked === true ? submitOrder() : withdrawOrder()
+                    }
+                    aria-label={`Mark ${line.name} as ordered`}
+                />
+                <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    value={quantity}
+                    disabled={processing}
+                    onChange={(event) => setQuantity(event.target.value)}
+                    onBlur={() => {
+                        if (
+                            order &&
+                            Number(quantity) !== order.quantity_ordered
+                        ) {
+                            submitOrder();
+                        }
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            submitOrder();
+                        }
+                    }}
+                    aria-label={`How many ${line.name} were ordered`}
+                    className="h-8 w-20 tabular-nums"
+                />
+                <span className="text-muted-foreground text-xs">
+                    {line.unit_abbreviation}
+                </span>
+            </div>
+            {partlyReceived && order && (
+                <p className="text-muted-foreground text-xs">
+                    {formatQuantity(
+                        order.quantity_received,
+                        line.unit_abbreviation,
+                    )}{' '}
+                    received so far
+                </p>
+            )}
+            {error && <p className="text-destructive text-xs">{error}</p>}
+        </div>
     );
 }
 

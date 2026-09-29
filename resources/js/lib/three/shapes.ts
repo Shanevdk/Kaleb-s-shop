@@ -1,14 +1,13 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { Materials } from '@/lib/three/materials';
 
 export type Axis = 'x' | 'y' | 'z';
 export type Point = [number, number];
 export type Point3 = [number, number, number];
 
 /**
- * Every mesh in the model casts and receives shadows; this is the one place
- * that is decided.
+ * Every mesh casts and receives shadows; this is the one place that is
+ * decided.
  */
 export function place<T extends THREE.Object3D>(
     object: T,
@@ -34,6 +33,11 @@ export function orient(object: THREE.Object3D, axis: Axis): void {
     }
 }
 
+/**
+ * A box with softened edges. Nothing real has a knife edge, and the
+ * rounding is what catches the light along every corner. Pass a radius of
+ * zero for a hard box.
+ */
 export function box(
     w: number,
     h: number,
@@ -42,12 +46,15 @@ export function box(
     x = 0,
     y = 0,
     z = 0,
-    radius = 0,
+    radius?: number,
 ): THREE.Mesh {
-    const r = Math.min(radius, Math.min(w, h, d) / 2 - 0.001);
+    const r = Math.min(
+        radius ?? Math.min(w, h, d) * 0.12,
+        Math.min(w, h, d) / 2 - 0.0005,
+    );
     const geometry =
-        radius > 0
-            ? new RoundedBoxGeometry(w, h, d, 3, r)
+        r > 0.0004
+            ? new RoundedBoxGeometry(w, h, d, 2, r)
             : new THREE.BoxGeometry(w, h, d);
 
     return place(new THREE.Mesh(geometry, material), x, y, z);
@@ -77,6 +84,43 @@ export function cyl(
     return place(mesh, x, y, z);
 }
 
+/**
+ * A cylinder with rounded ends, turned from a profile: bosses, pulleys,
+ * caps, canisters.
+ */
+export function puck(
+    radius: number,
+    length: number,
+    material: THREE.Material,
+    axis: Axis,
+    x = 0,
+    y = 0,
+    z = 0,
+    options: { fillet?: number; segments?: number } = {},
+): THREE.Mesh {
+    const f = Math.min(
+        options.fillet ?? Math.min(radius, length) * 0.2,
+        radius * 0.5,
+        length / 2,
+    );
+    const h = length / 2;
+    const profile: Point[] = [[0, -h]];
+
+    for (let i = 0; i <= 4; i++) {
+        const a = (Math.PI / 2) * (i / 4);
+        profile.push([radius - f + Math.sin(a) * f, -h + f - Math.cos(a) * f]);
+    }
+
+    for (let i = 0; i <= 4; i++) {
+        const a = (Math.PI / 2) * (i / 4);
+        profile.push([radius - f + Math.cos(a) * f, h - f + Math.sin(a) * f]);
+    }
+
+    profile.push([0, h]);
+
+    return lathe(profile, material, axis, x, y, z, options.segments ?? 32);
+}
+
 export function sphere(
     radius: number,
     material: THREE.Material,
@@ -86,7 +130,7 @@ export function sphere(
     scale: Point3 = [1, 1, 1],
 ): THREE.Mesh {
     const mesh = place(
-        new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 18), material),
+        new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), material),
         x,
         y,
         z,
@@ -136,7 +180,7 @@ export function torus(
 }
 
 /**
- * A smooth pipe through the given points. Hoses, frames, exhausts, belts.
+ * A smooth pipe through the given points: hoses, frames, exhausts, wires.
  */
 export function tube(
     points: Point3[],
@@ -157,10 +201,80 @@ export function tube(
     );
     const geometry = new THREE.TubeGeometry(
         curve,
-        options.segments ?? 32,
+        options.segments ?? Math.max(16, points.length * 10),
         radius,
-        options.radial ?? 10,
+        options.radial ?? 12,
         options.closed ?? false,
+    );
+
+    return place(new THREE.Mesh(geometry, material));
+}
+
+/**
+ * A bent pipe with square corners rounded to the given radius, the way a
+ * tube bender makes it: frames, roll cages, handles, brake lines.
+ */
+export function bentTube(
+    points: Point3[],
+    radius: number,
+    material: THREE.Material,
+    bend = radius * 3,
+    options: { radial?: number; closed?: boolean } = {},
+): THREE.Mesh {
+    const path = new THREE.CurvePath<THREE.Vector3>();
+    const v = points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+    const closed = options.closed ?? false;
+    const count = v.length;
+    const corners: {
+        before: THREE.Vector3;
+        corner: THREE.Vector3;
+        after: THREE.Vector3;
+    }[] = [];
+
+    for (let i = 0; i < count; i++) {
+        if (!closed && (i === 0 || i === count - 1)) {
+            corners.push({ before: v[i], corner: v[i], after: v[i] });
+            continue;
+        }
+
+        const previous = v[(i - 1 + count) % count];
+        const next = v[(i + 1) % count];
+        const toPrevious = previous.clone().sub(v[i]);
+        const toNext = next.clone().sub(v[i]);
+        const r = Math.min(bend, toPrevious.length() / 2, toNext.length() / 2);
+        corners.push({
+            before: v[i].clone().addScaledVector(toPrevious.normalize(), r),
+            corner: v[i],
+            after: v[i].clone().addScaledVector(toNext.normalize(), r),
+        });
+    }
+
+    const last = closed ? count : count - 1;
+
+    for (let i = 0; i < last; i++) {
+        const a = corners[i];
+        const b = corners[(i + 1) % count];
+
+        if (a.after.distanceTo(b.before) > 1e-5) {
+            path.add(new THREE.LineCurve3(a.after, b.before));
+        }
+
+        if (
+            (closed || i + 1 < count - 1) &&
+            b.before.distanceTo(b.after) > 1e-5
+        ) {
+            path.add(
+                new THREE.QuadraticBezierCurve3(b.before, b.corner, b.after),
+            );
+        }
+    }
+
+    const geometry = new THREE.TubeGeometry(
+        path,
+        Math.max(24, Math.round(path.getLength() / 0.01)),
+        radius,
+        options.radial ?? 12,
+        closed,
     );
 
     return place(new THREE.Mesh(geometry, material));
@@ -179,7 +293,7 @@ export function lathe(
     segments = 48,
 ): THREE.Mesh {
     const geometry = new THREE.LatheGeometry(
-        profile.map(([r, h]) => new THREE.Vector2(r, h)),
+        profile.map(([r, h]) => new THREE.Vector2(Math.max(0, r), h)),
         segments,
     );
     const mesh = new THREE.Mesh(geometry, material);
@@ -205,62 +319,50 @@ export function polygon(points: Point[]): THREE.Shape {
 }
 
 /**
- * A vehicle's side silhouette. The points run from the front bumper's
- * bottom, up and over the roof line, to the rear bumper's bottom; the
- * underside is drawn back along the floor with the wheel arches cut out.
+ * A closed path for a hole in a shape.
  */
-export function silhouette(
-    points: Point[],
-    arches: { x: number; radius: number }[],
-    floor: number,
-): THREE.Shape {
-    const shape = new THREE.Shape();
-    shape.moveTo(points[0][0], points[0][1]);
+export function hole(points: Point[]): THREE.Path {
+    const path = new THREE.Path();
+    path.moveTo(points[0][0], points[0][1]);
 
     for (const [x, y] of points.slice(1)) {
-        shape.lineTo(x, y);
+        path.lineTo(x, y);
     }
 
-    const rear = points[points.length - 1][0];
-    shape.lineTo(rear, floor);
+    path.closePath();
 
-    for (const arch of [...arches].sort((a, b) => a.x - b.x)) {
-        shape.lineTo(arch.x - arch.radius, floor);
-        shape.absarc(arch.x, floor, arch.radius, Math.PI, 0, true);
-    }
-
-    shape.lineTo(points[0][0], floor);
-    shape.closePath();
-
-    return shape;
+    return path;
 }
 
 /**
- * Extrude a shape symmetrically about the axis it is thick along.
+ * Extrude a shape symmetrically about the axis it is thick along, with
+ * rounded edges.
  */
 export function extrude(
     shape: THREE.Shape,
     depth: number,
-    material: THREE.Material,
+    material: THREE.Material | THREE.Material[],
     options: {
         bevel?: number;
         axis?: Axis;
         x?: number;
         y?: number;
         z?: number;
+        curveSegments?: number;
     } = {},
 ): THREE.Mesh {
-    const bevel = options.bevel ?? 0.04;
+    const bevel = Math.min(options.bevel ?? 0.01, depth / 2 - 0.0005);
+    const core = Math.max(0.0005, depth - bevel * 2);
     const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: Math.max(0.01, depth - bevel * 2),
+        depth: core,
         bevelEnabled: bevel > 0,
         bevelThickness: bevel,
         bevelSize: bevel,
-        bevelSegments: 4,
+        bevelSegments: 3,
         steps: 1,
-        curveSegments: 24,
+        curveSegments: options.curveSegments ?? 24,
     });
-    geometry.translate(0, 0, -Math.max(0.01, depth - bevel * 2) / 2);
+    geometry.translate(0, 0, -core / 2);
     geometry.computeVertexNormals();
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -286,7 +388,7 @@ export function strut(
     depth: number,
     material: THREE.Material,
     z = 0,
-    radius = 0,
+    radius?: number,
 ): THREE.Mesh {
     const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
     const mesh = box(
@@ -304,6 +406,34 @@ export function strut(
     return mesh;
 }
 
+/**
+ * A round bar between two points anywhere in space.
+ */
+export function rod(
+    from: Point3,
+    to: Point3,
+    radius: number,
+    material: THREE.Material,
+    segments = 12,
+): THREE.Mesh {
+    const a = new THREE.Vector3(...from);
+    const b = new THREE.Vector3(...to);
+    const length = a.distanceTo(b);
+    const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, length, segments),
+        material,
+    );
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        b.clone().sub(a).normalize(),
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+}
+
 export type Transform = {
     x: number;
     y: number;
@@ -312,6 +442,9 @@ export type Transform = {
     ry?: number;
     rz?: number;
     s?: number;
+    sx?: number;
+    sy?: number;
+    sz?: number;
 };
 
 /**
@@ -333,7 +466,7 @@ export function instanced(
         position.set(t.x, t.y, t.z);
         rotation.set(t.rx ?? 0, t.ry ?? 0, t.rz ?? 0);
         quaternion.setFromEuler(rotation);
-        scale.setScalar(t.s ?? 1);
+        scale.set(t.sx ?? t.s ?? 1, t.sy ?? t.s ?? 1, t.sz ?? t.s ?? 1);
         matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(index, matrix);
     });
@@ -341,395 +474,104 @@ export function instanced(
     mesh.instanceMatrix.needsUpdate = true;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.computeBoundingSphere();
 
     return mesh;
 }
 
 /**
- * Bolt heads dotted around, for covers and flanges.
+ * A hex bolt head with a washer face, standing up +Y.
+ */
+export function boltGeometry(size: number): THREE.BufferGeometry {
+    const head = new THREE.CylinderGeometry(size, size, size * 0.65, 6);
+    head.translate(0, size * 0.325 + size * 0.12, 0);
+    const washer = new THREE.CylinderGeometry(
+        size * 1.15,
+        size * 1.2,
+        size * 0.12,
+        16,
+    );
+    washer.translate(0, size * 0.06, 0);
+    const merged = mergeGeometries([washer, head]);
+    head.dispose();
+    washer.dispose();
+
+    return merged;
+}
+
+/**
+ * Bolt heads dotted around, for covers and flanges. They stand out along
+ * the given axis (the direction the bolt points away from the surface).
  */
 export function bolts(
     material: THREE.Material,
-    radius: number,
+    size: number,
     positions: Point3[],
-    axis: Axis = 'y',
+    axis: Axis | '-x' | '-y' | '-z' = 'y',
 ): THREE.InstancedMesh {
-    const geometry = new THREE.CylinderGeometry(
-        radius,
-        radius,
-        radius * 1.2,
-        6,
-    );
+    const rotations: Record<string, [number, number, number]> = {
+        y: [0, 0, 0],
+        '-y': [Math.PI, 0, 0],
+        x: [0, 0, -Math.PI / 2],
+        '-x': [0, 0, Math.PI / 2],
+        z: [Math.PI / 2, 0, 0],
+        '-z': [-Math.PI / 2, 0, 0],
+    };
+    const [rx, ry, rz] = rotations[axis];
 
     return instanced(
-        geometry,
+        boltGeometry(size),
         material,
-        positions.map(([x, y, z]) => ({
+        positions.map(([x, y, z], i) => ({
             x,
             y,
             z,
-            rz: axis === 'x' ? -Math.PI / 2 : 0,
-            rx: axis === 'z' ? Math.PI / 2 : 0,
+            rx,
+            ry,
+            rz: rz + (axis === 'y' || axis === '-y' ? i * 0.7 : 0),
         })),
     );
 }
 
 /**
- * A complete wheel: a lathed tyre with shoulders and tread, an alloy or
- * steel rim with spokes, hub, nuts, and a brake disc and caliper behind.
+ * Merge simple indexed or non-indexed geometries with the same attributes.
  */
-export function wheel(
-    m: Materials,
-    radius: number,
-    width: number,
-    x: number,
-    z: number,
-    options: {
-        side?: 1 | -1;
-        offroad?: boolean;
-        spokes?: number;
-        open?: boolean;
-        dual?: boolean;
-        steel?: boolean;
-        brake?: boolean;
-    } = {},
-): THREE.Group {
-    const side = options.side ?? (z >= 0 ? 1 : -1);
-    const group = new THREE.Group();
-    group.position.set(x, radius, z);
-    group.rotation.y = side === -1 ? Math.PI : 0;
-
-    const rimRadius = radius * (options.offroad ? 0.56 : 0.64);
-    const shoulder = radius * 0.07;
-    const half = width / 2;
-
-    const tyre = lathe(
-        [
-            [rimRadius, -half + 0.01],
-            [rimRadius + 0.02, -half],
-            [radius - shoulder, -half + 0.004],
-            [radius, -half + shoulder],
-            [radius, half - shoulder],
-            [radius - shoulder, half - 0.004],
-            [rimRadius + 0.02, half],
-            [rimRadius, half - 0.01],
-        ],
-        m.rubber,
-        'z',
-        0,
-        0,
-        0,
-        64,
+export function mergeGeometries(
+    geometries: THREE.BufferGeometry[],
+): THREE.BufferGeometry {
+    const parts = geometries.map((g) => (g.index ? g.toNonIndexed() : g));
+    const names = Object.keys(parts[0].attributes).filter((name) =>
+        parts.every((part) => part.attributes[name]),
     );
-    group.add(tyre);
+    const merged = new THREE.BufferGeometry();
 
-    // Tread grooves and the raised sidewall band.
-    for (const offset of [-width * 0.2, 0, width * 0.2]) {
-        group.add(
-            torus(radius + 0.002, 0.004, m.plastic, 'z', 0, 0, offset, {
-                radial: 6,
-                tubular: 64,
-            }),
+    for (const name of names) {
+        const itemSize = parts[0].attributes[name].itemSize;
+        const total = parts.reduce(
+            (sum, part) => sum + part.attributes[name].count,
+            0,
         );
-    }
-    group.add(
-        torus(
-            radius - shoulder * 1.6,
-            0.006,
-            m.plastic,
-            'z',
-            0,
-            0,
-            half - 0.002,
-            { radial: 6, tubular: 64 },
-        ),
-    );
+        const array = new Float32Array(total * itemSize);
+        let offset = 0;
 
-    if (options.offroad) {
-        const lug = new THREE.BoxGeometry(radius * 0.22, 0.016, width * 0.44);
-        const lugs: Transform[] = [];
-        const count = 22;
+        for (const part of parts) {
+            const attribute = part.attributes[name];
 
-        for (let i = 0; i < count; i++) {
-            const angle = (i / count) * Math.PI * 2;
-            lugs.push({
-                x: Math.cos(angle) * (radius + 0.006),
-                y: Math.sin(angle) * (radius + 0.006),
-                z: i % 2 === 0 ? width * 0.2 : -width * 0.2,
-                rz: angle + Math.PI / 2,
-            });
+            for (let i = 0; i < attribute.count; i++) {
+                for (let c = 0; c < itemSize; c++) {
+                    array[offset++] = attribute.getComponent(i, c);
+                }
+            }
         }
 
-        group.add(instanced(lug, m.rubber, lugs));
+        merged.setAttribute(name, new THREE.BufferAttribute(array, itemSize));
     }
 
-    const rimMaterial = options.steel ? m.steel : m.alloy;
-    const face = options.open ? 0 : width * 0.3;
-
-    if (!options.open) {
-        group.add(
-            cyl(rimRadius - 0.005, width * 0.82, m.barrel, 'z', 0, 0, 0, {
-                open: true,
-                segments: 40,
-            }),
-        );
-        group.add(
-            cyl(rimRadius, 0.03, rimMaterial, 'z', 0, 0, face + 0.015, {
-                top: rimRadius - 0.03,
-                segments: 40,
-                open: true,
-            }),
-        );
-        group.add(
-            cyl(rimRadius - 0.03, 0.02, m.barrel, 'z', 0, 0, face + 0.01, {
-                segments: 40,
-            }),
-        );
-    }
-
-    const spokeCount = options.spokes ?? 5;
-    const spokeLength = rimRadius * 0.86;
-    const spokeGeometry = new THREE.BoxGeometry(
-        spokeLength,
-        options.open ? 0.012 : rimRadius * 0.16,
-        options.open ? 0.012 : 0.05,
-    );
-    const spokes: Transform[] = [];
-
-    for (let i = 0; i < spokeCount; i++) {
-        const angle = (i / spokeCount) * Math.PI * 2;
-        spokes.push({
-            x: (Math.cos(angle) * spokeLength) / 2,
-            y: (Math.sin(angle) * spokeLength) / 2,
-            z: face + (options.open ? 0.02 : 0.02),
-            rz: angle,
-        });
-
-        if (options.open) {
-            spokes.push({
-                x: (Math.cos(angle + Math.PI / spokeCount) * spokeLength) / 2,
-                y: (Math.sin(angle + Math.PI / spokeCount) * spokeLength) / 2,
-                z: -0.02,
-                rz: angle + Math.PI / spokeCount,
-            });
+    parts.forEach((part, i) => {
+        if (part !== geometries[i]) {
+            part.dispose();
         }
-    }
-
-    group.add(instanced(spokeGeometry, rimMaterial, spokes));
-
-    const hubRadius = rimRadius * (options.open ? 0.18 : 0.3);
-    group.add(
-        cyl(hubRadius, 0.06, rimMaterial, 'z', 0, 0, face + 0.02, {
-            segments: 32,
-        }),
-    );
-    group.add(
-        cyl(hubRadius * 0.4, 0.02, m.chrome, 'z', 0, 0, face + 0.06, {
-            segments: 24,
-        }),
-    );
-
-    if (!options.open) {
-        const nuts: Point3[] = [];
-
-        for (let i = 0; i < 5; i++) {
-            const angle = (i / 5) * Math.PI * 2 + 0.3;
-            nuts.push([
-                Math.cos(angle) * hubRadius * 0.62,
-                Math.sin(angle) * hubRadius * 0.62,
-                face + 0.055,
-            ]);
-        }
-
-        group.add(bolts(m.chrome, 0.014, nuts, 'z'));
-    }
-
-    if (options.brake ?? true) {
-        group.add(
-            cyl(
-                rimRadius * 0.8,
-                0.024,
-                m.disc,
-                'z',
-                0,
-                0,
-                options.open ? 0.05 : -0.02,
-                { segments: 48 },
-            ),
-        );
-        group.add(
-            cyl(
-                rimRadius * 0.28,
-                0.06,
-                m.iron,
-                'z',
-                0,
-                0,
-                options.open ? 0.05 : -0.02,
-                { segments: 24 },
-            ),
-        );
-
-        const caliper = box(
-            rimRadius * 0.34,
-            rimRadius * 0.6,
-            0.075,
-            m.iron,
-            0,
-            0,
-            options.open ? 0.05 : -0.02,
-            0.012,
-        );
-        const angle = Math.PI * 0.62;
-        caliper.position.x = Math.cos(angle) * rimRadius * 0.62;
-        caliper.position.y = Math.sin(angle) * rimRadius * 0.62;
-        caliper.rotation.z = angle + Math.PI / 2;
-        group.add(caliper);
-    }
-
-    if (options.dual) {
-        const inner = tyre.clone();
-        inner.position.z = -width - 0.02;
-        group.add(inner);
-        group.add(
-            cyl(rimRadius, width * 0.8, m.barrel, 'z', 0, 0, -width - 0.02, {
-                open: true,
-                segments: 40,
-            }),
-        );
-    }
-
-    return group;
-}
-
-/**
- * A headlight: a dark housing, a bright reflector inside, a clear lens over
- * the front.
- */
-export function headlight(
-    m: Materials,
-    w: number,
-    h: number,
-    x: number,
-    y: number,
-    z: number,
-    facing: 1 | -1 = 1,
-): THREE.Group {
-    const group = new THREE.Group();
-    group.position.set(x, y, z);
-    group.add(box(0.08, h, w, m.plastic, -0.03 * facing, 0, 0, 0.01));
-    group.add(
-        cyl(h * 0.36, 0.03, m.chrome, 'x', 0.005 * facing, 0, w * 0.22, {
-            segments: 24,
-        }),
-    );
-    group.add(
-        cyl(h * 0.36, 0.03, m.chrome, 'x', 0.005 * facing, 0, -w * 0.22, {
-            segments: 24,
-        }),
-    );
-    group.add(box(0.025, h, w, m.lens, 0.025 * facing, 0, 0, 0.01));
-
-    return group;
-}
-
-export function taillight(
-    m: Materials,
-    w: number,
-    h: number,
-    x: number,
-    y: number,
-    z: number,
-): THREE.Mesh {
-    return box(0.03, h, w, m.tailLens, x, y, z, 0.01);
-}
-
-/**
- * A door mirror on its stalk.
- */
-export function mirror(
-    m: Materials,
-    x: number,
-    y: number,
-    z: number,
-): THREE.Group {
-    const side = z >= 0 ? 1 : -1;
-    const group = new THREE.Group();
-    group.position.set(x, y, z);
-    group.add(box(0.05, 0.035, 0.09, m.plastic, 0, -0.02, -0.05 * side));
-    group.add(box(0.1, 0.12, 0.2, m.paint, 0, 0.02, 0.06 * side, 0.03));
-    group.add(box(0.012, 0.1, 0.17, m.chrome, -0.05, 0.02, 0.06 * side));
-
-    return group;
-}
-
-/**
- * A number plate with its frame.
- */
-export function plate(
-    m: Materials,
-    x: number,
-    y: number,
-    facing: 1 | -1 = 1,
-): THREE.Group {
-    const group = new THREE.Group();
-    group.position.set(x, y, 0);
-    group.add(box(0.015, 0.14, 0.4, m.plastic, 0, 0, 0));
-    group.add(box(0.008, 0.12, 0.37, m.plate, 0.01 * facing, 0, 0));
-
-    return group;
-}
-
-/**
- * A flat grille with horizontal slats.
- */
-export function grille(
-    m: Materials,
-    w: number,
-    h: number,
-    x: number,
-    y: number,
-    z = 0,
-    slats = 4,
-    facing: 1 | -1 = 1,
-): THREE.Group {
-    const group = new THREE.Group();
-    group.position.set(x, y, z);
-    group.add(box(0.04, h, w, m.plastic, 0, 0, 0));
-
-    const slat = new THREE.BoxGeometry(0.02, h / (slats * 2.2), w - 0.04);
-    const transforms: Transform[] = [];
-
-    for (let i = 0; i < slats; i++) {
-        transforms.push({
-            x: 0.02 * facing,
-            y: -h / 2 + (h / (slats + 1)) * (i + 1),
-            z: 0,
-        });
-    }
-
-    group.add(instanced(slat, m.chrome, transforms));
-
-    return group;
-}
-
-/**
- * A partial-ring wheel arch flare or mudguard.
- */
-export function arch(
-    m: Materials,
-    radius: number,
-    tubeRadius: number,
-    x: number,
-    y: number,
-    z: number,
-    material: THREE.Material = m.plastic,
-    arc = Math.PI,
-): THREE.Mesh {
-    return torus(radius, tubeRadius, material, 'z', x, y, z, {
-        arc,
-        start: 0,
-        radial: 8,
-        tubular: 36,
     });
+
+    return merged;
 }

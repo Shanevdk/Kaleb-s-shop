@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\DecodeBarcode;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -28,7 +29,7 @@ class InventoryItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['required', 'string', 'max:255'],
             'category' => ['required', Rule::enum(PartCategory::class)],
             'unit' => ['required', Rule::enum(UnitOfMeasure::class)],
             'part_number' => ['nullable', 'string', 'max:60'],
@@ -37,7 +38,6 @@ class InventoryItemRequest extends FormRequest
                 'string',
                 'max:255',
                 Rule::unique('inventory_items', 'barcode')
-                    ->where('user_id', $this->user()->id)
                     ->ignore($this->route('inventory_item')),
             ],
             'brand' => ['nullable', 'string', 'max:60'],
@@ -53,7 +53,7 @@ class InventoryItemRequest extends FormRequest
             'fitments.*.vehicle_id' => [
                 'required',
                 'distinct',
-                Rule::exists('vehicles', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('vehicles', 'id'),
             ],
             'fitments.*.quantity_needed' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'fitments.*.notes' => ['nullable', 'string', 'max:120'],
@@ -90,6 +90,29 @@ class InventoryItemRequest extends FormRequest
             'quantity' => $this->input('quantity') ?: 0,
             'minimum_quantity' => $this->input('minimum_quantity') ?: 0,
             'unit_cost' => $this->input('unit_cost') ?: 0,
+        ]);
+
+        $this->describeFromBarcode();
+    }
+
+    /**
+     * Let a part be added with nothing but its barcode: the barcode decoder
+     * names it and fills in the brand. A code nobody knows names the part
+     * after itself, so it can still be saved and renamed later.
+     */
+    private function describeFromBarcode(): void
+    {
+        $barcode = $this->input('barcode');
+
+        if ($barcode === null || trim((string) $this->input('name')) !== '') {
+            return;
+        }
+
+        $decoded = app(DecodeBarcode::class)->handle($barcode);
+
+        $this->merge([
+            'name' => $decoded['description'] ?? $barcode,
+            'brand' => trim((string) $this->input('brand')) ?: $decoded['brand'],
         ]);
     }
 }

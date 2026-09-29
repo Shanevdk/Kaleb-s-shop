@@ -34,7 +34,7 @@ class ServiceRecordRequest extends FormRequest
         return [
             'vehicle_id' => [
                 'required',
-                Rule::exists('vehicles', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('vehicles', 'id'),
             ],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(ServiceType::class)],
@@ -55,7 +55,7 @@ class ServiceRecordRequest extends FormRequest
             'parts.*.name' => ['required', 'string', 'max:120'],
             'parts.*.inventory_item_id' => [
                 'nullable',
-                Rule::exists('inventory_items', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('inventory_items', 'id'),
             ],
             'parts.*.quantity' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'parts.*.unit' => ['nullable', Rule::enum(UnitOfMeasure::class)],

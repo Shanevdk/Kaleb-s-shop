@@ -1,15 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { Cog } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { EnginePartKey } from '@/lib/engine-parts';
-import { buildBody } from '@/lib/three/bodies';
-import { buildEngine, type EngineInput } from '@/lib/three/engine';
-import { bodyMaterials, makeMaterials } from '@/lib/three/materials';
+import type { EngineInput } from '@/lib/three/engine';
+import { buildMachine, shellMeshes, type Machine } from '@/lib/three/machine';
+import { ghostMaterial } from '@/lib/three/materials';
 import {
     installPhotoProjection,
     type PhotoProjection,
 } from '@/lib/three/photos';
+import { SEE_THROUGH_LAYER, Stage, type Appearance } from '@/lib/three/stage';
 import type { EngineSpecs, MachineKind, VehiclePhotos } from '@/types';
 
 export type ViewerView = 'machine' | 'engine';
@@ -18,11 +18,15 @@ export type MachineViewerProps = {
     kind: MachineKind;
     engine: Partial<EngineSpecs>;
     doors?: number | null;
+    bodyClass?: string | null;
+    driveType?: string | null;
+    colour?: string | null;
+    registration?: string | null;
     photos?: VehiclePhotos;
     wrapPhotos?: boolean;
     view: ViewerView;
     selectedPart: EnginePartKey | null;
-    appearance: 'light' | 'dark';
+    appearance: Appearance;
     onViewChange: (view: ViewerView) => void;
     onHoverPart: (part: EnginePartKey | 'engine' | null) => void;
     onSelectPart: (part: EnginePartKey | null) => void;
@@ -31,46 +35,161 @@ export type MachineViewerProps = {
 
 type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
-type Scene = {
-    renderer: THREE.WebGLRenderer;
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    controls: OrbitControls;
-    hotspot: THREE.Group;
-    engine: THREE.Group;
-    engineExposed: boolean;
+type Viewer = {
+    stage: Stage;
+    machine: Machine;
     projection: PhotoProjection;
-    ground: THREE.Mesh<THREE.CircleGeometry, THREE.ShadowMaterial>;
-    grid: THREE.GridHelper;
-    environment: THREE.Texture;
-    bodyMaterials: THREE.Material[];
-    parts: Map<EnginePartKey, THREE.Mesh[]>;
-    hotspotMeshes: THREE.Mesh[];
+    ghost: THREE.ShaderMaterial;
+    twins: THREE.Mesh[];
+    shells: THREE.Mesh[];
+    hidden: THREE.Object3D[];
+    partMeshes: THREE.Mesh[];
+    engineCovered: boolean;
     machineFrame: Frame;
     engineFrame: Frame;
+    marker: THREE.Vector3 | null;
     tween: { from: Frame; to: Frame; start: number; duration: number } | null;
-    fade: { from: number; to: number; start: number } | null;
-    hovered: EnginePartKey | 'engine' | null;
-    frame: number;
+    xray: { from: number; to: number; start: number } | null;
+    amount: number;
+    hovered: EnginePartKey | null;
 };
 
-const HOVER = new THREE.Color(0x6ea8ff);
+const HOVER = new THREE.Color(0x3b82f6);
 const SELECTED = new THREE.Color(0xf59e0b);
-const NONE = new THREE.Color(0x000000);
+const BLACK = new THREE.Color(0x000000);
 
 /**
- * A procedural 3D model of the machine with a clickable engine.
+ * Countries that drive on the left put the steering wheel on the right.
+ */
+function drivesOnTheLeft(): boolean {
+    const region =
+        typeof navigator === 'undefined'
+            ? ''
+            : (navigator.language.split('-')[1] ?? '').toUpperCase();
+
+    return [
+        'AU',
+        'NZ',
+        'GB',
+        'IE',
+        'ZA',
+        'IN',
+        'JP',
+        'SG',
+        'MY',
+        'HK',
+        'TH',
+        'ID',
+        'KE',
+        'FJ',
+    ].includes(region);
+}
+
+function easeInOut(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Frame an object from a three-quarter view, far enough back that it all
+ * fits whatever the shape of the canvas.
+ */
+function frameFor(
+    box: THREE.Box3,
+    camera: THREE.PerspectiveCamera,
+    azimuth: number,
+    elevation: number,
+    margin: number,
+    lift = 0.82,
+): Frame {
+    const centre = box.getCenter(new THREE.Vector3());
+    const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+    const fov = THREE.MathUtils.degToRad(camera.fov);
+    const horizontal =
+        2 * Math.atan(Math.tan(fov / 2) * Math.max(0.6, camera.aspect));
+    const distance =
+        (radius * margin) / Math.sin(Math.min(fov, horizontal) / 2);
+    const target = new THREE.Vector3(centre.x, centre.y * lift, centre.z);
+    const az = THREE.MathUtils.degToRad(azimuth);
+    const el = THREE.MathUtils.degToRad(elevation);
+
+    return {
+        target,
+        position: target
+            .clone()
+            .add(
+                new THREE.Vector3(
+                    Math.cos(el) * Math.cos(az),
+                    Math.sin(el),
+                    Math.cos(el) * Math.sin(az),
+                ).multiplyScalar(distance),
+            ),
+    };
+}
+
+/**
+ * Tint the hovered and selected parts so it is obvious what a click does.
+ */
+function paint(viewer: Viewer, selected: EnginePartKey | null): void {
+    for (const [key, meshes] of viewer.machine.parts) {
+        const isSelected = key === selected;
+        const isHovered = key === viewer.hovered;
+
+        for (const mesh of meshes) {
+            const material = mesh.material as THREE.MeshStandardMaterial;
+
+            if (!('emissive' in material)) {
+                continue;
+            }
+
+            material.emissive.copy(
+                isSelected ? SELECTED : isHovered ? HOVER : BLACK,
+            );
+            material.emissiveIntensity = isSelected
+                ? 0.55
+                : isHovered
+                  ? 0.45
+                  : 1;
+        }
+    }
+}
+
+/**
+ * Crossfade between the solid body and its x-ray ghost. The solid body
+ * goes early in the fade so the two never fight.
+ */
+function setXray(viewer: Viewer, amount: number): void {
+    viewer.amount = amount;
+    viewer.ghost.uniforms.strength.value = amount;
+
+    for (const twin of viewer.twins) {
+        twin.visible = amount > 0.001;
+    }
+
+    for (const shell of viewer.shells) {
+        shell.visible = amount < 0.4;
+    }
+
+    for (const object of viewer.hidden) {
+        object.visible = amount < 0.4;
+    }
+
+    viewer.machine.engine.visible = !viewer.engineCovered || amount > 0.001;
+}
+
+/**
+ * A photo-real studio render of the machine with a clickable engine.
  *
- * The body is built from the kind of machine; the engine from whatever the
- * VIN decoder or the mechanic said about it. It is lit by a studio
- * environment with soft shadows and rendered in monochrome materials, so
- * what you see is shape, not paint. Clicking the engine bay fades the body
- * away and flies the camera in, where each part can be picked out.
+ * The body is built for the kind of machine, in the vehicle's own paint,
+ * and the engine from its specs at its true size. Clicking the marker over
+ * the engine flies the camera in while the body turns to an x-ray outline,
+ * and each part of the engine can then be picked out.
  */
 export default function MachineViewer(props: MachineViewerProps) {
     const container = useRef<HTMLDivElement>(null);
-    const state = useRef<Scene | null>(null);
+    const marker = useRef<HTMLButtonElement>(null);
+    const state = useRef<Viewer | null>(null);
     const latest = useRef(props);
+    const [building, setBuilding] = useState(true);
 
     useEffect(() => {
         latest.current = props;
@@ -83,6 +202,14 @@ export default function MachineViewer(props: MachineViewerProps) {
         fuel: props.engine.fuel ?? null,
         turbo: props.engine.turbo ?? null,
     } satisfies EngineInput);
+    const bodyKey = JSON.stringify([
+        props.kind,
+        props.doors ?? null,
+        props.bodyClass ?? null,
+        props.driveType ?? null,
+        props.colour ?? null,
+        props.registration ?? null,
+    ]);
 
     // Build the scene once per machine, and tear it down completely after.
     useEffect(() => {
@@ -92,59 +219,55 @@ export default function MachineViewer(props: MachineViewerProps) {
             return;
         }
 
-        const scene = buildScene(
-            element,
-            props.kind,
-            JSON.parse(engineKey) as EngineInput,
-            props.doors ?? null,
-        );
-        state.current = scene;
-
-        latest.current.onPartsReady([...scene.parts.keys()]);
+        let viewer: Viewer | null = null;
+        let cancelled = false;
+        const stage = new Stage(element, {
+            appearance: latest.current.appearance,
+        });
+        setBuilding(true);
 
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
         let pressed: { x: number; y: number } | null = null;
 
-        const pick = (event: PointerEvent): THREE.Intersection[] => {
+        const pick = (event: PointerEvent): EnginePartKey | null => {
+            if (!viewer || latest.current.view !== 'engine') {
+                return null;
+            }
+
             const bounds = element.getBoundingClientRect();
             pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
             pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
-            raycaster.setFromCamera(pointer, scene.camera);
+            raycaster.setFromCamera(pointer, stage.camera);
+            const hit = raycaster.intersectObjects(viewer.partMeshes, false)[0];
 
-            const targets =
-                latest.current.view === 'machine'
-                    ? scene.hotspotMeshes
-                    : [...scene.parts.values()].flat();
-
-            return raycaster.intersectObjects(targets, false);
+            return (
+                (hit?.object.userData.part as EnginePartKey | undefined) ?? null
+            );
         };
 
-        const partOf = (hit: THREE.Intersection | undefined) =>
-            hit
-                ? ((hit.object.userData.part as
-                      | EnginePartKey
-                      | 'engine'
-                      | undefined) ?? null)
-                : null;
-
         const onMove = (event: PointerEvent) => {
-            const part = partOf(pick(event)[0]);
+            if (!viewer) {
+                return;
+            }
 
-            if (part !== scene.hovered) {
-                scene.hovered = part;
+            const part = pick(event);
+
+            if (part !== viewer.hovered) {
+                viewer.hovered = part;
                 element.style.cursor = part ? 'pointer' : '';
                 latest.current.onHoverPart(part);
-                paint(scene, latest.current.selectedPart);
+                paint(viewer, latest.current.selectedPart);
             }
         };
 
         const onDown = (event: PointerEvent) => {
             pressed = { x: event.clientX, y: event.clientY };
+            stage.controls.autoRotate = false;
         };
 
         const onUp = (event: PointerEvent) => {
-            if (!pressed) {
+            if (!pressed || !viewer) {
                 return;
             }
 
@@ -154,29 +277,19 @@ export default function MachineViewer(props: MachineViewerProps) {
             );
             pressed = null;
 
-            if (moved > 6) {
+            if (moved > 6 || latest.current.view !== 'engine') {
                 return;
             }
 
-            const part = partOf(pick(event)[0]);
-
-            if (latest.current.view === 'machine') {
-                if (part === 'engine') {
-                    latest.current.onViewChange('engine');
-                }
-
-                return;
-            }
-
-            latest.current.onSelectPart(part === 'engine' ? null : part);
+            latest.current.onSelectPart(pick(event));
         };
 
         const onLeave = () => {
-            if (scene.hovered !== null) {
-                scene.hovered = null;
+            if (viewer && viewer.hovered !== null) {
+                viewer.hovered = null;
                 element.style.cursor = '';
                 latest.current.onHoverPart(null);
-                paint(scene, latest.current.selectedPart);
+                paint(viewer, latest.current.selectedPart);
             }
         };
 
@@ -185,151 +298,265 @@ export default function MachineViewer(props: MachineViewerProps) {
         element.addEventListener('pointerup', onUp);
         element.addEventListener('pointerleave', onLeave);
 
-        const resize = new ResizeObserver(() => {
-            const { clientWidth, clientHeight } = element;
-
-            if (clientWidth === 0 || clientHeight === 0) {
+        // Let the page paint its loading state before the build takes the
+        // main thread.
+        const timer = window.setTimeout(() => {
+            if (cancelled) {
                 return;
             }
 
-            scene.camera.aspect = clientWidth / clientHeight;
-            scene.camera.updateProjectionMatrix();
-            scene.renderer.setSize(clientWidth, clientHeight, false);
-        });
-        resize.observe(element);
+            const engine = JSON.parse(engineKey) as EngineInput;
+            const machine = buildMachine({
+                kind: latest.current.kind,
+                engine,
+                doors: latest.current.doors ?? null,
+                bodyClass: latest.current.bodyClass ?? null,
+                driveType: latest.current.driveType ?? null,
+                colour: latest.current.colour ?? null,
+                registration: latest.current.registration ?? null,
+                rightHandDrive: drivesOnTheLeft(),
+                // A third level looks no different on screen and costs
+                // half a second more of blocked main thread.
+                levels: 2,
+            });
+            stage.scene.add(machine.root);
+            const bounds = stage.setSubject(machine.body);
+            const m = machine.materials;
+            const projection = installPhotoProjection([
+                m.paint,
+                m.paintDark,
+                m.enamel,
+                m.plastic,
+                m.gloss,
+            ]);
+            projection.setBounds(bounds);
 
-        const clock = new THREE.Clock();
+            // Ghost twins of the bodywork share its geometry.
+            const ghost = ghostMaterial();
+            const { ghost: shells, hide } = shellMeshes(machine);
+            const twins: THREE.Mesh[] = [];
+            machine.root.updateMatrixWorld(true);
 
-        const animate = () => {
-            scene.frame = requestAnimationFrame(animate);
-            const now = performance.now();
-            const elapsed = clock.getElapsedTime();
+            for (const shell of shells) {
+                const twin =
+                    shell instanceof THREE.InstancedMesh
+                        ? new THREE.InstancedMesh(
+                              shell.geometry,
+                              ghost,
+                              shell.count,
+                          )
+                        : new THREE.Mesh(shell.geometry, ghost);
 
-            if (scene.tween) {
-                const t = easeInOut(
-                    Math.min(
-                        1,
-                        (now - scene.tween.start) / scene.tween.duration,
-                    ),
-                );
-                scene.camera.position.lerpVectors(
-                    scene.tween.from.position,
-                    scene.tween.to.position,
-                    t,
-                );
-                scene.controls.target.lerpVectors(
-                    scene.tween.from.target,
-                    scene.tween.to.target,
-                    t,
-                );
+                if (
+                    twin instanceof THREE.InstancedMesh &&
+                    shell instanceof THREE.InstancedMesh
+                ) {
+                    twin.instanceMatrix = shell.instanceMatrix;
+                }
 
-                if (t >= 1) {
-                    scene.tween = null;
+                twin.matrixAutoUpdate = false;
+                twin.matrix.copy(shell.matrix);
+                twin.layers.set(SEE_THROUGH_LAYER);
+                twin.visible = false;
+                twin.renderOrder = 5;
+                shell.parent?.add(twin);
+                twins.push(twin);
+            }
+
+            for (const mesh of shells) {
+                if (mesh.userData.seeThrough) {
+                    mesh.layers.set(SEE_THROUGH_LAYER);
                 }
             }
 
-            if (scene.fade) {
-                const t = Math.min(1, (now - scene.fade.start) / 600);
-                const opacity =
-                    scene.fade.from + (scene.fade.to - scene.fade.from) * t;
+            const engineBox = new THREE.Box3();
 
-                for (const material of scene.bodyMaterials) {
-                    const base = (material.userData.baseOpacity as number) ?? 1;
-                    material.opacity = base * opacity;
-                    material.transparent = opacity < 1 || base < 1;
-                    material.depthWrite = opacity >= 1;
+            for (const meshes of machine.parts.values()) {
+                for (const mesh of meshes) {
+                    engineBox.expandByObject(mesh);
+                }
+            }
+
+            // The marker floats just above the body over the engine.
+            let markerPoint: THREE.Vector3 | null = null;
+
+            if (machine.bay && !engineBox.isEmpty()) {
+                const centre = engineBox.getCenter(new THREE.Vector3());
+                const ray = new THREE.Raycaster(
+                    new THREE.Vector3(centre.x, bounds.max.y + 2, centre.z),
+                    new THREE.Vector3(0, -1, 0),
+                );
+                const hit = ray.intersectObject(machine.body, true)[0];
+                markerPoint = new THREE.Vector3(
+                    centre.x,
+                    (hit?.point.y ?? engineBox.max.y) + 0.16,
+                    centre.z,
+                );
+            }
+
+            viewer = {
+                stage,
+                machine,
+                projection,
+                ghost,
+                twins,
+                shells,
+                hidden: hide,
+                partMeshes: [...machine.parts.values()].flat(),
+                engineCovered: machine.bay?.exposed !== true,
+                machineFrame: frameFor(bounds, stage.camera, 38, 13, 0.92),
+                engineFrame: engineBox.isEmpty()
+                    ? frameFor(bounds, stage.camera, 38, 13, 0.92)
+                    : frameFor(engineBox, stage.camera, 42, 30, 1.0, 1),
+                marker: markerPoint,
+                tween: null,
+                xray: null,
+                amount: 0,
+                hovered: null,
+            };
+            state.current = viewer;
+            setXray(viewer, 0);
+            applyAppearance(viewer, latest.current.appearance);
+
+            const start =
+                latest.current.view === 'engine'
+                    ? viewer.engineFrame
+                    : viewer.machineFrame;
+            stage.camera.position.copy(start.position);
+            stage.controls.target.copy(start.target);
+            stage.controls.maxDistance =
+                bounds.getBoundingSphere(new THREE.Sphere()).radius * 6;
+            stage.controls.minDistance = 0.25;
+            stage.controls.maxPolarAngle = Math.PI / 2 - 0.04;
+            stage.controls.autoRotate = latest.current.view === 'machine';
+
+            if (latest.current.view === 'engine') {
+                setXray(viewer, 1);
+            }
+
+            latest.current.onPartsReady([...machine.parts.keys()]);
+            setBuilding(false);
+
+            stage.start((now) => {
+                if (!viewer) {
+                    return;
                 }
 
-                if (t >= 1) {
-                    scene.fade = null;
+                if (viewer.tween) {
+                    const t = easeInOut(
+                        Math.min(
+                            1,
+                            (now - viewer.tween.start) / viewer.tween.duration,
+                        ),
+                    );
+                    stage.camera.position.lerpVectors(
+                        viewer.tween.from.position,
+                        viewer.tween.to.position,
+                        t,
+                    );
+                    stage.controls.target.lerpVectors(
+                        viewer.tween.from.target,
+                        viewer.tween.to.target,
+                        t,
+                    );
 
-                    // Once the body is solid again, a covered engine goes
-                    // back under its cover.
-                    if (
-                        latest.current.view === 'machine' &&
-                        !scene.engineExposed
-                    ) {
-                        scene.engine.visible = false;
+                    if (t >= 1) {
+                        viewer.tween = null;
                     }
                 }
-            }
 
-            const pulse = 1 + Math.sin(elapsed * 3) * 0.08;
-            scene.hotspot.scale.setScalar(
-                (scene.hotspot.userData.baseScale as number) * pulse,
-            );
-            scene.hotspot.rotation.y = elapsed * 0.8;
+                if (viewer.xray) {
+                    const t = Math.min(1, (now - viewer.xray.start) / 650);
+                    setXray(
+                        viewer,
+                        viewer.xray.from +
+                            (viewer.xray.to - viewer.xray.from) * easeInOut(t),
+                    );
 
-            scene.controls.update();
-            scene.renderer.render(scene.scene, scene.camera);
-        };
-        animate();
+                    if (t >= 1) {
+                        viewer.xray = null;
+                    }
+                }
+
+                const button = marker.current;
+
+                if (button && viewer.marker) {
+                    const projected = viewer.marker
+                        .clone()
+                        .project(stage.camera);
+                    const visible =
+                        latest.current.view === 'machine' &&
+                        viewer.amount < 0.05 &&
+                        projected.z < 1;
+                    button.style.opacity = visible ? '1' : '0';
+                    button.style.pointerEvents = visible ? 'auto' : 'none';
+                    button.style.transform = `translate(-50%, -50%) translate(${((projected.x + 1) / 2) * element.clientWidth}px, ${((1 - projected.y) / 2) * element.clientHeight}px)`;
+                }
+            });
+        }, 30);
 
         return () => {
-            cancelAnimationFrame(scene.frame);
-            resize.disconnect();
+            cancelled = true;
+            window.clearTimeout(timer);
             element.removeEventListener('pointermove', onMove);
             element.removeEventListener('pointerdown', onDown);
             element.removeEventListener('pointerup', onUp);
             element.removeEventListener('pointerleave', onLeave);
-            scene.controls.dispose();
-            scene.scene.traverse((object) => {
-                if (object instanceof THREE.Mesh) {
-                    object.geometry.dispose();
-                    const materials = Array.isArray(object.material)
-                        ? object.material
-                        : [object.material];
-                    materials.forEach((material) => material.dispose());
-                }
-            });
-            scene.projection.dispose();
-            scene.environment.dispose();
-            scene.renderer.dispose();
-            scene.renderer.domElement.remove();
+
+            if (viewer) {
+                const disposed = new Set<
+                    THREE.Material | THREE.BufferGeometry
+                >();
+                viewer.machine.root.traverse((object) => {
+                    if (object instanceof THREE.Mesh) {
+                        disposed.add(object.geometry);
+                        const materials = Array.isArray(object.material)
+                            ? object.material
+                            : [object.material];
+                        materials.forEach((material) => disposed.add(material));
+                    }
+                });
+                disposed.forEach((resource) => resource.dispose());
+                viewer.projection.dispose();
+            }
+
+            stage.dispose();
             state.current = null;
         };
-        // The engine is compared by value through engineKey.
+        // The engine and body are compared by value through their keys.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [props.kind, engineKey, props.doors]);
+    }, [engineKey, bodyKey]);
 
-    // Fly between the whole machine and the engine bay.
+    // Fly between the whole machine and the engine.
     useEffect(() => {
-        const scene = state.current;
+        const viewer = state.current;
 
-        if (!scene) {
+        if (!viewer) {
             return;
         }
 
         const to =
-            props.view === 'engine' ? scene.engineFrame : scene.machineFrame;
-
-        scene.tween = {
+            props.view === 'engine' ? viewer.engineFrame : viewer.machineFrame;
+        const now = performance.now();
+        viewer.tween = {
             from: {
-                position: scene.camera.position.clone(),
-                target: scene.controls.target.clone(),
+                position: viewer.stage.camera.position.clone(),
+                target: viewer.stage.controls.target.clone(),
             },
             to: { position: to.position.clone(), target: to.target.clone() },
-            start: performance.now(),
-            duration: 900,
+            start: now,
+            duration: 1000,
         };
-        scene.fade = {
-            from: scene.bodyMaterials[0]
-                ? scene.bodyMaterials[0].opacity /
-                  ((scene.bodyMaterials[0].userData.baseOpacity as number) ?? 1)
-                : 1,
-            to: props.view === 'engine' ? 0.07 : 1,
-            start: performance.now(),
+        viewer.xray = {
+            from: viewer.amount,
+            to: props.view === 'engine' ? 1 : 0,
+            start: now,
         };
-        if (props.view === 'engine' || scene.engineExposed) {
-            scene.engine.visible = true;
-        }
-        scene.hotspot.visible =
-            props.view === 'machine' && scene.parts.size > 0;
-        scene.controls.autoRotate = props.view === 'machine';
-        scene.hovered = null;
-        paint(scene, props.selectedPart);
-        // A rebuilt scene (new kind or engine) must land on the right frame too.
-    }, [props.view, props.selectedPart, props.kind, engineKey, props.doors]);
+        viewer.stage.controls.autoRotate = props.view === 'machine';
+        viewer.hovered = null;
+        paint(viewer, props.selectedPart);
+        // A rebuilt scene must land on the right frame too.
+    }, [props.view, props.selectedPart, engineKey, bodyKey, building]);
 
     // Wrap the walk-around photos over the body when asked to.
     const photoKey = JSON.stringify({
@@ -341,9 +568,9 @@ export default function MachineViewer(props: MachineViewerProps) {
     });
 
     useEffect(() => {
-        const scene = state.current;
+        const viewer = state.current;
 
-        if (!scene) {
+        if (!viewer) {
             return;
         }
 
@@ -353,283 +580,52 @@ export default function MachineViewer(props: MachineViewerProps) {
         >;
 
         for (const side of ['front', 'rear', 'left', 'right', 'top'] as const) {
-            scene.projection.setPhoto(side, photos[side]);
+            viewer.projection.setPhoto(side, photos[side]);
         }
 
-        scene.projection.setEnabled(props.wrapPhotos === true);
-    }, [photoKey, props.wrapPhotos, props.kind, engineKey, props.doors]);
+        viewer.projection.setEnabled(props.wrapPhotos === true);
+    }, [photoKey, props.wrapPhotos, engineKey, bodyKey, building]);
 
-    // Keep the floor in step with light and dark mode.
+    // Keep the floor and the ghost in step with light and dark mode.
     useEffect(() => {
-        const scene = state.current;
+        const viewer = state.current;
 
-        if (!scene) {
-            return;
+        if (viewer) {
+            applyAppearance(viewer, props.appearance);
         }
-
-        const dark = props.appearance === 'dark';
-        scene.ground.material.opacity = dark ? 0.5 : 0.28;
-        (scene.grid.material as THREE.Material).opacity = dark ? 0.16 : 0.2;
-        scene.renderer.toneMappingExposure = dark ? 0.95 : 1.05;
-    }, [props.appearance, props.kind, engineKey, props.doors]);
+    }, [props.appearance, engineKey, bodyKey, building]);
 
     return (
-        <div ref={container} className="h-full w-full touch-none select-none" />
+        <div
+            ref={container}
+            className="relative h-full w-full touch-none select-none"
+        >
+            {building && (
+                <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-xs">
+                    Building the model…
+                </div>
+            )}
+            <button
+                ref={marker}
+                type="button"
+                aria-label="Open the engine bay"
+                onClick={() => latest.current.onViewChange('engine')}
+                onPointerEnter={() => latest.current.onHoverPart('engine')}
+                onPointerLeave={() => latest.current.onHoverPart(null)}
+                className="group absolute top-0 left-0 z-10 flex size-9 items-center justify-center opacity-0 transition-opacity duration-300"
+            >
+                <span className="absolute inline-flex size-9 animate-ping rounded-full bg-amber-400/40" />
+                <span className="relative inline-flex size-7 items-center justify-center rounded-full border border-white/70 bg-amber-500 text-white shadow-lg transition-transform group-hover:scale-110">
+                    <Cog className="size-4" />
+                </span>
+            </button>
+        </div>
     );
 }
 
-function easeInOut(t: number): number {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
-
-/**
- * Tint the hovered and selected parts so it is obvious what a click will do.
- */
-function paint(scene: Scene, selected: EnginePartKey | null): void {
-    for (const [key, meshes] of scene.parts) {
-        for (const mesh of meshes) {
-            const material = mesh.material as THREE.MeshStandardMaterial;
-            const isSelected = key === selected;
-            const isHovered = key === scene.hovered;
-
-            material.emissive.copy(
-                isSelected ? SELECTED : isHovered ? HOVER : NONE,
-            );
-            material.emissiveIntensity = isSelected
-                ? 0.5
-                : isHovered
-                  ? 0.45
-                  : 0;
-        }
-    }
-
-    for (const mesh of scene.hotspotMeshes) {
-        const material = mesh.material as THREE.MeshBasicMaterial;
-        material.opacity =
-            scene.hovered === 'engine'
-                ? (material.userData.hoverOpacity as number)
-                : (material.userData.baseOpacity as number);
-    }
-}
-
-function buildScene(
-    element: HTMLDivElement,
-    kind: MachineKind,
-    engine: EngineInput,
-    doors: number | null,
-): Scene {
-    const width = element.clientWidth || 640;
-    const height = element.clientHeight || 400;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(width, height, false);
-    renderer.domElement.style.width = '100%';
-    renderer.domElement.style.height = '100%';
-    renderer.domElement.style.display = 'block';
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    element.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(34, width / height, 0.05, 300);
-
-    // A studio room for reflections: this is what makes metal read as metal.
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
-    scene.environment = environment;
-    scene.environmentIntensity = 0.9;
-
-    const m = makeMaterials();
-    for (const material of bodyMaterials(m)) {
-        material.userData.baseOpacity = material.opacity;
-    }
-
-    const body = new THREE.Group();
-    const anchor = buildBody(kind, m, body, { doors });
-    scene.add(body);
-
-    const engineGroup = new THREE.Group();
-    const parts = new Map<EnginePartKey, THREE.Mesh[]>();
-
-    if (anchor.scale > 0) {
-        buildEngine(engine, m, engineGroup, parts);
-        const displacementScale = engine.displacement
-            ? Math.min(1.3, Math.max(0.75, 0.8 + engine.displacement * 0.08))
-            : 1;
-        engineGroup.scale.setScalar(anchor.scale * displacementScale);
-        engineGroup.position.copy(anchor.position);
-        engineGroup.rotation.y = anchor.rotationY ?? 0;
-    }
-
-    engineGroup.visible = anchor.exposed === true;
-    scene.add(engineGroup);
-
-    const machineBox = new THREE.Box3().setFromObject(body);
-    const machineSize = machineBox.getSize(new THREE.Vector3());
-    const machineCentre = machineBox.getCenter(new THREE.Vector3());
-    const span = Math.max(machineSize.x, machineSize.y, machineSize.z);
-
-    // Photos of the real machine can be wrapped over the painted panels.
-    const projection = installPhotoProjection([m.paint, m.paintDark, m.glass]);
-    projection.setBounds(machineBox);
-
-    // Lights: a warm-neutral key throwing a soft shadow, a cool fill, and a rim.
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x555560, 0.35));
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
-    key.position.set(machineCentre.x + span * 0.8, span * 1.4, span * 0.9);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    key.shadow.camera.left = -span;
-    key.shadow.camera.right = span;
-    key.shadow.camera.top = span;
-    key.shadow.camera.bottom = -span;
-    key.shadow.camera.near = 0.1;
-    key.shadow.camera.far = span * 6;
-    key.shadow.bias = -0.0006;
-    key.shadow.normalBias = 0.02;
-    key.target.position.copy(machineCentre);
-    scene.add(key, key.target);
-    const fill = new THREE.DirectionalLight(0xdfe6ff, 0.5);
-    fill.position.set(machineCentre.x - span, span * 0.6, -span);
-    scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.8);
-    rim.position.set(machineCentre.x - span * 0.5, span * 0.8, span * 1.2);
-    scene.add(rim);
-
-    // The floor only exists to catch the shadow; the page shows through it.
-    const ground = new THREE.Mesh(
-        new THREE.CircleGeometry(span * 1.6, 64),
-        new THREE.ShadowMaterial({ opacity: 0.28 }),
+function applyAppearance(viewer: Viewer, appearance: Appearance): void {
+    viewer.stage.setAppearance(appearance);
+    viewer.ghost.uniforms.colour.value.set(
+        appearance === 'dark' ? 0xa9bcd4 : 0x3d4a5c,
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(machineCentre.x, 0, 0);
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    const grid = new THREE.GridHelper(
-        span * 2.4,
-        Math.round(span * 4),
-        0x888888,
-        0x888888,
-    );
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.2;
-    grid.position.set(machineCentre.x, 0.002, 0);
-    scene.add(grid);
-
-    // The hotspot marks where the engine lives while the body is opaque.
-    const hotspot = new THREE.Group();
-    const hotspotMeshes: THREE.Mesh[] = [];
-
-    if (anchor.scale > 0) {
-        const ring = new THREE.Mesh(
-            new THREE.TorusGeometry(0.28, 0.03, 12, 48),
-            m.hotspot.clone(),
-        );
-        ring.rotation.x = Math.PI / 2;
-        const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.09, 20, 20),
-            m.hotspot.clone(),
-        );
-        const halo = new THREE.Mesh(
-            new THREE.SphereGeometry(0.34, 20, 20),
-            m.hotspot.clone(),
-        );
-        (halo.material as THREE.MeshBasicMaterial).opacity = 0.08;
-
-        for (const mesh of [ring, dot, halo]) {
-            const material = mesh.material as THREE.MeshBasicMaterial;
-            material.userData.baseOpacity = material.opacity;
-            material.userData.hoverOpacity = Math.min(
-                1,
-                material.opacity + 0.2,
-            );
-            mesh.userData.part = 'engine';
-            hotspot.add(mesh);
-            hotspotMeshes.push(mesh);
-        }
-
-        hotspot.position.set(
-            anchor.position.x,
-            machineBox.max.y + 0.3,
-            anchor.position.z,
-        );
-        hotspot.userData.baseScale = Math.max(0.5, machineSize.x / 6);
-        hotspot.scale.setScalar(hotspot.userData.baseScale as number);
-    } else {
-        hotspot.userData.baseScale = 1;
-    }
-
-    scene.add(hotspot);
-
-    const machineFrame: Frame = {
-        target: new THREE.Vector3(machineCentre.x, machineCentre.y * 0.85, 0),
-        position: new THREE.Vector3(
-            machineCentre.x + span * 1.0,
-            span * 0.62,
-            span * 1.35,
-        ),
-    };
-
-    const engineBox =
-        parts.size > 0
-            ? new THREE.Box3().setFromObject(engineGroup)
-            : machineBox;
-    const engineCentre = engineBox.getCenter(new THREE.Vector3());
-    const engineSpan = Math.max(
-        ...engineBox.getSize(new THREE.Vector3()).toArray(),
-    );
-    const engineFrame: Frame = {
-        target: engineCentre.clone(),
-        position: engineCentre
-            .clone()
-            .add(
-                new THREE.Vector3(
-                    engineSpan * 1.0,
-                    engineSpan * 0.75,
-                    engineSpan * 1.35,
-                ),
-            ),
-    };
-
-    camera.position.copy(machineFrame.position);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = false;
-    controls.minDistance = 0.3;
-    controls.maxDistance = span * 4;
-    controls.maxPolarAngle = Math.PI / 2 - 0.03;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.6;
-    controls.target.copy(machineFrame.target);
-
-    return {
-        renderer,
-        scene,
-        camera,
-        controls,
-        hotspot,
-        engine: engineGroup,
-        engineExposed: anchor.exposed === true,
-        projection,
-        ground,
-        grid,
-        environment,
-        bodyMaterials: bodyMaterials(m),
-        parts,
-        hotspotMeshes,
-        machineFrame,
-        engineFrame,
-        tween: null,
-        fade: null,
-        hovered: null,
-        frame: 0,
-    };
 }

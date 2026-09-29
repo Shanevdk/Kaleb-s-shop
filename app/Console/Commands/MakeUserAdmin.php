@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Console\Command;
 
@@ -37,7 +38,7 @@ class MakeUserAdmin extends Command
         }
 
         $isAdmin = ! $this->option('revoke');
-        $attributes = ['is_admin' => $isAdmin];
+        $attributes = ['role' => $isAdmin ? UserRole::Admin : UserRole::Mechanic];
 
         // No mail is configured, so an unverified account could never get past
         // the `verified` middleware to use the access being granted.
@@ -48,9 +49,9 @@ class MakeUserAdmin extends Command
 
         $user->forceFill($attributes)->save();
 
-        $this->info($user->is_admin
+        $this->info($user->role === UserRole::Admin
             ? "{$email} is now a shop administrator."
-            : "{$email} is no longer a shop administrator.");
+            : "{$email} is no longer a shop administrator, and is now a mechanic.");
 
         return self::SUCCESS;
     }

@@ -160,6 +160,28 @@ export type InspectionItem = {
     status_label: string;
     notes: string | null;
     position: number;
+    parts_status: RepairPartsStatus | null;
+    repair_job?: RepairJob | null;
+};
+
+export type RepairPartsStatus =
+    | 'pending'
+    | 'planned'
+    | 'none_needed'
+    | 'failed';
+
+export type RepairJob = {
+    id: string;
+    title: string;
+    status: ServiceStatus;
+    parts: {
+        id: string;
+        name: string;
+        quantity: number;
+        unit_abbreviation: string;
+        in_inventory: boolean;
+        on_hand: number;
+    }[];
 };
 
 export type Inspection = {
@@ -189,6 +211,44 @@ export type ChecklistTemplate = {
     label: string;
     description: string;
     item_count: number;
+};
+
+export type ScheduledCheckStatus =
+    | 'done'
+    | 'in_progress'
+    | 'due'
+    | 'overdue'
+    | 'upcoming'
+    | 'missed';
+
+export type ScheduleEntryKind = 'monthly_check' | 'annual_inspection' | 'job';
+
+export type ScheduleEntry = {
+    id: string;
+    kind: ScheduleEntryKind;
+    title: string;
+    date: string;
+    due_on: string;
+    status: ScheduledCheckStatus;
+    vehicle: {
+        id: string;
+        display_name: string;
+        registration: string | null;
+    } | null;
+    inspection_id: string | null;
+    service_record_id: string | null;
+    can_move: boolean;
+    can_remove: boolean;
+    window: { from: string; to: string } | null;
+};
+
+export type ScheduleStats = {
+    checks: number;
+    checks_done: number;
+    annual: number;
+    annual_done: number;
+    behind: number;
+    jobs: number;
 };
 
 export type Fitment = {
@@ -268,6 +328,7 @@ export type ShoppingListLine = {
     part_number: string | null;
     brand: string | null;
     supplier: string | null;
+    unit: string;
     unit_abbreviation: string;
     on_hand: number;
     minimum_quantity?: number;
@@ -276,4 +337,37 @@ export type ShoppingListLine = {
     unit_cost: number;
     estimated_cost: number;
     jobs?: { id: string; title: string; vehicle: string | null }[];
+    order: {
+        id: string;
+        quantity_ordered: number;
+        quantity_received: number;
+    } | null;
+};
+
+export type PartOrder = {
+    id: string;
+    inventory_item_id: string | null;
+    in_inventory: boolean;
+    name: string;
+    part_number: string | null;
+    brand: string | null;
+    supplier: string | null;
+    barcode: string | null;
+    unit_abbreviation: string;
+    quantity_ordered: number;
+    quantity_received: number;
+    quantity_outstanding: number;
+    ordered_by: string | null;
+    ordered_at: string | null;
+    received_by: string | null;
+    received_at: string | null;
+};
+
+export type DecodedBarcode = {
+    barcode: string;
+    description: string | null;
+    brand: string | null;
+    source: 'inventory' | 'lookup' | null;
+    inventory_item_id: string | null;
+    part_order_id: string | null;
 };

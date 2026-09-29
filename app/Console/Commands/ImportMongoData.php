@@ -151,6 +151,12 @@ class ImportMongoData extends Command
 
             $found++;
             $oldId = (string) $document['_id'];
+
+            // MongoDB flagged administrators; SQL gives everyone a role.
+            if ($table === 'users' && array_key_exists('is_admin', $document)) {
+                $document['role'] ??= $document['is_admin'] === true ? 'admin' : 'mechanic';
+                unset($document['is_admin']);
+            }
             $row = [];
 
             if (! $generatesKeys) {

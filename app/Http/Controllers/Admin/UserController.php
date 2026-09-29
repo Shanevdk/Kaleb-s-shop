@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,6 +24,7 @@ class UserController extends Controller
 
         return Inertia::render('admin/users/index', [
             'users' => UserResource::collection($users)->resolve(),
+            'roles' => UserRole::options(),
         ]);
     }
 
@@ -30,7 +33,9 @@ class UserController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('admin/users/create');
+        return Inertia::render('admin/users/create', [
+            'roles' => UserRole::options(),
+        ]);
     }
 
     /**
@@ -44,14 +49,14 @@ class UserController extends Controller
     {
         $user = new User;
 
-        // Force filled rather than mass assigned: `is_admin` is deliberately
-        // left out of the model's fillable list so it can never be set
-        // straight from request input.
+        // Force filled rather than mass assigned: `role` is deliberately left
+        // out of the model's fillable list so it can never be set straight
+        // from request input.
         $user->forceFill([
             'name' => $request->validated('name'),
             'email' => $request->validated('email'),
             'password' => $request->validated('password'),
-            'is_admin' => $request->boolean('is_admin'),
+            'role' => $request->enum('role', UserRole::class),
             'email_verified_at' => now(),
         ])->save();
 
@@ -64,28 +69,26 @@ class UserController extends Controller
     }
 
     /**
-     * Grant or revoke shop administrator access.
+     * Change what someone on the team can do.
      */
     public function update(Request $request, User $user): RedirectResponse
     {
-        $validated = $request->validate([
-            'is_admin' => ['required', 'boolean'],
+        $request->validate([
+            'role' => ['required', Rule::enum(UserRole::class)],
         ]);
 
         if ($request->user()->id === $user->id) {
             return back()->withErrors([
-                'is_admin' => __('You cannot change your own access.'),
+                'role' => __('You cannot change your own access.'),
             ]);
         }
 
-        $user->is_admin = $validated['is_admin'];
+        $user->role = $request->enum('role', UserRole::class);
         $user->save();
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => $user->is_admin
-                ? __(':name is now an administrator.', ['name' => $user->name])
-                : __(':name is no longer an administrator.', ['name' => $user->name]),
+            'message' => __(':name is now a :role.', ['name' => $user->name, 'role' => strtolower($user->role->label())]),
         ]);
 
         return back();

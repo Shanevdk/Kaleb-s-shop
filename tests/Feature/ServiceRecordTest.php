@@ -10,9 +10,9 @@ test('guests cannot see the service log', function () {
     $this->get(route('service-records.index'))->assertRedirect(route('login'));
 });
 
-test('the service log only shows jobs logged by the user', function () {
+test('the service log shows every job in the shop, whoever logged it', function () {
     $user = User::factory()->create();
-    $own = ServiceRecord::factory()->for($user)->for(Vehicle::factory()->for($user))->create();
+    ServiceRecord::factory()->for($user)->for(Vehicle::factory()->for($user))->create();
     ServiceRecord::factory()->create();
 
     $this->actingAs($user)
@@ -20,8 +20,7 @@ test('the service log only shows jobs logged by the user', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('service-records/index')
-            ->has('records', 1)
-            ->where('records.0.id', $own->id)
+            ->has('records', 2)
         );
 });
 
@@ -81,7 +80,7 @@ test('optional cost fields default to zero', function () {
     expect(ServiceRecord::firstOrFail()->total_cost)->toBe(0.0);
 });
 
-test('a job cannot be logged against a vehicle owned by someone else', function () {
+test('a job can be logged against a vehicle another mechanic added', function () {
     $user = User::factory()->create();
     $vehicle = Vehicle::factory()->create();
 
@@ -93,9 +92,9 @@ test('a job cannot be logged against a vehicle owned by someone else', function 
             'status' => ServiceStatus::Completed->value,
             'performed_on' => '2026-09-01',
         ])
-        ->assertSessionHasErrors('vehicle_id');
+        ->assertSessionHasNoErrors();
 
-    expect(ServiceRecord::count())->toBe(0);
+    expect(ServiceRecord::sole()->user_id)->toBe($user->id);
 });
 
 test('logging a job requires a title, type, status and date', function () {
@@ -144,8 +143,8 @@ test('a job can be deleted by its owner', function () {
     expect(ServiceRecord::count())->toBe(0);
 });
 
-test('a user cannot edit, update or delete another mechanic job', function () {
-    $user = User::factory()->create();
+test('a shopper cannot edit, update or delete a job', function () {
+    $user = User::factory()->shopper()->create();
     $record = ServiceRecord::factory()->create(['title' => 'Not yours']);
 
     $this->actingAs($user)->get(route('service-records.edit', $record))->assertForbidden();

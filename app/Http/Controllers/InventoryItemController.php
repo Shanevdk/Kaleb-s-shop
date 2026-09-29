@@ -36,11 +36,11 @@ class InventoryItemController extends Controller
             $category = '';
         }
 
-        if ($vehicleId !== '' && ! $request->user()->vehicles()->whereKey($vehicleId)->exists()) {
+        if ($vehicleId !== '' && ! Vehicle::query()->whereKey($vehicleId)->exists()) {
             $vehicleId = '';
         }
 
-        $items = $request->user()->inventoryItems()
+        $items = InventoryItem::query()
             ->with('fitments.vehicle')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -60,7 +60,7 @@ class InventoryItemController extends Controller
             ->orderBy('name')
             ->get();
 
-        $all = $request->user()->inventoryItems()->get();
+        $all = InventoryItem::query()->get();
 
         return Inertia::render('inventory/index', [
             'items' => InventoryItemResource::collection($items)->resolve(),
@@ -215,7 +215,7 @@ class InventoryItemController extends Controller
      */
     private function vehicleOptions(Request $request): array
     {
-        return $request->user()->vehicles()
+        return Vehicle::query()
             ->orderBy('make')
             ->orderBy('model')
             ->get()
@@ -233,7 +233,7 @@ class InventoryItemController extends Controller
      */
     private function fitmentOptions(Request $request): array
     {
-        return $request->user()->vehicles()
+        return Vehicle::query()
             ->orderBy('make')
             ->orderBy('model')
             ->get()

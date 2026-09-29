@@ -4,15 +4,16 @@ use App\Enums\PartCategory;
 use App\Models\InventoryItem;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 test('guests cannot see the inventory', function () {
     $this->get(route('inventory.index'))->assertRedirect(route('login'));
 });
 
-test('the inventory only shows parts owned by the user', function () {
+test('the inventory shows every part in the shop, whoever added it', function () {
     $user = User::factory()->create();
-    $own = InventoryItem::factory()->for($user)->create();
+    InventoryItem::factory()->for($user)->create();
     InventoryItem::factory()->create();
 
     $this->actingAs($user)
@@ -20,8 +21,7 @@ test('the inventory only shows parts owned by the user', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('inventory/index')
-            ->has('items', 1)
-            ->where('items.0.id', $own->id)
+            ->has('items', 2)
         );
 });
 
@@ -113,6 +113,63 @@ test('adding a part requires a name and a known category', function () {
     expect(InventoryItem::count())->toBe(0);
 });
 
+test('a part can be added with just its barcode and is named from it', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'world.openfoodfacts.org/api/v3/product/028851333307*' => Http::response([
+            'status' => 'success',
+            'product' => ['product_name' => 'Premium Oil Filter 3330', 'brands' => 'Bosch'],
+        ]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('inventory.store'), [
+            'barcode' => '028851333307',
+            'category' => PartCategory::Filters->value,
+        ])
+        ->assertRedirect(route('inventory.index'));
+
+    $item = InventoryItem::sole();
+
+    expect($item->name)->toBe('Premium Oil Filter 3330')
+        ->and($item->brand)->toBe('Bosch')
+        ->and($item->barcode)->toBe('028851333307');
+});
+
+test('a part added with a barcode nobody knows is named after the barcode', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'world.openfoodfacts.org/api/v3/product/028851333307*' => Http::response(['status' => 'failure'], 404),
+        'api.upcitemdb.com/prod/trial/lookup*' => Http::response(['code' => 'OK', 'items' => []]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('inventory.store'), [
+            'barcode' => '028851333307',
+            'category' => PartCategory::Other->value,
+        ])
+        ->assertRedirect(route('inventory.index'));
+
+    expect(InventoryItem::sole()->name)->toBe('028851333307');
+});
+
+test('a typed name and brand win over what the barcode decodes to', function () {
+    Http::preventStrayRequests();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('inventory.store'), [
+            'name' => 'Oil filter',
+            'brand' => 'Ryco',
+            'barcode' => '028851333307',
+            'category' => PartCategory::Filters->value,
+        ])
+        ->assertRedirect(route('inventory.index'));
+
+    expect(InventoryItem::sole())
+        ->name->toBe('Oil filter')
+        ->brand->toBe('Ryco');
+});
+
 test('a part photo can be replaced and the old one cleaned up', function () {
     Storage::fake('public');
     $user = User::factory()->create();
@@ -156,10 +213,10 @@ test('a part photo can be removed', function () {
     Storage::disk('public')->assertMissing($original);
 });
 
-test('a part belonging to someone else cannot be edited', function () {
+test('a shopper cannot edit a part', function () {
     $item = InventoryItem::factory()->create();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->get(route('inventory.edit', $item))
         ->assertForbidden();
 });
@@ -188,10 +245,10 @@ test('stock never drops below zero', function () {
     expect($item->refresh()->quantity)->toEqual(0.0);
 });
 
-test('stock on someone elses part cannot be adjusted', function () {
+test('a shopper cannot adjust stock', function () {
     $item = InventoryItem::factory()->create(['quantity' => 3]);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->patch(route('inventory.adjust', $item), ['delta' => -1])
         ->assertForbidden();
 

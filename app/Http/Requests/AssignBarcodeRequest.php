@@ -29,7 +29,6 @@ class AssignBarcodeRequest extends FormRequest
                 'string',
                 'max:255',
                 Rule::unique('inventory_items', 'barcode')
-                    ->where('user_id', $this->user()->id)
                     ->ignore($this->route('inventory_item')),
             ],
         ];

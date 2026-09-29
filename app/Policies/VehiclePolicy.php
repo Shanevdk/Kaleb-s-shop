@@ -12,7 +12,7 @@ class VehiclePolicy
      */
     public function view(User $user, Vehicle $vehicle): bool
     {
-        return $user->id === $vehicle->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -20,7 +20,7 @@ class VehiclePolicy
      */
     public function update(User $user, Vehicle $vehicle): bool
     {
-        return $user->id === $vehicle->user_id;
+        return $user->role->canWorkOnRecords();
     }
 
     /**
@@ -28,6 +28,6 @@ class VehiclePolicy
      */
     public function delete(User $user, Vehicle $vehicle): bool
     {
-        return $user->id === $vehicle->user_id;
+        return $user->role->canWorkOnRecords();
     }
 }

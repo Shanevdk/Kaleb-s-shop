@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -34,6 +35,36 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ];
+    }
+
+    /**
+     * Indicate that the user runs the shop and manages the team.
+     */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Admin,
+        ]);
+    }
+
+    /**
+     * Indicate that the user plans the schedule and nothing else.
+     */
+    public function scheduler(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Scheduler,
+        ]);
+    }
+
+    /**
+     * Indicate that the user only sees the shopping list.
+     */
+    public function shopper(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Shopper,
+        ]);
     }
 
     /**

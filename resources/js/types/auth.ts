@@ -10,16 +10,30 @@ export type User = {
     [key: string]: unknown;
 };
 
+export type UserRole = 'admin' | 'mechanic' | 'scheduler' | 'shopper';
+
+export type RoleOption = {
+    value: UserRole;
+    label: string;
+    description: string;
+};
+
 export type Auth = {
     user: User;
-    isAdmin: boolean;
+    role: UserRole;
+    can: {
+        manageTeam: boolean;
+        workOnRecords: boolean;
+        manageSchedule: boolean;
+    };
 };
 
 export type TeamMember = {
     id: string;
     name: string;
     email: string;
-    is_admin: boolean;
+    role: UserRole;
+    role_label: string;
     is_verified: boolean;
     created_at: string | null;
     is_current_user: boolean;

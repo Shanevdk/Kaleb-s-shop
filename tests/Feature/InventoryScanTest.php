@@ -30,7 +30,7 @@ test('the scanner reports no key when scandit is not configured', function () {
         ->assertInertia(fn ($page) => $page->where('scandit.license_key', ''));
 });
 
-test('the scanner only offers parts owned by the user to link against', function () {
+test('the scanner offers every part in the shop to link against', function () {
     $user = User::factory()->create();
     InventoryItem::factory()->for($user)->create(['name' => 'Oil filter', 'barcode' => null]);
     InventoryItem::factory()->create(['name' => 'Someone elses part']);
@@ -39,7 +39,7 @@ test('the scanner only offers parts owned by the user to link against', function
         ->get(route('inventory.scan'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('items', 1)
+            ->has('items', 2)
             ->where('items.0.label', 'Oil filter')
         );
 });
@@ -110,15 +110,15 @@ test('an unrecognised barcode comes back as unknown', function () {
         );
 });
 
-test('a barcode on someone elses part does not match', function () {
+test('scanning a barcode on a part another mechanic added books it in', function () {
     $user = User::factory()->create();
     $other = InventoryItem::factory()->create(['barcode' => '111', 'quantity' => 4]);
 
     $this->actingAs($user)
         ->post(route('inventory.scan.store'), ['barcode' => '111'])
-        ->assertInertia(fn ($page) => $page->where('result.status', 'unknown'));
+        ->assertInertia(fn ($page) => $page->where('result.status', 'matched'));
 
-    expect($other->refresh()->quantity)->toEqual(4.0);
+    expect($other->refresh()->quantity)->toEqual(5.0);
 });
 
 test('scanning requires a barcode', function () {
@@ -157,7 +157,7 @@ test('a barcode cannot be linked to two parts', function () {
     expect($other->refresh()->barcode)->toBeNull();
 });
 
-test('a barcode cannot be linked to someone elses part', function () {
+test('a barcode can be linked to a part another mechanic added', function () {
     $item = InventoryItem::factory()->create(['barcode' => null]);
 
     $this->actingAs(User::factory()->create())
@@ -165,11 +165,10 @@ test('a barcode cannot be linked to someone elses part', function () {
             'barcode' => '111',
             'inventory_item_id' => $item->id,
         ])
-        ->assertSessionHasErrors('inventory_item_id');
+        ->assertSessionHasNoErrors();
 
-    expect($item->refresh()->barcode)->toBeNull();
+    expect($item->refresh()->barcode)->toBe('111');
 });
-
 test('the add part form is prefilled with a scanned barcode', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('inventory.create', ['barcode' => '9312345678907']))
@@ -315,22 +314,22 @@ test('a code already on another part cannot be assigned', function () {
     expect($item->refresh()->barcode)->toBeNull();
 });
 
-test('a code on someone elses part does not stop it being assigned', function () {
+test('a code on a part someone else added cannot be assigned again', function () {
     $user = User::factory()->create();
     InventoryItem::factory()->create(['barcode' => '111']);
     $item = InventoryItem::factory()->for($user)->create(['barcode' => null]);
 
     $this->actingAs($user)
         ->put(route('inventory.barcode', $item), ['barcode' => '111'])
-        ->assertSessionHasNoErrors();
+        ->assertSessionHasErrors('barcode');
 
-    expect($item->refresh()->barcode)->toBe('111');
+    expect($item->refresh()->barcode)->toBeNull();
 });
 
-test('a code cannot be assigned to someone elses part', function () {
+test('a shopper cannot assign a code to a part', function () {
     $item = InventoryItem::factory()->create(['barcode' => null]);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->shopper()->create())
         ->put(route('inventory.barcode', $item), ['barcode' => '111'])
         ->assertForbidden();
 

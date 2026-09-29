@@ -12,3 +12,12 @@ export type NavItem = {
     icon?: LucideIcon | null;
     isActive?: boolean;
 };
+
+/** A collapsible sidebar heading that holds related links. */
+export type NavGroup = {
+    title: string;
+    icon?: LucideIcon | null;
+    items: NavItem[];
+};
+
+export type NavEntry = NavItem | NavGroup;

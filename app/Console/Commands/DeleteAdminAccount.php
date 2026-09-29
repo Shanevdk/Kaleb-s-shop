@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Console\Command;
 
@@ -20,7 +21,7 @@ class DeleteAdminAccount extends Command
      *
      * @var string
      */
-    protected $description = 'Delete an administrator account along with everything it has logged';
+    protected $description = 'Delete an administrator account, leaving what it logged with the shop';
 
     /**
      * Execute the console command.
@@ -43,13 +44,13 @@ class DeleteAdminAccount extends Command
             return self::FAILURE;
         }
 
-        if (! $user->is_admin) {
+        if ($user->role !== UserRole::Admin) {
             $this->error("{$email} is not an administrator, so it was left alone.");
 
             return self::FAILURE;
         }
 
-        if (! $this->option('force') && ! $this->confirm("Delete {$email} and all of its vehicles, records and stock?")) {
+        if (! $this->option('force') && ! $this->confirm("Delete {$email}? What it logged stays with the shop.")) {
             $this->line('Nothing was deleted.');
 
             return self::SUCCESS;
