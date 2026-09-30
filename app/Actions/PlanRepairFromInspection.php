@@ -57,7 +57,7 @@ class PlanRepairFromInspection
             ['message' => $message] = $this->openRouter->complete([
                 ['role' => 'system', 'content' => $this->instructions()],
                 ['role' => 'user', 'content' => $this->describe($item, $shelf)],
-            ], timeout: 45);
+            ], timeout: 45, reasoning: 'low');
 
             $plan = $this->parse((string) ($message['content'] ?? ''), $shelf);
         } catch (AssistantUnavailable|JsonException $exception) {

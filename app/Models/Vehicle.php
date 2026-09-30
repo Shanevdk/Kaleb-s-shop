@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\MachineKind;
+use App\Enums\PhotoAngle;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
@@ -29,14 +31,20 @@ use Illuminate\Support\Facades\Storage;
  * @property MachineKind|null $kind
  * @property array<string, mixed>|null $specs
  * @property array<string, string>|null $photos
+ * @property array<string, mixed>|null $look
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'specs', 'photos'])]
+#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'specs', 'photos', 'look'])]
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
     use HasFactory, HasUlids;
+
+    /**
+     * How many photos of the outside the AI studies in one go.
+     */
+    public const PHOTOS_TO_STUDY = 6;
 
     /**
      * The photos go from disk when the vehicle goes.
@@ -59,6 +67,44 @@ class Vehicle extends Model
             fn (string $path): string => Storage::disk('public')->url($path),
             $this->photos ?? [],
         );
+    }
+
+    /**
+     * Get the photos of the outside worth showing the AI, keyed by angle,
+     * the most telling first.
+     *
+     * @return array<string, string>
+     */
+    public function photosToStudy(): array
+    {
+        $photos = $this->photos ?? [];
+        $picked = [];
+
+        foreach (PhotoAngle::outsideByDetail() as $angle) {
+            if (isset($photos[$angle->value])) {
+                $picked[$angle->value] = $photos[$angle->value];
+            }
+        }
+
+        return array_slice($picked, 0, self::PHOTOS_TO_STUDY, true);
+    }
+
+    /**
+     * Get what the AI made of the photos, ready to show, marked stale once
+     * the photos it would study have changed since it looked.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function lookForDisplay(): ?array
+    {
+        if ($this->look === null) {
+            return null;
+        }
+
+        return [
+            ...Arr::except($this->look, 'sources'),
+            'stale' => ($this->look['sources'] ?? []) !== $this->photosToStudy(),
+        ];
     }
 
     /**
@@ -175,6 +221,7 @@ class Vehicle extends Model
             'kind' => MachineKind::class,
             'specs' => 'array',
             'photos' => 'array',
+            'look' => 'array',
         ];
     }
 }

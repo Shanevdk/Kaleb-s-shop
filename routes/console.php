@@ -9,7 +9,7 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Artisan::command('inspections:plan {--months=2 : How many months to plan, starting with this one}', function (PlanInspectionSchedule $planSchedule) {
+Artisan::command('inspections:plan {--months=12 : How many months to plan, starting with this one}', function (PlanInspectionSchedule $planSchedule) {
     $months = max(1, (int) $this->option('months'));
 
     for ($offset = 0; $offset < $months; $offset++) {

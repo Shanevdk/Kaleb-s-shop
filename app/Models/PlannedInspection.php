@@ -19,10 +19,11 @@ use Illuminate\Support\Carbon;
  * @property ChecklistTemplate $template
  * @property string $period
  * @property CarbonImmutable $due_on
+ * @property bool $pinned
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['vehicle_id', 'template', 'period', 'due_on'])]
+#[Fillable(['vehicle_id', 'template', 'period', 'due_on', 'pinned'])]
 class PlannedInspection extends Model
 {
     /** @use HasFactory<PlannedInspectionFactory> */
@@ -79,6 +80,7 @@ class PlannedInspection extends Model
         return [
             'template' => ChecklistTemplate::class,
             'due_on' => 'immutable_date',
+            'pinned' => 'boolean',
         ];
     }
 }

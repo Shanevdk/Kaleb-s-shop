@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+    Route::inertia('settings/screen-saver', 'settings/screen-saver')->name('screen-saver.edit');
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

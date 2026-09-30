@@ -1,5 +1,5 @@
-import { Form, Head, Link } from '@inertiajs/react';
-import { ClipboardCheck } from 'lucide-react';
+import { Form, Head, Link, router } from '@inertiajs/react';
+import { ClipboardCheck, Minus, Plus, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import InspectionController from '@/actions/App/Http/Controllers/InspectionController';
 import EmptyState from '@/components/empty-state';
@@ -15,25 +15,53 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { todayString } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { create, index } from '@/routes/inspections';
 import { create as addVehicle } from '@/routes/vehicles';
-import type { ChecklistTemplate, SelectOption } from '@/types';
+import { destroy as resetChanges } from '@/routes/vehicles/checklist-changes';
+import type {
+    ChecklistTemplate,
+    SelectOption,
+    VehicleChecklistChanges,
+} from '@/types';
 
 export default function InspectionCreate({
     vehicles,
     templates,
     selectedVehicle,
     selectedTemplate,
+    checklistChanges,
 }: {
     vehicles: SelectOption[];
     templates: ChecklistTemplate[];
     selectedVehicle?: string;
     selectedTemplate?: string | null;
+    /** Keyed by vehicle, then by checklist. */
+    checklistChanges: Partial<
+        Record<string, Partial<Record<string, VehicleChecklistChanges>>>
+    >;
 }) {
     const [template, setTemplate] = useState(
         selectedTemplate ?? templates[0]?.value ?? '',
     );
+    const [vehicle, setVehicle] = useState(selectedVehicle ?? '');
+    const changesFor = (value: string) =>
+        vehicle ? checklistChanges[vehicle]?.[value] : undefined;
+    const changes = changesFor(template);
+    const templateLabel =
+        templates.find((option) => option.value === template)?.label ?? '';
+
+    /**
+     * How many checks a checklist has, as changed for the chosen vehicle.
+     */
+    const itemCount = (option: ChecklistTemplate): string => {
+        const forVehicle = changesFor(option.value);
+
+        return forVehicle
+            ? `${option.item_count + forVehicle.added.length - forVehicle.removed.length} items for this vehicle`
+            : `${option.item_count} items`;
+    };
 
     return (
         <>
@@ -80,6 +108,7 @@ export default function InspectionCreate({
                                                         selectedVehicle ||
                                                         undefined
                                                     }
+                                                    onValueChange={setVehicle}
                                                     required
                                                 >
                                                     <SelectTrigger
@@ -120,9 +149,7 @@ export default function InspectionCreate({
                                                     id="performed_on"
                                                     name="performed_on"
                                                     type="date"
-                                                    defaultValue={new Date()
-                                                        .toISOString()
-                                                        .slice(0, 10)}
+                                                    defaultValue={todayString()}
                                                     required
                                                 />
                                                 <InputError
@@ -196,13 +223,79 @@ export default function InspectionCreate({
                                                         {option.description}
                                                     </p>
                                                     <p className="text-muted-foreground mt-2 text-xs tabular-nums">
-                                                        {option.item_count}{' '}
-                                                        items
+                                                        {itemCount(option)}
                                                     </p>
                                                 </button>
                                             ))}
                                         </div>
                                         <InputError message={errors.template} />
+
+                                        {changes && (
+                                            <div className="space-y-3 rounded-lg border border-dashed p-4 text-sm">
+                                                <p className="font-medium">
+                                                    This vehicle's{' '}
+                                                    {templateLabel}:{' '}
+                                                    {changes.added.length}{' '}
+                                                    added,{' '}
+                                                    {changes.removed.length}{' '}
+                                                    removed
+                                                </p>
+                                                <ul className="space-y-1">
+                                                    {changes.added.map(
+                                                        (check) => (
+                                                            <li
+                                                                key={`added:${check.section}:${check.label}`}
+                                                                className="flex items-center gap-2"
+                                                            >
+                                                                <Plus className="size-3.5 shrink-0 text-emerald-600" />
+                                                                {check.label}
+                                                                <span className="text-muted-foreground">
+                                                                    ·{' '}
+                                                                    {
+                                                                        check.section
+                                                                    }
+                                                                </span>
+                                                            </li>
+                                                        ),
+                                                    )}
+                                                    {changes.removed.map(
+                                                        (check) => (
+                                                            <li
+                                                                key={`removed:${check.section}:${check.label}`}
+                                                                className="text-muted-foreground flex items-center gap-2"
+                                                            >
+                                                                <Minus className="size-3.5 shrink-0 text-red-600" />
+                                                                <span className="line-through">
+                                                                    {
+                                                                        check.label
+                                                                    }
+                                                                </span>
+                                                            </li>
+                                                        ),
+                                                    )}
+                                                </ul>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        router.delete(
+                                                            resetChanges.url({
+                                                                vehicle,
+                                                                template,
+                                                            }),
+                                                            {
+                                                                preserveScroll: true,
+                                                                preserveState: true,
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    <RotateCcw />
+                                                    Reset to the standard list
+                                                </Button>
+                                            </div>
+                                        )}
                                     </section>
 
                                     <div className="flex items-center gap-3 border-t pt-6">

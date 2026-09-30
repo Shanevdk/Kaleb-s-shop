@@ -14,6 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { todayString } from '@/lib/format';
 import { index } from '@/routes/service-records';
 import type {
     SelectOption,
@@ -184,8 +185,7 @@ export default function ServiceRecordForm({
                                     name="performed_on"
                                     type="date"
                                     defaultValue={
-                                        record?.performed_on ??
-                                        new Date().toISOString().slice(0, 10)
+                                        record?.performed_on ?? todayString()
                                     }
                                     required
                                 />

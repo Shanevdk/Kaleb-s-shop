@@ -5,15 +5,78 @@ namespace App\Http\Controllers;
 use App\Enums\CheckStatus;
 use App\Enums\RepairPartsStatus;
 use App\Jobs\PlanRepairForFlaggedItem;
+use App\Models\Inspection;
 use App\Models\InspectionItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class InspectionItemController extends Controller
 {
+    /**
+     * Add a check to the checklist. Unless it is for this checklist only, it
+     * is remembered for the vehicle and goes on its next checklist of the
+     * same kind too.
+     */
+    public function store(Request $request, Inspection $inspection): RedirectResponse
+    {
+        Gate::authorize('update', $inspection);
+
+        $section = trim((string) $request->input('section')) ?: Inspection::EXTRA_SECTION;
+
+        $validated = $request->validate([
+            'section' => ['nullable', 'string', 'max:255'],
+            'label' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('inspection_items')->where('inspection_id', $inspection->id)->where('section', $section),
+            ],
+            'remember' => ['boolean'],
+        ], [
+            'label.required' => __('Say what needs checking.'),
+            'label.unique' => __('That check is already on the list.'),
+        ]);
+
+        $remember = $request->boolean('remember', true);
+
+        $inspection->addCheck($section, $validated['label'], $remember);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $remember
+                ? __('Check added, and remembered for this vehicle.')
+                : __('Check added to this checklist.'),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Take a check off the checklist. Unless it is for this checklist only,
+     * it stays off the vehicle's next checklist of the same kind too.
+     */
+    public function destroy(Request $request, InspectionItem $inspectionItem): RedirectResponse
+    {
+        Gate::authorize('update', $inspectionItem->inspection);
+
+        $remember = $request->boolean('remember', true);
+
+        $inspectionItem->inspection->removeCheck($inspectionItem, $remember);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $remember
+                ? __('Check removed, and left off for this vehicle.')
+                : __('Check removed from this checklist.'),
+        ]);
+
+        return back();
+    }
+
     /**
      * Mark a single checklist item off.
      *

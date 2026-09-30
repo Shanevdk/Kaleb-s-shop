@@ -1,8 +1,20 @@
-import { ArrowLeft, Box, BoxSelect, Cog, Images, Orbit } from 'lucide-react';
+import { router, useHttp } from '@inertiajs/react';
+import {
+    ArrowLeft,
+    Box,
+    BoxSelect,
+    Cog,
+    Images,
+    Orbit,
+    RefreshCw,
+    Sparkles,
+    Undo2,
+} from 'lucide-react';
 import {
     Component,
     lazy,
     Suspense,
+    useEffect,
     useState,
     useSyncExternalStore,
     type ReactNode,
@@ -18,10 +30,24 @@ import {
     type EnginePartKey,
 } from '@/lib/engine-parts';
 import { cn } from '@/lib/utils';
+import {
+    ACCESSORY_LABELS,
+    AREA_LABELS,
+    BODY_LABELS,
+    DAMAGE_LABELS,
+    SEVERITY_CLASSES,
+    describeConfidence,
+    describeWheels,
+} from '@/lib/vehicle-look';
+import {
+    destroy as forgetLook,
+    store as studyPhotos,
+} from '@/routes/vehicles/look';
 import type {
     EngineSpecs,
     MachineKind,
     PhotoAngleOption,
+    VehicleLook,
     VehiclePhotos,
 } from '@/types';
 
@@ -32,6 +58,42 @@ import type {
 const MachineViewer = lazy(() => import('@/components/machine-viewer'));
 
 type Mode = 'model' | 'photos';
+
+/**
+ * What the page says while the AI studies the photos, a line at a time.
+ */
+const STUDY_STEPS = [
+    'Laying the photos out side by side…',
+    'Reading the paint…',
+    'Counting the wheel spokes…',
+    'Looking for bull bars, racks and tow bars…',
+    'Going over every panel for dents and scratches…',
+    'Matching the model to what it sees…',
+];
+
+/**
+ * Pull the message out of a JSON error response.
+ */
+function messageFrom(data: unknown): string | null {
+    try {
+        const body = typeof data === 'string' ? JSON.parse(data) : data;
+
+        return typeof body?.message === 'string' ? body.message : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * A small pill for one thing the AI saw.
+ */
+function Seen({ children }: { children: ReactNode }) {
+    return (
+        <li className="bg-muted/60 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1">
+            {children}
+        </li>
+    );
+}
 
 let webglSupport: boolean | undefined;
 
@@ -109,6 +171,8 @@ export default function MachineModel({
     registration = null,
     photos = {},
     photoAngles = [],
+    vehicleId = null,
+    look = null,
 }: {
     kind: MachineKind;
     kindLabel: string;
@@ -121,6 +185,10 @@ export default function MachineModel({
     registration?: string | null;
     photos?: VehiclePhotos;
     photoAngles?: PhotoAngleOption[];
+    /** The shop's vehicle, when the model can be matched to its photos. */
+    vehicleId?: string | null;
+    /** What an AI already read from the photos. */
+    look?: VehicleLook | null;
 }) {
     const [mode, setMode] = useState<Mode>('model');
     const [view, setView] = useState<ViewerView>('machine');
@@ -146,6 +214,111 @@ export default function MachineModel({
     const parts = ENGINE_PART_KEYS.filter((key) => available.includes(key));
     const detail = selected ? ENGINE_PARTS[selected] : null;
     const showingPhotos = (mode === 'photos' || !canDraw3d) && photoCount > 0;
+
+    // Matching the model to the photos with a model that can see them.
+    const [fresh, setFresh] = useState<VehicleLook | null>(null);
+    const [matched, setMatched] = useState(true);
+    const [matchError, setMatchError] = useState<string | null>(null);
+    const [step, setStep] = useState(0);
+    const [selectedDamage, setSelectedDamage] = useState<number | null>(null);
+    const [focus, setFocus] = useState<{
+        index: number;
+        nonce: number;
+    } | null>(null);
+    const study = useHttp<Record<string, never>, { look: VehicleLook }>({});
+    const current = fresh ?? look;
+    const outside = photoAngles.filter(
+        (angle) => angle.value !== 'engine' && photos[angle.value],
+    );
+    const canMatch = vehicleId !== null && canDraw3d && outside.length > 0;
+    const shown = matched ? current : null;
+    const damage = shown?.damage ?? [];
+    const wheels = describeWheels(current?.wheels ?? null);
+
+    useEffect(() => {
+        if (!study.processing) {
+            return;
+        }
+
+        const timer = window.setInterval(
+            () => setStep((previous) => (previous + 1) % STUDY_STEPS.length),
+            1800,
+        );
+
+        return () => window.clearInterval(timer);
+    }, [study.processing]);
+
+    function matchToPhotos(): void {
+        if (vehicleId === null || study.processing) {
+            return;
+        }
+
+        setMatchError(null);
+        setStep(0);
+        setMode('model');
+        setView('machine');
+
+        study
+            .post(studyPhotos.url(vehicleId), {
+                onError: (errors) => {
+                    setMatchError(
+                        Object.values(errors)[0] ??
+                            'Those photos could not be looked at.',
+                    );
+                },
+                onHttpException: (response) => {
+                    setMatchError(
+                        response.status === 429
+                            ? 'That is a lot of matching in a minute. Give it a moment and try again.'
+                            : (messageFrom(response.data) ??
+                                  'The AI could not look at the photos just now. Try again in a minute.'),
+                    );
+
+                    return false;
+                },
+                onNetworkError: () => {
+                    setMatchError(
+                        'Could not reach the server. Check the connection.',
+                    );
+
+                    return false;
+                },
+            })
+            .then((response) => {
+                if (response?.look) {
+                    setFresh(response.look);
+                    setMatched(true);
+                    setSelectedDamage(null);
+                }
+            })
+            .catch(() => {
+                // Already shown through the handlers above.
+            });
+    }
+
+    function forget(): void {
+        if (vehicleId === null) {
+            return;
+        }
+
+        router.delete(forgetLook.url(vehicleId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setFresh(null);
+                setSelectedDamage(null);
+            },
+        });
+    }
+
+    function pickDamage(index: number): void {
+        setMode('model');
+        setView('machine');
+        setSelectedDamage(index);
+        setFocus((previous) => ({
+            index,
+            nonce: (previous?.nonce ?? 0) + 1,
+        }));
+    }
 
     function showMachine(): void {
         setView('machine');
@@ -209,6 +382,36 @@ export default function MachineModel({
                             </button>
                         </div>
                     )}
+
+                    {!showingPhotos &&
+                        canMatch &&
+                        view === 'machine' &&
+                        (current ? (
+                            <Button
+                                size="sm"
+                                variant={matched ? 'default' : 'outline'}
+                                onClick={() =>
+                                    setMatched((previous) => !previous)
+                                }
+                                aria-pressed={matched}
+                            >
+                                <Sparkles />
+                                {matched
+                                    ? 'Matched to photos'
+                                    : 'Match to photos'}
+                            </Button>
+                        ) : (
+                            <Button
+                                size="sm"
+                                onClick={matchToPhotos}
+                                disabled={study.processing}
+                            >
+                                <Sparkles />
+                                {study.processing
+                                    ? 'Studying the photos…'
+                                    : 'Match to photos'}
+                            </Button>
+                        ))}
 
                     {!showingPhotos &&
                         canDraw3d &&
@@ -294,6 +497,11 @@ export default function MachineModel({
                                         view={view}
                                         selectedPart={selected}
                                         appearance={resolvedAppearance}
+                                        look={shown}
+                                        damage={damage}
+                                        selectedDamage={selectedDamage}
+                                        focus={focus}
+                                        onSelectDamage={pickDamage}
                                         onViewChange={setView}
                                         onHoverPart={setHovered}
                                         onSelectPart={setSelected}
@@ -305,6 +513,41 @@ export default function MachineModel({
                             <span className="bg-background/80 text-muted-foreground pointer-events-none absolute top-3 right-3 rounded-full border px-2.5 py-0.5 text-[11px] font-medium">
                                 {kindLabel}
                             </span>
+
+                            {study.processing && (
+                                <div
+                                    className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
+                                    aria-live="polite"
+                                >
+                                    <div className="bg-background/30 absolute inset-0" />
+                                    <div className="animate-scan absolute inset-x-0 h-28 -translate-y-1/2 bg-linear-to-b from-transparent via-sky-400/20 to-transparent">
+                                        <div className="absolute inset-x-0 top-1/2 h-px bg-sky-400 shadow-[0_0_14px_3px_rgba(56,189,248,0.65)]" />
+                                    </div>
+                                    <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4">
+                                        <div className="flex gap-1.5">
+                                            {outside
+                                                .slice(0, 6)
+                                                .map((angle, index) => (
+                                                    <img
+                                                        key={angle.value}
+                                                        src={
+                                                            photos[angle.value]
+                                                        }
+                                                        alt={angle.label}
+                                                        className="size-12 animate-pulse rounded-md border-2 border-white/80 object-cover shadow-md"
+                                                        style={{
+                                                            animationDelay: `${index * 180}ms`,
+                                                        }}
+                                                    />
+                                                ))}
+                                        </div>
+                                        <p className="bg-background/90 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm">
+                                            <Sparkles className="size-3.5 text-sky-500" />
+                                            {STUDY_STEPS[step]}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {hovered && (
                                 <span className="bg-background/90 pointer-events-none absolute bottom-3 left-3 rounded-full border px-3 py-1 text-xs font-medium shadow-sm">
@@ -365,6 +608,166 @@ export default function MachineModel({
                     </aside>
                 )}
             </div>
+
+            {matchError && (
+                <p className="text-destructive border-t px-6 py-3 text-sm">
+                    {matchError}
+                </p>
+            )}
+
+            {current && (
+                <div className="space-y-4 border-t px-6 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                            <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                                <Sparkles className="size-4 text-sky-500" />
+                                What the AI saw in the photos
+                            </p>
+                            {current.summary && (
+                                <p className="text-muted-foreground max-w-prose text-sm">
+                                    {current.summary}
+                                </p>
+                            )}
+                        </div>
+
+                        {vehicleId !== null && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        current.stale ? 'default' : 'outline'
+                                    }
+                                    onClick={matchToPhotos}
+                                    disabled={study.processing || !canMatch}
+                                >
+                                    <RefreshCw
+                                        className={cn(
+                                            study.processing && 'animate-spin',
+                                        )}
+                                    />
+                                    {current.stale
+                                        ? 'Photos changed, match again'
+                                        : 'Match again'}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={forget}
+                                    disabled={study.processing}
+                                >
+                                    <Undo2 />
+                                    Forget
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    <ul className="flex flex-wrap gap-1.5 text-xs">
+                        {current.colour && (
+                            <Seen>
+                                <span
+                                    className="size-3 rounded-full border"
+                                    style={{
+                                        backgroundColor:
+                                            current.colour.hex ?? undefined,
+                                    }}
+                                />
+                                <span className="capitalize">
+                                    {current.colour.name}
+                                </span>
+                                {current.colour.finish !== 'solid' &&
+                                    ` · ${current.colour.finish}`}
+                            </Seen>
+                        )}
+                        {current.body_style && (
+                            <Seen>
+                                {BODY_LABELS[current.body_style]}
+                                {current.roof === 'high' && ' · high roof'}
+                                {current.cab && ` · ${current.cab} cab`}
+                            </Seen>
+                        )}
+                        {wheels && <Seen>{wheels}</Seen>}
+                        {current.tinted_windows && <Seen>Tinted windows</Seen>}
+                        {current.accessories.map((accessory) => (
+                            <Seen key={accessory}>
+                                {ACCESSORY_LABELS[accessory]}
+                            </Seen>
+                        ))}
+                    </ul>
+
+                    {current.damage.length > 0 ? (
+                        <div className="space-y-2">
+                            <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+                                Marks and damage
+                            </p>
+                            <ol className="grid gap-1.5 sm:grid-cols-2">
+                                {current.damage.map((mark, index) => (
+                                    <li key={index}>
+                                        <button
+                                            type="button"
+                                            onClick={() => pickDamage(index)}
+                                            className={cn(
+                                                'hover:bg-accent flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                                                selectedDamage === index &&
+                                                    'border-primary bg-accent',
+                                            )}
+                                        >
+                                            <span
+                                                className={cn(
+                                                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                                                    SEVERITY_CLASSES[
+                                                        mark.severity
+                                                    ],
+                                                )}
+                                            >
+                                                {index + 1}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="font-medium">
+                                                    {AREA_LABELS[mark.area]}
+                                                </span>
+                                                <span className="text-muted-foreground">
+                                                    {' '}
+                                                    · {DAMAGE_LABELS[mark.kind]}
+                                                    , {mark.severity}
+                                                </span>
+                                                {mark.note && (
+                                                    <span className="text-muted-foreground block text-xs">
+                                                        {mark.note}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-sm">
+                            No marks or damage spotted in the photos.
+                        </p>
+                    )}
+
+                    <p className="text-muted-foreground text-xs">
+                        {[
+                            describeConfidence(current.confidence),
+                            `Read from ${current.angles.length} ${current.angles.length === 1 ? 'photo' : 'photos'}`,
+                            current.model ? `by ${current.model}` : null,
+                            new Date(current.studied_at).toLocaleDateString(
+                                'en-US',
+                                {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                },
+                            ),
+                        ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        . The AI can be wrong, so check anything that matters.
+                    </p>
+                </div>
+            )}
         </section>
     );
 }

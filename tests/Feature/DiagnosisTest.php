@@ -203,6 +203,51 @@ test('a plain text answer is passed on as it is', function () {
         ->assertJsonPath('reply', 'Check the coil on cylinder 3 first.');
 });
 
+test('the diagnosis asks the model to keep its thinking short so it answers in time', function () {
+    Http::fake([
+        'openrouter.ai/*' => Http::response(diagnosisReply(json_encode(misfireDiagnosis()))),
+        'api.nhtsa.gov/*' => Http::response(['results' => []]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('diagnose.run'), problem())
+        ->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'openrouter.ai')
+        && $request['reasoning'] === ['effort' => 'low']);
+});
+
+test('the diagnosis gives up on a model that is too slow and tries the next one', function () {
+    config(['services.openrouter.fallback_models' => ['second/model:free']]);
+    Http::fake([
+        'openrouter.ai/*' => Http::sequence()
+            ->pushFailedConnection('cURL error 28: Operation timed out after 40001 milliseconds')
+            ->push(diagnosisReply(json_encode(misfireDiagnosis()))),
+        'api.nhtsa.gov/*' => Http::response(['results' => []]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('diagnose.run'), problem())
+        ->assertOk()
+        ->assertJsonPath('diagnosis.summary', 'Most likely a failed ignition coil on cylinder 3.');
+
+    Http::assertSent(fn (Request $request): bool => $request['model'] === 'second/model:free'
+        && $request['reasoning'] === ['effort' => 'low']);
+});
+
+test('the diagnosis says the models are slow when none answer in time', function () {
+    Http::fake([
+        'openrouter.ai/*' => Http::failedConnection('cURL error 28: Operation timed out after 40001 milliseconds'),
+        'api.nhtsa.gov/*' => Http::response(['results' => []]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('diagnose.run'), problem())
+        ->assertOk()
+        ->assertJsonPath('diagnosis', null)
+        ->assertJsonPath('error', 'The free AI models are slow right now. Try again in a minute.');
+});
+
 test('without the ai the common problems matching the symptoms and the recalls still come back', function () {
     config(['services.openrouter.key' => null]);
     Http::fake([

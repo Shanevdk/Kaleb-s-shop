@@ -80,6 +80,8 @@ export type Materials = {
 
 export type MaterialOptions = {
     colour?: string | null;
+    /** The paint read from photos, which wins over the colour's name. */
+    finish?: PaintFinish | null;
     /** The enamel colour for tractors, mowers and gensets. */
     enamel?: string;
 };
@@ -133,7 +135,7 @@ function withTint<T extends THREE.Material>(material: T, cover: number): T {
 }
 
 export function makeMaterials(options: MaterialOptions = {}): Materials {
-    const finish = paintFinish(options.colour);
+    const finish = options.finish ?? paintFinish(options.colour);
     const paint = paintMaterial(finish);
     const paintDarkColour = new THREE.Color(finish.hex).multiplyScalar(0.45);
 

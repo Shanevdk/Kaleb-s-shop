@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { roundPolygon, smoothCurve } from '@/lib/three/curves';
 import { UTE_CAB, UTE_SPEC } from '@/lib/three/designs';
+import {
+    ladder,
+    powderCoat,
+    towBar,
+    TUB_ACCESSORIES,
+    type Anchors,
+} from '@/lib/three/look';
 import type { Materials } from '@/lib/three/materials';
 import {
     buildExhaust,
@@ -22,6 +29,7 @@ import {
 } from '@/lib/three/shapes';
 import { softBox } from '@/lib/three/soft';
 import { buildWheel, tyreRadius } from '@/lib/three/wheels';
+import type { LookAccessory } from '@/types';
 
 /**
  * A dual-cab or single-cab ute: the cab and nose from the body system,
@@ -34,7 +42,17 @@ export function buildUte(
     options: RoadOptions & { crew: boolean },
 ): EngineBay {
     const spec = options.crew ? UTE_SPEC : singleCab(UTE_SPEC);
-    const bay = buildRoadVehicle(m, spec, group, options);
+    const look = options.look ?? null;
+    // The cab takes what bolts to it; the tub's own gear comes below.
+    const bay = buildRoadVehicle(m, spec, group, {
+        ...options,
+        look: look && {
+            ...look,
+            accessories: look.accessories.filter(
+                (accessory) => !TUB_ACCESSORIES.includes(accessory),
+            ),
+        },
+    });
     const cabRear = spec.design.rear;
     const tubFront = cabRear - 0.06;
     const tubRear = -2.85;
@@ -366,6 +384,57 @@ export function buildUte(
 
     buildExhaust(m, { y: 0.44, z: 0.62 }, tubRear + 0.3, spec.axles, 0.5, tub);
 
+    const cabTop = smoothCurve(spec.design.roof)(cabRear + 0.15);
+    const extras = look?.accessories ?? [];
+    tubAccessories(m, tub, extras, {
+        from: tubFront,
+        to: tubRear,
+        rail: railY,
+        half,
+        top: cabTop,
+    });
+
+    // Where the tub's areas are, for pinning damage on.
+    const anchors =
+        (group.userData.anchors as Anchors | undefined) ?? new Map();
+    const tray = extras.includes('canopy') ? cabTop - 0.02 : floorY + 0.02;
+    anchors.set('tray', {
+        position: new THREE.Vector3((tubFront + tubRear) / 2, tray, 0),
+        normal: new THREE.Vector3(0, 1, 0),
+    });
+    anchors.set('tailgate', {
+        position: new THREE.Vector3(tubRear - 0.02, (railY + 0.6) / 2, -0.2),
+        normal: new THREE.Vector3(-1, 0, 0),
+    });
+    anchors.set('rear_bumper', {
+        position: new THREE.Vector3(tubRear - 0.12, 0.5, 0.35),
+        normal: new THREE.Vector3(-1, 0, 0),
+    });
+
+    for (const [side, name] of [
+        [-1, 'left'],
+        [1, 'right'],
+    ] as const) {
+        anchors.set(`${name}_rear_quarter`, {
+            position: new THREE.Vector3(
+                rearAxle + 0.1,
+                railY - 0.16,
+                side * (half + 0.01),
+            ),
+            normal: new THREE.Vector3(0, 0, side),
+        });
+        anchors.set(`${name}_taillight`, {
+            position: new THREE.Vector3(
+                tubRear - 0.02,
+                railY - 0.22,
+                side * (half - 0.05),
+            ),
+            normal: new THREE.Vector3(-1, 0, 0),
+        });
+    }
+
+    group.userData.anchors = anchors;
+
     tub.traverse((object) => {
         if (object instanceof THREE.Mesh) {
             object.castShadow = true;
@@ -374,6 +443,175 @@ export function buildUte(
     });
 
     return bay;
+}
+
+/**
+ * What bolts on to a ute's tub: a hardtop canopy, a soft tonneau cover, a
+ * sports bar behind the cab, a ladder rack over the tub and a tow ball.
+ */
+function tubAccessories(
+    m: Materials,
+    tub: THREE.Group,
+    extras: LookAccessory[],
+    size: { from: number; to: number; rail: number; half: number; top: number },
+): void {
+    const { from, to, rail, half, top } = size;
+    const has = (accessory: LookAccessory) => extras.includes(accessory);
+    const length = from - to;
+    const centre = (from + to) / 2;
+
+    if (has('canopy')) {
+        const height = top - 0.03 - rail;
+        tub.add(
+            softBox(
+                length + 0.02,
+                height,
+                half * 2 + 0.02,
+                m.paint,
+                centre,
+                rail + height / 2 + 0.005,
+                0,
+                {
+                    divisions: [3, 2, 2],
+                    crease: 0.9,
+                    shape: (p) => {
+                        const up = (p.y + height / 2) / height;
+                        p.z *= 1 - up * up * 0.05;
+                        p.y -= (Math.max(0, -p.x) / (length / 2)) * up * 0.03;
+                    },
+                },
+            ),
+        );
+
+        for (const side of [1, -1]) {
+            tub.add(
+                box(
+                    length - 0.4,
+                    height * 0.5,
+                    0.012,
+                    m.privacyGlass,
+                    centre - 0.02,
+                    rail + height * 0.54,
+                    side * (half + 0.003),
+                    0.02,
+                ),
+            );
+            tub.add(
+                box(
+                    0.06,
+                    0.02,
+                    0.014,
+                    m.gloss,
+                    centre - length * 0.3,
+                    rail + height * 0.24,
+                    side * (half + 0.01),
+                    0.004,
+                ),
+            );
+        }
+
+        tub.add(
+            box(
+                0.012,
+                height * 0.62,
+                half * 2 - 0.24,
+                m.privacyGlass,
+                to - 0.004,
+                rail + height * 0.52,
+                0,
+                0.02,
+            ),
+        );
+        tub.add(
+            box(0.02, 0.025, 0.32, m.redLens, to - 0.01, top - 0.08, 0, 0.004),
+        );
+    } else if (has('tonneau_cover')) {
+        tub.add(
+            softBox(
+                length - 0.03,
+                0.025,
+                half * 2 - 0.02,
+                m.plastic,
+                centre,
+                rail + 0.02,
+                0,
+                { crease: 0.8, divisions: [4, 1, 2] },
+            ),
+        );
+    }
+
+    const coat = powderCoat();
+
+    if (has('sports_bar') && !has('canopy')) {
+        const x = from - 0.14;
+        tub.add(
+            bentTube(
+                [
+                    [x, rail, half - 0.06],
+                    [x - 0.22, rail + 0.4, half - 0.1],
+                    [x - 0.22, rail + 0.4, -half + 0.1],
+                    [x, rail, -half + 0.06],
+                ],
+                0.032,
+                m.chrome,
+                0.12,
+            ),
+        );
+
+        for (const side of [1, -1]) {
+            tub.add(
+                rod(
+                    [x - 0.21, rail + 0.38, side * (half - 0.12)],
+                    [x - 0.55, rail + 0.01, side * (half - 0.07)],
+                    0.02,
+                    m.chrome,
+                ),
+            );
+        }
+    }
+
+    if (has('ladder_rack')) {
+        const y = top + 0.06;
+        const posts = [from - 0.08, to + 0.1];
+
+        for (const x of posts) {
+            for (const side of [1, -1]) {
+                tub.add(
+                    rod(
+                        [x, rail, side * (half - 0.03)],
+                        [x, y, side * (half - 0.03)],
+                        0.02,
+                        coat,
+                    ),
+                );
+            }
+
+            tub.add(
+                rod([x, y, -(half - 0.03)], [x, y, half - 0.03], 0.024, coat),
+            );
+        }
+
+        for (const side of [1, -1]) {
+            tub.add(
+                rod(
+                    [posts[0], y, side * (half - 0.03)],
+                    [posts[1], y, side * (half - 0.03)],
+                    0.018,
+                    coat,
+                ),
+            );
+        }
+
+        ladder(
+            m,
+            { from: posts[0] + 0.6, to: posts[1], y, half: half - 0.03 },
+            tub,
+        );
+    }
+
+    if (has('tow_bar')) {
+        towBar(m, to + 0.05, 0.42, tub);
+    }
 }
 
 function polygonShape(points: Point[]): THREE.Shape {

@@ -73,6 +73,27 @@ enum PhotoAngle: string
     }
 
     /**
+     * Get the shots of the outside, the most telling first: a corner shows
+     * two sides at once, then come the ends and the sides, then the roof.
+     *
+     * @return array<int, self>
+     */
+    public static function outsideByDetail(): array
+    {
+        return [
+            self::FrontLeft,
+            self::RearRight,
+            self::FrontRight,
+            self::RearLeft,
+            self::Front,
+            self::Rear,
+            self::Left,
+            self::Right,
+            self::Top,
+        ];
+    }
+
+    /**
      * Get every shot as the front end wants it.
      *
      * @return array<int, array{value: string, label: string, hint: string, degrees: int|null}>
