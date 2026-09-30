@@ -15,12 +15,18 @@ class StudyVehiclePhotos
     /**
      * Seconds to wait for one model to look at the photos.
      */
-    private const TIMEOUT = 60;
+    private const TIMEOUT = 45;
 
     /**
-     * Seconds after which no further model is tried.
+     * Seconds all the models together may take, inside the minute a web
+     * request gets before the server gives up on it.
      */
-    private const BUDGET = 100;
+    private const BUDGET = 50;
+
+    /**
+     * The fewest seconds worth giving another model.
+     */
+    private const SHORTEST_ATTEMPT = 5;
 
     /**
      * The size of each photo on the contact sheet, and of its label bar.
@@ -127,12 +133,22 @@ class StudyVehiclePhotos
         $models = config('services.openrouter.vision_models');
 
         foreach ($models as $model) {
-            if ((hrtime(true) - $started) / 1e9 > self::BUDGET) {
+            $remaining = self::BUDGET - (hrtime(true) - $started) / 1e9;
+
+            if ($remaining < self::SHORTEST_ATTEMPT) {
+                $failure = __('The free AI models are slow right now. Try again in a minute.');
+
                 break;
             }
 
             try {
-                ['message' => $message, 'model' => $answeredBy] = $this->openRouter->complete($messages, [], self::TIMEOUT, [$model]);
+                ['message' => $message, 'model' => $answeredBy] = $this->openRouter->complete(
+                    $messages,
+                    timeout: self::TIMEOUT,
+                    models: [$model],
+                    reasoning: 'low',
+                    budget: $remaining,
+                );
             } catch (AssistantUnavailable $exception) {
                 $failure = $exception->getMessage();
 

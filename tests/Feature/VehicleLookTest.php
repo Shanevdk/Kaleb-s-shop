@@ -131,6 +131,7 @@ test('the outside photos go to a vision model on one contact sheet and what it s
         [$width, $height] = getimagesizefromstring(base64_decode(substr($sheet, strlen('data:image/jpeg;base64,'))));
 
         return $request['model'] === 'first/vision:free'
+            && $request['reasoning'] === ['effort' => 'low']
             && str_contains($text, '2020 Ford Transit')
             && str_contains($text, 'No colour on file.')
             && str_contains($text, '2 photos: 1 Front left, 2 Rear.')
