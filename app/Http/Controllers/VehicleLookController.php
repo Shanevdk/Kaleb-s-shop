@@ -19,9 +19,9 @@ class VehicleLookController extends Controller
      */
     public function store(StudyVehiclePhotosRequest $request, Vehicle $vehicle, StudyVehiclePhotos $study): JsonResponse
     {
-        // Free models can take their time, and a slow one hands over to the
-        // next, so give the request longer than PHP's usual minute.
-        set_time_limit(180);
+        // The study keeps its own time budget; this is headroom on top so
+        // PHP never cuts the answer off.
+        set_time_limit(90);
 
         try {
             $study->handle($vehicle);
