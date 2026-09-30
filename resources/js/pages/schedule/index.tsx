@@ -1,8 +1,9 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     CalendarCheck,
     CalendarDays,
+    CalendarOff,
     Check,
     ChevronLeft,
     ChevronRight,
@@ -12,18 +13,35 @@ import {
     Wrench,
 } from 'lucide-react';
 import { useState } from 'react';
+import type { DragEvent, KeyboardEvent } from 'react';
+import { toast } from 'sonner';
 import DeleteConfirm from '@/components/delete-confirm';
+import MarkClosedDialog from '@/components/mark-closed-dialog';
 import PageHeader from '@/components/page-header';
 import RescheduleDialog from '@/components/reschedule-dialog';
 import ScheduleJobDialog from '@/components/schedule-job-dialog';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { create as startCheck, show as showCheck } from '@/routes/inspections';
 import { index } from '@/routes/schedule';
-import { destroy as removeJob } from '@/routes/schedule/jobs';
+import { update as updateCheck } from '@/routes/schedule/checks';
+import { destroy as reopenDay } from '@/routes/schedule/closed-days';
+import {
+    destroy as removeJob,
+    update as updateJob,
+} from '@/routes/schedule/jobs';
 import { edit as editJob } from '@/routes/service-records';
 import type {
+    ClosedDay,
     ScheduleEntry,
     ScheduleEntryKind,
     ScheduleStats,
@@ -85,6 +103,36 @@ const longDate = (date: string) =>
         month: 'long',
     });
 
+const isSunday = (date: string) => new Date(`${date}T00:00:00`).getDay() === 0;
+
+/**
+ * Whether the entry may be dropped on the day: a check has to stay inside
+ * the month (or year) it covers, a job can go anywhere.
+ */
+const canDropOn = (entry: ScheduleEntry, date: string) =>
+    date !== entry.date &&
+    (entry.window === null ||
+        (date >= entry.window.from && date <= entry.window.to));
+
+/**
+ * Move a check or a job to another day.
+ */
+const moveEntry = (entry: ScheduleEntry, date: string) => {
+    const isJob = entry.kind === 'job';
+
+    router.patch(
+        isJob ? updateJob.url(entry.id) : updateCheck.url(entry.id),
+        isJob ? { performed_on: date } : { due_on: date },
+        {
+            preserveScroll: true,
+            onError: (errors) =>
+                toast.error(
+                    Object.values(errors)[0] ?? 'That could not be moved.',
+                ),
+        },
+    );
+};
+
 export default function Schedule({
     month,
     today,
@@ -92,6 +140,7 @@ export default function Schedule({
     stats,
     vehicles,
     types,
+    closedDays,
 }: {
     month: string;
     today: string;
@@ -99,6 +148,7 @@ export default function Schedule({
     stats: ScheduleStats;
     vehicles: SelectOption[];
     types: SelectOption[];
+    closedDays: ClosedDay[];
 }) {
     const { auth } = usePage().props;
     const [year, monthNumber] = month.split('-').map(Number);
@@ -124,6 +174,61 @@ export default function Schedule({
             : (entries[0]?.date ?? dateKey(year, monthNumber, 1)),
     );
     const selectedEntries = byDay[selected] ?? [];
+
+    const closedOn = Object.fromEntries(
+        closedDays.map((closed) => [closed.date, closed]),
+    );
+    const closedReason = (date: string) =>
+        closedOn[date]?.reason ?? (isSunday(date) ? 'Closed Sundays' : null);
+    const selectedClosed = closedOn[selected];
+
+    const [dragging, setDragging] = useState<ScheduleEntry | null>(null);
+    const [dropTarget, setDropTarget] = useState<string | null>(null);
+    const [closedDrop, setClosedDrop] = useState<{
+        entry: ScheduleEntry;
+        date: string;
+        reason: string;
+    } | null>(null);
+
+    const startDrag = (event: DragEvent, entry: ScheduleEntry) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', entry.id);
+        setDragging(entry);
+    };
+
+    const endDrag = () => {
+        setDragging(null);
+        setDropTarget(null);
+    };
+
+    const dropOn = (event: DragEvent, date: string) => {
+        event.preventDefault();
+        const entry = dragging;
+        endDrag();
+
+        if (entry === null || !canDropOn(entry, date)) {
+            return;
+        }
+
+        // Nothing lands on a closed day unless someone says so.
+        const reason = closedReason(date);
+
+        if (reason !== null) {
+            setClosedDrop({ entry, date, reason });
+
+            return;
+        }
+
+        moveEntry(entry, date);
+    };
+
+    const selectOnKey = (event: KeyboardEvent, date: string) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setSelected(date);
+        }
+    };
 
     const cells = [
         ...Array.from({ length: leadingBlanks }, () => null),
@@ -252,19 +357,45 @@ export default function Schedule({
                             const behind = dayEntries.filter((entry) =>
                                 isBehind(entry.status),
                             ).length;
+                            const reason = closedReason(date);
+                            const droppable =
+                                dragging !== null && canDropOn(dragging, date);
 
                             return (
-                                <button
+                                <div
                                     key={date}
-                                    type="button"
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => setSelected(date)}
+                                    onKeyDown={(event) =>
+                                        selectOnKey(event, date)
+                                    }
+                                    onDragOver={(event) => {
+                                        if (droppable) {
+                                            event.preventDefault();
+                                            setDropTarget(date);
+                                        }
+                                    }}
+                                    onDragLeave={() =>
+                                        setDropTarget((target) =>
+                                            target === date ? null : target,
+                                        )
+                                    }
+                                    onDrop={(event) => dropOn(event, date)}
                                     aria-pressed={selected === date}
-                                    aria-label={`${longDate(date)}, ${dayEntries.length} booked`}
+                                    aria-label={`${longDate(date)}${reason ? `, ${reason}` : ''}, ${dayEntries.length} booked`}
                                     className={cn(
-                                        'flex min-h-16 flex-col gap-1 border-r border-b p-1.5 text-left transition-colors md:min-h-28 md:p-2',
+                                        'flex min-h-16 cursor-pointer flex-col gap-1 border-r border-b p-1.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset md:min-h-28 md:p-2',
+                                        reason !== null &&
+                                            'bg-muted/60 bg-[repeating-linear-gradient(135deg,transparent,transparent_6px,var(--border)_6px,var(--border)_7px)]',
                                         selected === date
                                             ? 'bg-muted ring-foreground ring-2 ring-inset'
                                             : 'hover:bg-muted/50',
+                                        dragging !== null &&
+                                            !droppable &&
+                                            'opacity-40',
+                                        dropTarget === date &&
+                                            'bg-sky-600/10 ring-2 ring-sky-600 ring-inset',
                                     )}
                                 >
                                     <span
@@ -276,6 +407,12 @@ export default function Schedule({
                                     >
                                         {Number(date.slice(8))}
                                     </span>
+
+                                    {reason !== null && closedOn[date] && (
+                                        <span className="text-muted-foreground hidden truncate text-[11px] leading-tight md:block">
+                                            {reason}
+                                        </span>
+                                    )}
 
                                     <div className="flex flex-wrap gap-1 md:hidden">
                                         {dayEntries.slice(0, 6).map((entry) => (
@@ -295,8 +432,22 @@ export default function Schedule({
                                         {dayEntries.slice(0, 3).map((entry) => (
                                             <span
                                                 key={`${entry.kind}-${entry.id}`}
+                                                draggable={entry.can_move}
+                                                onDragStart={(event) =>
+                                                    startDrag(event, entry)
+                                                }
+                                                onDragEnd={endDrag}
+                                                title={
+                                                    entry.can_move
+                                                        ? 'Drag to another day'
+                                                        : undefined
+                                                }
                                                 className={cn(
                                                     'flex items-center gap-1 truncate rounded border px-1.5 py-0.5 text-[11px] leading-tight',
+                                                    entry.can_move &&
+                                                        'cursor-grab active:cursor-grabbing',
+                                                    dragging?.id === entry.id &&
+                                                        'opacity-30',
                                                     kindStyles[entry.kind].chip,
                                                     entry.status === 'done' &&
                                                         'opacity-50',
@@ -326,7 +477,7 @@ export default function Schedule({
                                             {behind} behind
                                         </span>
                                     )}
-                                </button>
+                                </div>
                             );
                         })}
                     </div>
@@ -348,23 +499,72 @@ export default function Schedule({
                                 </span>
                             ),
                         )}
+                        <span className="flex items-center gap-1.5">
+                            <span className="bg-muted size-2 rounded-full border" />
+                            Closed (Sundays and Ontario holidays)
+                        </span>
+                        <span className="hidden md:inline">
+                            Drag a check or job to move it to another day.
+                        </span>
                     </div>
                 </section>
 
                 <section className="bg-card rounded-xl border">
                     <header className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
-                        <h2 className="font-semibold">{longDate(selected)}</h2>
-                        <ScheduleJobDialog
-                            vehicles={vehicles}
-                            types={types}
-                            defaultDate={selected}
-                            trigger={
-                                <Button variant="outline" size="sm">
-                                    <Plus />
-                                    Add job on this day
+                        <div className="space-y-0.5">
+                            <h2 className="font-semibold">
+                                {longDate(selected)}
+                            </h2>
+                            {closedReason(selected) !== null && (
+                                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                                    <CalendarOff className="size-3.5" />
+                                    {closedReason(selected)}: nothing is booked
+                                    in automatically.
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {selectedClosed?.id ? (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                        router.delete(
+                                            reopenDay.url(
+                                                selectedClosed.id as string,
+                                            ),
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                >
+                                    Open this day
                                 </Button>
-                            }
-                        />
+                            ) : (
+                                closedReason(selected) === null && (
+                                    <MarkClosedDialog
+                                        date={selected}
+                                        label={longDate(selected)}
+                                        trigger={
+                                            <Button variant="ghost" size="sm">
+                                                <CalendarOff />
+                                                Mark as closed
+                                            </Button>
+                                        }
+                                    />
+                                )
+                            )}
+                            <ScheduleJobDialog
+                                vehicles={vehicles}
+                                types={types}
+                                defaultDate={selected}
+                                trigger={
+                                    <Button variant="outline" size="sm">
+                                        <Plus />
+                                        Add job on this day
+                                    </Button>
+                                }
+                            />
+                        </div>
                     </header>
 
                     {selectedEntries.length === 0 ? (
@@ -386,6 +586,42 @@ export default function Schedule({
                     )}
                 </section>
             </div>
+
+            <Dialog
+                open={closedDrop !== null}
+                onOpenChange={(open) => !open && setClosedDrop(null)}
+            >
+                <DialogContent>
+                    <DialogTitle>Book it on a closed day?</DialogTitle>
+                    <DialogDescription>
+                        {closedDrop &&
+                            `The shop is closed on ${longDate(closedDrop.date)} (${closedDrop.reason}). Book ${
+                                closedDrop.entry.kind === 'job'
+                                    ? closedDrop.entry.title
+                                    : `${closedDrop.entry.vehicle?.display_name}'s ${closedDrop.entry.title.toLowerCase()}`
+                            } in anyway?`}
+                    </DialogDescription>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="ghost">Cancel</Button>
+                        </DialogClose>
+                        <Button
+                            onClick={() => {
+                                if (closedDrop) {
+                                    moveEntry(
+                                        closedDrop.entry,
+                                        closedDrop.date,
+                                    );
+                                }
+
+                                setClosedDrop(null);
+                            }}
+                        >
+                            Book it anyway
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

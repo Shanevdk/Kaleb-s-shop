@@ -7,6 +7,7 @@ use App\Enums\ChecklistTemplate;
 use App\Enums\ScheduledCheckStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
+use App\Models\ClosedDay;
 use App\Models\Inspection;
 use App\Models\PlannedInspection;
 use App\Models\ServiceRecord;
@@ -20,6 +21,11 @@ use Inertia\Response;
 class ScheduleController extends Controller
 {
     /**
+     * How many months past the one on screen get booked in as well.
+     */
+    private const MONTHS_AHEAD = 2;
+
+    /**
      * Display a month of the calendar: every vehicle's monthly check and
      * annual inspection, booked in automatically, and the jobs planned in.
      */
@@ -30,7 +36,11 @@ class ScheduleController extends Controller
         $startOfMonth = $month->startOfMonth();
         $endOfMonth = $month->endOfMonth();
 
-        $planSchedule->handle($month);
+        // Keep the next couple of months booked in ahead as well, so what is
+        // coming up is already on the calendar.
+        foreach (range(0, self::MONTHS_AHEAD) as $offset) {
+            $planSchedule->handle($month->addMonthsNoOverflow($offset));
+        }
 
         $inspections = Inspection::query()
             ->whereIn('template', [ChecklistTemplate::MonthlyCheck, ChecklistTemplate::AnnualInspection])
@@ -87,6 +97,14 @@ class ScheduleController extends Controller
                 ->map(fn (Vehicle $vehicle): array => ['value' => $vehicle->id, 'label' => $vehicle->display_name])
                 ->all(),
             'types' => ServiceType::options(),
+            'closedDays' => collect(ClosedDay::between($startOfMonth, $endOfMonth))
+                ->map(fn (array $closed, string $date): array => [
+                    'date' => $date,
+                    'reason' => $closed['reason'],
+                    'id' => $closed['id'],
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 

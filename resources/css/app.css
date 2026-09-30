@@ -63,6 +63,20 @@
     /* Kaleb's Shop brand colours, sampled from the shop's intro video. */
     --color-brand-navy: #001f4f;
     --color-brand-orange: #ef521d;
+
+    /* The sweep over a vehicle while the AI studies its photos. */
+    --animate-scan: scan 2.4s ease-in-out infinite;
+
+    @keyframes scan {
+        0%,
+        100% {
+            top: 0%;
+        }
+
+        50% {
+            top: 100%;
+        }
+    }
 }
 
 :root {

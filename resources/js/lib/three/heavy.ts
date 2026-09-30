@@ -19,6 +19,37 @@ import {
 } from '@/lib/three/shapes';
 import { softBox } from '@/lib/three/soft';
 import { buildWheel, tyreRadius, type TyreSpec } from '@/lib/three/wheels';
+import type { LookAccessory } from '@/types';
+
+/**
+ * What can be bolted on a truck or bus cab from what the photos show; a
+ * roof rack or tow bar on the cab alone would be in the wrong place.
+ */
+const HEAVY_ACCESSORIES: LookAccessory[] = [
+    'bull_bar',
+    'nudge_bar',
+    'spotlights',
+    'light_bar',
+    'mud_flaps',
+];
+
+/**
+ * The road options with only the accessories a heavy cab can take.
+ */
+function heavyOptions(options: RoadOptions): RoadOptions {
+    const look = options.look ?? null;
+
+    return {
+        ...options,
+        levels: 2,
+        look: look && {
+            ...look,
+            accessories: look.accessories.filter((accessory) =>
+                HEAVY_ACCESSORIES.includes(accessory),
+            ),
+        },
+    };
+}
 
 const TRUCK_TYRE: TyreSpec = {
     width: 0.225,
@@ -137,7 +168,7 @@ export function buildTruck(
     options: RoadOptions,
 ): EngineBay {
     const spec = TRUCK_SPEC;
-    const bay = buildRoadVehicle(m, spec, group, { ...options, levels: 2 });
+    const bay = buildRoadVehicle(m, spec, group, heavyOptions(options));
     const [front, rear] = spec.axles;
     const radius = tyreRadius(TRUCK_TYRE);
     const width = 1.05;
@@ -663,7 +694,7 @@ export function buildBus(
 ): EngineBay {
     const rightHandDrive = options.rightHandDrive ?? false;
     const spec = busSpec();
-    const bay = buildRoadVehicle(m, spec, group, { ...options, levels: 2 });
+    const bay = buildRoadVehicle(m, spec, group, heavyOptions(options));
     const extras = new THREE.Group();
     group.add(extras);
 

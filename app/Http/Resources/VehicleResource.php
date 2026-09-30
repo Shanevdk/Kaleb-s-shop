@@ -36,6 +36,7 @@ class VehicleResource extends JsonResource
             'engine' => $this->engine(),
             'engine_summary' => $this->engine_summary,
             'photos' => (object) $this->photoUrls(),
+            'look' => $this->lookForDisplay(),
             'service_records_count' => $this->whenCounted('serviceRecords'),
             'spend' => $this->when(
                 array_key_exists('parts_spend', $this->getAttributes()),

@@ -44,6 +44,10 @@ class DiagnosisController extends Controller
      */
     public function diagnose(DiagnoseRequest $request, DiagnoseProblem $diagnoseProblem): JsonResponse
     {
+        // The diagnosis keeps its own time budget; this is headroom on top
+        // so PHP never cuts the answer off.
+        set_time_limit(90);
+
         $vehicleId = $request->validated('vehicle_id');
 
         return response()->json($diagnoseProblem->handle(

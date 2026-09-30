@@ -102,7 +102,14 @@ export default function VehicleShow({
         { label: 'Model', value: vehicle.model },
         { label: 'Year', value: String(vehicle.year) },
         { label: 'Engine', value: vehicle.engine_summary || '—' },
-        { label: 'Colour', value: vehicle.colour || '—' },
+        {
+            label: 'Colour',
+            value:
+                vehicle.colour ||
+                (vehicle.look?.colour
+                    ? `${vehicle.look.colour.name.charAt(0).toUpperCase()}${vehicle.look.colour.name.slice(1)} (from photos)`
+                    : '—'),
+        },
         { label: 'Plate', value: vehicle.registration || '—' },
         { label: 'VIN', value: vehicle.vin || '—' },
         { label: 'Odometer', value: formatOdometer(vehicle.odometer) },
@@ -250,6 +257,8 @@ export default function VehicleShow({
                             registration={vehicle.registration}
                             photos={vehicle.photos}
                             photoAngles={photoAngles}
+                            vehicleId={vehicle.id}
+                            look={vehicle.look}
                         />
 
                         <PhotoCapture

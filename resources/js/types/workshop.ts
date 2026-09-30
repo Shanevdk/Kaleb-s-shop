@@ -81,6 +81,121 @@ export type PhotoAngleOption = {
 
 export type VehiclePhotos = Partial<Record<PhotoAngle, string>>;
 
+export type LookAccessory =
+    | 'bull_bar'
+    | 'nudge_bar'
+    | 'roof_rack'
+    | 'roof_rails'
+    | 'ladder_rack'
+    | 'tow_bar'
+    | 'canopy'
+    | 'tonneau_cover'
+    | 'sports_bar'
+    | 'snorkel'
+    | 'side_steps'
+    | 'spotlights'
+    | 'light_bar'
+    | 'mud_flaps'
+    | 'sunroof'
+    | 'rooftop_tent';
+
+export type DamageArea =
+    | 'front_bumper'
+    | 'rear_bumper'
+    | 'bonnet'
+    | 'roof'
+    | 'windscreen'
+    | 'rear_window'
+    | 'grille'
+    | 'left_headlight'
+    | 'right_headlight'
+    | 'left_taillight'
+    | 'right_taillight'
+    | 'left_mirror'
+    | 'right_mirror'
+    | 'front_left_door'
+    | 'front_right_door'
+    | 'rear_left_door'
+    | 'rear_right_door'
+    | 'left_front_guard'
+    | 'right_front_guard'
+    | 'left_rear_quarter'
+    | 'right_rear_quarter'
+    | 'left_sill'
+    | 'right_sill'
+    | 'left_front_wheel'
+    | 'right_front_wheel'
+    | 'left_rear_wheel'
+    | 'right_rear_wheel'
+    | 'tailgate'
+    | 'tray'
+    | 'other';
+
+export type LookDamage = {
+    area: DamageArea;
+    kind:
+        | 'dent'
+        | 'scratch'
+        | 'scrape'
+        | 'rust'
+        | 'crack'
+        | 'missing'
+        | 'flat_tyre'
+        | 'other';
+    severity: 'minor' | 'moderate' | 'severe';
+    note: string;
+};
+
+/**
+ * What an AI made of the vehicle's photos, for matching its 3D model to
+ * the real thing.
+ */
+export type VehicleLook = {
+    colour: {
+        name: string;
+        hex: string | null;
+        finish: 'solid' | 'metallic' | 'pearl' | 'matte';
+    } | null;
+    body_style:
+        | 'sedan'
+        | 'hatchback'
+        | 'wagon'
+        | 'coupe'
+        | 'convertible'
+        | 'suv'
+        | 'ute'
+        | 'van'
+        | 'truck'
+        | 'bus'
+        | 'motorcycle'
+        | 'other'
+        | null;
+    cab: 'single' | 'extra' | 'dual' | null;
+    roof: 'standard' | 'high' | null;
+    wheels: {
+        style: 'steel' | 'hubcap' | 'alloy';
+        spokes: number | null;
+        colour:
+            | 'silver'
+            | 'black'
+            | 'gunmetal'
+            | 'bronze'
+            | 'white'
+            | 'chrome'
+            | null;
+    } | null;
+    tinted_windows: boolean | null;
+    accessories: LookAccessory[];
+    damage: LookDamage[];
+    summary: string | null;
+    confidence: number | null;
+    angles: PhotoAngle[];
+    model: string | null;
+    studied_at: string;
+    /** The photos have changed since the AI looked. */
+    stale: boolean;
+};
+
 export type Recall = {
     campaign: string;
     date: string | null;
@@ -108,6 +223,7 @@ export type Vehicle = {
     engine: EngineSpecs;
     engine_summary: string | null;
     photos: VehiclePhotos;
+    look: VehicleLook | null;
     service_records_count?: number;
     spend?: number;
     last_serviced_on?: string | null;
@@ -213,6 +329,16 @@ export type ChecklistTemplate = {
     item_count: number;
 };
 
+export type ChecklistCheck = { section: string; label: string };
+
+/**
+ * The checks added to and left out of one vehicle's copy of a checklist.
+ */
+export type VehicleChecklistChanges = {
+    added: ChecklistCheck[];
+    removed: ChecklistCheck[];
+};
+
 export type ScheduledCheckStatus =
     | 'done'
     | 'in_progress'
@@ -240,6 +366,13 @@ export type ScheduleEntry = {
     can_move: boolean;
     can_remove: boolean;
     window: { from: string; to: string } | null;
+};
+
+export type ClosedDay = {
+    date: string;
+    reason: string;
+    /** Set for a day someone marked closed; null for a statutory holiday. */
+    id: string | null;
 };
 
 export type ScheduleStats = {

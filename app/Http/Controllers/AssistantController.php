@@ -26,6 +26,10 @@ class AssistantController extends Controller
      */
     public function ask(AskAssistantRequest $request, AskShopAssistant $assistant): JsonResponse
     {
+        // The assistant keeps its own time budget; this is headroom on top
+        // so PHP never cuts the answer off.
+        set_time_limit(90);
+
         try {
             return response()->json($assistant->handle($request->user(), $request->conversation()));
         } catch (AssistantUnavailable $exception) {

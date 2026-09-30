@@ -249,7 +249,9 @@ class ImportMongoData extends Command
             $type === 'numeric' => is_numeric($value) ? (string) $value : null,
             $type === 'bool' => (bool) $value,
             $type === 'date' => $this->toCarbon($value)?->toDateString(),
-            str_starts_with($type, 'timestamp') => $this->toCarbon($value)?->format('Y-m-d H:i:s'),
+            // Mongo holds the moment in UTC; the columns hold the shop's local
+            // wall-clock time. A plain date stays the calendar day it was.
+            str_starts_with($type, 'timestamp') => $this->toCarbon($value)?->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
             in_array($type, ['json', 'jsonb'], true) => is_string($value) && json_validate($value)
                 ? $value
                 : json_encode($value, JSON_THROW_ON_ERROR),

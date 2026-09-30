@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Http;
 class OpenRouter
 {
     /**
+     * The fewest seconds worth giving a model; with less left in the budget
+     * there is no point starting another attempt.
+     */
+    private const SHORTEST_ATTEMPT = 5;
+
+    /**
      * Throw unless an API key has been set.
      *
      * @throws AssistantUnavailable
@@ -32,21 +38,46 @@ class OpenRouter
      * error in the body. Trying the next model here covers that as well as
      * outages and rate limits.
      *
+     * A web request only gets about a minute before PHP gives up on it, so a
+     * caller answering one passes a budget: the fallbacks share it, and the
+     * search stops with a clear message rather than the page dying half way.
+     * Asking for a low reasoning effort keeps the thinking models, which
+     * otherwise spend most of their time reasoning, to seconds rather than
+     * a minute.
+     *
      * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
+     * @param  array<int, string>|null  $models  The models to try instead of the chat ones.
+     * @param  'low'|'medium'|'high'|null  $reasoning  How hard a thinking model should think.
+     * @param  float|null  $budget  Seconds all the attempts together may take.
      * @return array{message: array<string, mixed>, model: string|null}
      *
      * @throws AssistantUnavailable
      */
-    public function complete(array $messages, array $tools = [], int $timeout = 90): array
+    public function complete(array $messages, array $tools = [], int $timeout = 90, ?array $models = null, ?string $reasoning = null, ?float $budget = null): array
     {
         /** @var array{key: string, url: string, model: string, fallback_models: array<int, string>} $config */
         $config = config('services.openrouter');
 
-        $models = array_values(array_unique(array_filter([$config['model'], ...$config['fallback_models']])));
+        $models = array_values(array_unique(array_filter($models ?? [$config['model'], ...$config['fallback_models']])));
         $failure = 'The AI service had a problem. Try again in a moment.';
+        $giveUpAt = $budget === null ? null : microtime(true) + $budget;
 
         foreach ($models as $model) {
+            $attemptTimeout = $timeout;
+
+            if ($giveUpAt !== null) {
+                $remaining = (int) floor($giveUpAt - microtime(true));
+
+                if ($remaining < self::SHORTEST_ATTEMPT) {
+                    $failure = 'The free AI models are slow right now. Try again in a minute.';
+
+                    break;
+                }
+
+                $attemptTimeout = min($timeout, $remaining);
+            }
+
             try {
                 $response = Http::withToken($config['key'])
                     ->withHeaders([
@@ -54,15 +85,18 @@ class OpenRouter
                         'X-Title' => config('app.name'),
                     ])
                     ->acceptJson()
-                    ->timeout($timeout)
+                    ->timeout($attemptTimeout)
                     ->post(rtrim($config['url'], '/').'/chat/completions', array_filter([
                         'model' => $model,
                         'messages' => $messages,
                         'tools' => $tools,
+                        'reasoning' => $reasoning === null ? null : ['effort' => $reasoning],
                     ]));
             } catch (ConnectionException $exception) {
                 report($exception);
-                $failure = 'Could not reach the AI service. Check the connection and try again.';
+                $failure = str_contains($exception->getMessage(), 'timed out')
+                    ? 'The free AI models are slow right now. Try again in a minute.'
+                    : 'Could not reach the AI service. Check the connection and try again.';
 
                 continue;
             }

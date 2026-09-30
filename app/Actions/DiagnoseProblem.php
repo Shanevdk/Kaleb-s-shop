@@ -13,6 +13,12 @@ use Illuminate\Support\Str;
 class DiagnoseProblem
 {
     /**
+     * Seconds the AI gets, fallbacks included, so the answer comes back
+     * inside the minute a web request is allowed.
+     */
+    private const BUDGET = 50;
+
+    /**
      * Words that say nothing about the fault, left out when matching the
      * symptoms against the common repairs.
      *
@@ -62,7 +68,7 @@ class DiagnoseProblem
             ['message' => $message, 'model' => $model] = $this->openRouter->complete([
                 ['role' => 'system', 'content' => $this->instructions()],
                 ['role' => 'user', 'content' => $this->brief($machine, $details)],
-            ]);
+            ], timeout: 40, reasoning: 'low', budget: self::BUDGET);
         } catch (AssistantUnavailable $exception) {
             return [...$result, 'error' => $exception->getMessage()];
         }

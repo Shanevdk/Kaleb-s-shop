@@ -8,6 +8,8 @@ use App\Http\Requests\InspectionRequest;
 use App\Http\Resources\InspectionResource;
 use App\Models\Inspection;
 use App\Models\Vehicle;
+use App\Models\VehicleChecklistChange;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -53,6 +55,7 @@ class InspectionController extends Controller
             'templates' => ChecklistTemplate::catalog(),
             'selectedVehicle' => (string) $request->string('vehicle'),
             'selectedTemplate' => ChecklistTemplate::tryFrom((string) $request->string('template'))?->value,
+            'checklistChanges' => $this->checklistChanges(),
         ]);
     }
 
@@ -87,6 +90,7 @@ class InspectionController extends Controller
         return Inertia::render('inspections/show', [
             'inspection' => InspectionResource::make($inspection)->resolve(),
             'statuses' => CheckStatus::options(),
+            'vehicleChanges' => $inspection->vehicleChanges(),
         ]);
     }
 
@@ -127,6 +131,29 @@ class InspectionController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Checklist removed.')]);
 
         return to_route('inspections.index');
+    }
+
+    /**
+     * Get what has been added to and left out of each vehicle's copies of the
+     * checklists, keyed by vehicle and then by checklist.
+     *
+     * @return array<string, array<string, array{added: array<int, array{section: string, label: string}>, removed: array<int, array{section: string, label: string}>}>>
+     */
+    private function checklistChanges(): array
+    {
+        return VehicleChecklistChange::query()
+            ->oldest()
+            ->oldest('id')
+            ->get()
+            ->groupBy('vehicle_id')
+            ->map(fn (EloquentCollection $changes): array => $changes
+                ->groupBy(fn (VehicleChecklistChange $change): string => $change->template->value)
+                ->map(fn (EloquentCollection $forChecklist, string $template): array => VehicleChecklistChange::describe(
+                    $forChecklist,
+                    ChecklistTemplate::from($template),
+                ))
+                ->all())
+            ->all();
     }
 
     /**

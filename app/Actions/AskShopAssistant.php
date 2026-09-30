@@ -14,6 +14,17 @@ class AskShopAssistant
      */
     private const MAX_STEPS = 8;
 
+    /**
+     * Seconds one answer may take, every look-up included, so it comes back
+     * inside the minute a web request is allowed.
+     */
+    private const BUDGET = 55;
+
+    /**
+     * The fewest seconds worth starting another round with.
+     */
+    private const SHORTEST_STEP = 8;
+
     public function __construct(private OpenRouter $openRouter) {}
 
     /**
@@ -33,8 +44,25 @@ class AskShopAssistant
         $definitions = $tools->definitions();
         $messages = [['role' => 'system', 'content' => $this->instructions($user)], ...$conversation];
 
+        $giveUpAt = microtime(true) + self::BUDGET;
+
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
-            ['message' => $message, 'model' => $model] = $this->openRouter->complete($messages, $definitions);
+            $remaining = $giveUpAt - microtime(true);
+
+            if ($remaining < self::SHORTEST_STEP) {
+                return [
+                    'reply' => 'The free AI models are slow right now and that took too long to look up. Try again in a minute, or ask something narrower.',
+                    'model' => null,
+                ];
+            }
+
+            ['message' => $message, 'model' => $model] = $this->openRouter->complete(
+                $messages,
+                $definitions,
+                timeout: 40,
+                reasoning: 'low',
+                budget: $remaining,
+            );
 
             /** @var array<int, array{id: string, function: array{name: string, arguments?: string}}> $calls */
             $calls = $message['tool_calls'] ?? [];

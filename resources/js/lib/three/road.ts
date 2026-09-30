@@ -11,6 +11,7 @@ import {
     polygonDistance,
     roundedBoxDistance,
 } from '@/lib/three/curves';
+import { applyLook, buildAccessories, roadAnchors } from '@/lib/three/look';
 import type { Materials } from '@/lib/three/materials';
 import { clonePatched } from '@/lib/three/shading';
 import {
@@ -39,6 +40,7 @@ import {
 import { PROFILES, smoothPolyline, sweepAlong } from '@/lib/three/sweep';
 import { plateTexture } from '@/lib/three/textures';
 import { buildWheel, tyreRadius, type WheelSpec } from '@/lib/three/wheels';
+import type { VehicleLook } from '@/types';
 
 /**
  * Where the engine sits, the room it has, and which way its crank runs.
@@ -126,6 +128,8 @@ export type RoadOptions = {
     registration?: string | null;
     rightHandDrive?: boolean;
     levels?: number;
+    /** How the photos show it: wheels, tint, what is bolted on. */
+    look?: VehicleLook | null;
 };
 
 const SLOT = {
@@ -355,10 +359,11 @@ function offsetCopy(
  */
 export function buildRoadVehicle(
     m: Materials,
-    spec: RoadSpec,
+    baseSpec: RoadSpec,
     group: THREE.Group,
     options: RoadOptions = {},
 ): EngineBay {
+    const spec = applyLook(baseSpec, options.look, m);
     const design = spec.design;
     const shell: BodyShell = buildBodyShell(design, options.levels);
     const { lines } = shell;
@@ -495,6 +500,28 @@ export function buildRoadVehicle(
                 design.rear,
             ),
             (material, inside) => (inside ? SLOT.privacy : material),
+        );
+    }
+
+    // A sunroof: dark glass let into the roof behind the screen.
+    if (options.look?.accessories.includes('sunroof')) {
+        const centre = lerp(design.header, design.rearHeader, 0.32);
+        surface = clipSurface(
+            surface,
+            (point) =>
+                point.normal.y < 0.8
+                    ? 1
+                    : roundedBoxDistance(
+                          point.position.x,
+                          point.position.z,
+                          centre,
+                          0,
+                          0.36,
+                          0.38,
+                          0.06,
+                      ),
+            (material, inside) =>
+                inside && material === SLOT.paint ? SLOT.privacy : material,
         );
     }
 
@@ -1001,6 +1028,10 @@ export function buildRoadVehicle(
     }
 
     buildCabin(m, spec, shell, surface, body, options.rightHandDrive ?? false);
+
+    const context = { spec, lines, surface };
+    buildAccessories(m, context, options.look?.accessories ?? [], body);
+    group.userData.anchors = roadAnchors(context);
 
     return spec.bay;
 }

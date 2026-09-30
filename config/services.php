@@ -39,6 +39,12 @@ return [
             'OPENROUTER_FALLBACK_MODELS',
             'nvidia/nemotron-3-ultra-550b-a55b:free,nvidia/nemotron-3.5-lightning:free,qwen/qwen3.8-27b:free,google/gemma-4-31b-it:free,openrouter/free',
         ))),
+        // Free models that can see pictures, tried in order when matching a
+        // vehicle's 3D model to its photos.
+        'vision_models' => array_filter(explode(',', (string) env(
+            'OPENROUTER_VISION_MODELS',
+            'google/gemma-4-31b-it:free,qwen/qwen3.8-27b:free,google/gemma-4-26b-a4b-it:free,thinkingmachines/inkling:free,openrouter/free',
+        ))),
     ],
 
     'scandit' => [

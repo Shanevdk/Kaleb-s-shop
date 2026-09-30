@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Enums\ChecklistTemplate;
 use App\Enums\ServiceStatus;
+use App\Models\ClosedDay;
 use App\Models\PlannedInspection;
 use App\Models\ServiceRecord;
 use App\Models\Vehicle;
@@ -14,10 +15,13 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Books every vehicle in for its monthly check and its annual inspection,
- * spreading the work over the weekdays so no one day gets swamped.
+ * spreading the work over the days the shop is open so no one day gets
+ * swamped. Nothing is ever booked onto a Sunday, an Ontario statutory
+ * holiday or a day marked closed; weekdays are filled before Saturdays.
  *
- * Running it again only fills gaps: anything already booked, or moved by
- * hand, stays where it is.
+ * Running it again only fills gaps, and moves the checks it booked itself off
+ * any day that has since been marked closed. A check someone moved by hand
+ * stays where they put it.
  */
 class PlanInspectionSchedule
 {
@@ -45,6 +49,13 @@ class PlanInspectionSchedule
     private array $countedMonths = [];
 
     /**
+     * The days of the year the shop is shut, keyed by date.
+     *
+     * @var array<string, array{reason: string, id: string|null}>
+     */
+    private array $closed = [];
+
+    /**
      * How many annual inspections are booked into each month of the year.
      *
      * @var array<int, int>
@@ -67,6 +78,7 @@ class PlanInspectionSchedule
         Cache::lock('plan-inspection-schedule', 30)->block(10, function () use ($startOfMonth, $today): void {
             $this->load = [];
             $this->countedMonths = [];
+            $this->closed = ClosedDay::between($startOfMonth->startOfYear(), $startOfMonth->endOfYear());
 
             DB::transaction(fn () => $this->plan($startOfMonth, $today));
         });
@@ -77,6 +89,8 @@ class PlanInspectionSchedule
      */
     private function plan(CarbonImmutable $startOfMonth, CarbonImmutable $today): void
     {
+        $this->moveOffClosedDays($startOfMonth, $today);
+
         $monthPeriod = PlannedInspection::periodFor(ChecklistTemplate::MonthlyCheck, $startOfMonth);
         $yearPeriod = PlannedInspection::periodFor(ChecklistTemplate::AnnualInspection, $startOfMonth);
 
@@ -104,12 +118,12 @@ class PlanInspectionSchedule
 
         foreach ($vehicles as $vehicle) {
             $annual = $booked->get("{$vehicle->id}|".ChecklistTemplate::AnnualInspection->value)
-                ?? $this->book($vehicle, ChecklistTemplate::AnnualInspection, $this->quietestMonth($startOfMonth, $today), $today);
+                ?? $this->bookAnnual($vehicle, $startOfMonth, $today);
 
             $monthly = $booked->get("{$vehicle->id}|".ChecklistTemplate::MonthlyCheck->value);
 
             // The annual inspection covers the monthly check for its month.
-            if ($annual->due_on->isSameMonth($startOfMonth)) {
+            if ($annual?->due_on->isSameMonth($startOfMonth)) {
                 $monthly?->delete();
 
                 continue;
@@ -122,19 +136,71 @@ class PlanInspectionSchedule
     }
 
     /**
-     * Book the vehicle in on the quietest weekday left in the month.
+     * Move the checks the planner put on a day the shop turned out to be shut
+     * to the quietest open day left in the same month.
      */
-    private function book(Vehicle $vehicle, ChecklistTemplate $template, CarbonImmutable $month, CarbonImmutable $today): PlannedInspection
+    private function moveOffClosedDays(CarbonImmutable $startOfMonth, CarbonImmutable $today): void
+    {
+        $from = $startOfMonth->max($today);
+        $until = $startOfMonth->endOfMonth();
+
+        PlannedInspection::query()
+            ->where('pinned', false)
+            ->whereBetween('due_on', [$from->toDateString(), $until->toDateString()])
+            ->get()
+            ->reject(fn (PlannedInspection $planned): bool => ClosedDay::isOpenOn($planned->due_on, $this->closed))
+            ->each(function (PlannedInspection $planned) use ($from, $until): void {
+                $day = $this->quietestDay($from, $until);
+
+                if ($day === null) {
+                    return;
+                }
+
+                $weight = $this->weightOf($planned->template);
+                $this->load[$planned->due_on->toDateString()] -= $weight;
+                $this->load[$day->toDateString()] += $weight;
+
+                $planned->update(['due_on' => $day->toDateString()]);
+            });
+    }
+
+    /**
+     * Book the vehicle's annual inspection into the month still to come this
+     * year with the fewest in it, so they spread across the year.
+     */
+    private function bookAnnual(Vehicle $vehicle, CarbonImmutable $month, CarbonImmutable $today): ?PlannedInspection
+    {
+        $firstMonth = $month->year === $today->year ? $today->month : 1;
+
+        $candidates = collect(range($firstMonth, 12))
+            ->sortBy(fn (int $candidate): array => [$this->annualsPerMonth[$candidate] ?? 0, $candidate]);
+
+        foreach ($candidates as $candidate) {
+            $booked = $this->book($vehicle, ChecklistTemplate::AnnualInspection, $month->setDate($month->year, $candidate, 1), $today);
+
+            if ($booked !== null) {
+                $this->annualsPerMonth[$candidate] = ($this->annualsPerMonth[$candidate] ?? 0) + 1;
+
+                return $booked;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Book the vehicle in on the quietest open day left in the month, if
+     * there is one.
+     */
+    private function book(Vehicle $vehicle, ChecklistTemplate $template, CarbonImmutable $month, CarbonImmutable $today): ?PlannedInspection
     {
         $day = $this->quietestDay($month->startOfMonth()->max($today), $month->endOfMonth());
 
-        $this->load[$day->toDateString()] += $template === ChecklistTemplate::AnnualInspection
-            ? self::WEIGHT_ANNUAL_INSPECTION
-            : self::WEIGHT_MONTHLY_CHECK;
-
-        if ($template === ChecklistTemplate::AnnualInspection) {
-            $this->annualsPerMonth[$day->month] = ($this->annualsPerMonth[$day->month] ?? 0) + 1;
+        if ($day === null) {
+            return null;
         }
+
+        $this->load[$day->toDateString()] += $this->weightOf($template);
 
         return PlannedInspection::create([
             'vehicle_id' => $vehicle->id,
@@ -145,37 +211,24 @@ class PlanInspectionSchedule
     }
 
     /**
-     * Pick the month still to come this year with the fewest annual
-     * inspections in it, so they spread across the year.
+     * Pick the open day between the two dates with the least work booked on
+     * it, weekdays before Saturdays and the earliest on a tie.
      */
-    private function quietestMonth(CarbonImmutable $month, CarbonImmutable $today): CarbonImmutable
-    {
-        $firstMonth = $month->year === $today->year ? $today->month : 1;
-
-        $quietest = collect(range($firstMonth, 12))
-            ->sortBy(fn (int $candidate): array => [$this->annualsPerMonth[$candidate] ?? 0, $candidate])
-            ->first();
-
-        return $month->setDate($month->year, $quietest, 1);
-    }
-
-    /**
-     * Pick the day between the two dates with the least work booked on it,
-     * weekdays first and the earliest on a tie.
-     */
-    private function quietestDay(CarbonImmutable $from, CarbonImmutable $until): CarbonImmutable
+    private function quietestDay(CarbonImmutable $from, CarbonImmutable $until): ?CarbonImmutable
     {
         $this->countMonth($from);
 
-        $days = collect();
+        $open = collect();
 
         for ($day = $from->startOfDay(); $day->lessThanOrEqualTo($until); $day = $day->addDay()) {
-            $days->push($day);
+            if (ClosedDay::isOpenOn($day, $this->closed)) {
+                $open->push($day);
+            }
         }
 
-        $weekdays = $days->reject(fn (CarbonImmutable $day): bool => $day->isWeekend());
+        $weekdays = $open->reject(fn (CarbonImmutable $day): bool => $day->isSaturday());
 
-        return ($weekdays->isNotEmpty() ? $weekdays : $days)
+        return ($weekdays->isNotEmpty() ? $weekdays : $open)
             ->sortBy(fn (CarbonImmutable $day): array => [$this->load[$day->toDateString()], $day->timestamp])
             ->first();
     }
@@ -204,9 +257,7 @@ class PlanInspectionSchedule
             ->whereBetween('due_on', $range)
             ->get()
             ->each(function (PlannedInspection $planned): void {
-                $this->load[$planned->due_on->toDateString()] += $planned->template === ChecklistTemplate::AnnualInspection
-                    ? self::WEIGHT_ANNUAL_INSPECTION
-                    : self::WEIGHT_MONTHLY_CHECK;
+                $this->load[$planned->due_on->toDateString()] += $this->weightOf($planned->template);
             });
 
         ServiceRecord::query()
@@ -216,5 +267,15 @@ class PlanInspectionSchedule
             ->each(function (CarbonInterface $performedOn): void {
                 $this->load[$performedOn->toDateString()] += self::WEIGHT_JOB;
             });
+    }
+
+    /**
+     * Get how much of a day a check takes up.
+     */
+    private function weightOf(ChecklistTemplate $template): int
+    {
+        return $template === ChecklistTemplate::AnnualInspection
+            ? self::WEIGHT_ANNUAL_INSPECTION
+            : self::WEIGHT_MONTHLY_CHECK;
     }
 }

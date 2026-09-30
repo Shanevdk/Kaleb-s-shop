@@ -20,6 +20,16 @@ export function formatOdometer(value: number | null | undefined): string {
         : `${numberFormatter.format(value)} km`;
 }
 
+/**
+ * Get today's date on the shop's clock as YYYY-MM-DD. `toISOString()` gives
+ * the UTC date, which is already tomorrow on an Ontario evening.
+ */
+export function todayString(): string {
+    return new Date().toLocaleDateString('en-CA', {
+        timeZone: 'America/Toronto',
+    });
+}
+
 export function formatDate(value: string | null | undefined): string {
     if (!value) {
         return '—';

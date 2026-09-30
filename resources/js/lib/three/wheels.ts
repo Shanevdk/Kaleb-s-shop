@@ -54,6 +54,7 @@ export type RimStyle =
     | 'spoke6'
     | 'mesh10'
     | 'steel'
+    | 'hubcap'
     | 'truck'
     | 'moto'
     | 'atv'
@@ -459,6 +460,7 @@ const DISH: Record<RimStyle, number> = {
     truck: -0.03,
     tractor: 0.12,
     steel: -0.025,
+    hubcap: -0.025,
     trailer: -0.025,
     atv: -0.02,
 };
@@ -955,6 +957,49 @@ export function buildRim(m: Materials, spec: WheelSpec): THREE.Group {
     face.position.z = faceZ;
     group.add(face);
 
+    // A plastic wheel cover clipped over the steel wheel: a shallow dome
+    // with a ring of vents and a badge in the middle.
+    if (style === 'hubcap') {
+        const coverZ = faceZ - 0.012;
+        const cover = spec.rimMaterial ?? m.steelWheel;
+        group.add(
+            lathe(
+                [
+                    [lip - 0.006, 0],
+                    [lip - 0.008, 0.012],
+                    [Rr * 0.86, 0.03],
+                    [Rr * 0.55, 0.04],
+                    [0.05, 0.046],
+                    [0, 0.047],
+                ],
+                cover,
+                'z',
+                0,
+                0,
+                coverZ,
+                64,
+            ),
+        );
+        group.add(
+            instanced(
+                new THREE.BoxGeometry(Rr * 0.26, 0.016, 0.006),
+                m.gloss,
+                Array.from({ length: 10 }, (_, i) => {
+                    const a = (i / 10) * Math.PI * 2;
+
+                    return {
+                        x: Math.cos(a) * Rr * 0.66,
+                        y: Math.sin(a) * Rr * 0.66,
+                        z: coverZ + 0.036,
+                        rz: a,
+                        ry: 0.25,
+                    };
+                }),
+            ),
+        );
+        group.add(puck(0.032, 0.008, m.chrome, 'z', 0, 0, coverZ + 0.049));
+    }
+
     // A motorcycle wheel is seen from both sides, so its face is doubled.
     if (style === 'moto') {
         const mirrored = face.clone();
@@ -979,7 +1024,7 @@ export function buildRim(m: Materials, spec: WheelSpec): THREE.Group {
         });
     }
 
-    if (style !== 'moto') {
+    if (style !== 'moto' && style !== 'hubcap') {
         group.add(instanced(nut, alloy ? m.satin : m.zinc, nuts));
     }
 
@@ -1008,7 +1053,7 @@ export function buildRim(m: Materials, spec: WheelSpec): THREE.Group {
                 tubular: 32,
             }),
         );
-    } else if (style !== 'moto') {
+    } else if (style !== 'moto' && style !== 'hubcap') {
         group.add(puck(0.036, 0.03, m.steel, 'z', 0, 0, hubZ + 0.006));
     }
 

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssistantController;
+use App\Http\Controllers\ClosedDayController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosisController;
 use App\Http\Controllers\InspectionController;
@@ -16,7 +17,9 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleJobController;
 use App\Http\Controllers\ServiceRecordController;
 use App\Http\Controllers\ShoppingListController;
+use App\Http\Controllers\VehicleChecklistChangeController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehicleLookController;
 use App\Http\Controllers\VehiclePhotoController;
 use Illuminate\Support\Facades\Route;
 
@@ -77,6 +80,9 @@ Route::middleware(['auth', 'verified', 'can:manage-schedule'])->group(function (
         ->name('schedule.jobs.update');
     Route::delete('schedule/jobs/{serviceRecord}', [ScheduleJobController::class, 'destroy'])
         ->name('schedule.jobs.destroy');
+    Route::post('schedule/closed-days', [ClosedDayController::class, 'store'])->name('schedule.closed-days.store');
+    Route::delete('schedule/closed-days/{closedDay}', [ClosedDayController::class, 'destroy'])
+        ->name('schedule.closed-days.destroy');
 });
 
 Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function () {
@@ -97,12 +103,23 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
         ->name('vehicles.photos.store');
     Route::delete('vehicles/{vehicle}/photos/{angle}', [VehiclePhotoController::class, 'destroy'])
         ->name('vehicles.photos.destroy');
+    Route::post('vehicles/{vehicle}/look', [VehicleLookController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('vehicles.look.store');
+    Route::delete('vehicles/{vehicle}/look', [VehicleLookController::class, 'destroy'])
+        ->name('vehicles.look.destroy');
     Route::resource('vehicles', VehicleController::class);
     Route::resource('service-records', ServiceRecordController::class)->except('show');
 
     Route::resource('inspections', InspectionController::class)->except('edit');
+    Route::post('inspections/{inspection}/items', [InspectionItemController::class, 'store'])
+        ->name('inspection-items.store');
     Route::patch('inspection-items/{inspectionItem}', [InspectionItemController::class, 'update'])
         ->name('inspection-items.update');
+    Route::delete('inspection-items/{inspectionItem}', [InspectionItemController::class, 'destroy'])
+        ->name('inspection-items.destroy');
+    Route::delete('vehicles/{vehicle}/checklists/{template}', [VehicleChecklistChangeController::class, 'destroy'])
+        ->name('vehicles.checklist-changes.destroy');
     Route::post('inspection-items/{inspectionItem}/replan', [InspectionItemController::class, 'replan'])
         ->middleware('throttle:10,1')
         ->name('inspection-items.replan');

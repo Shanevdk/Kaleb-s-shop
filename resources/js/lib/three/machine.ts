@@ -17,6 +17,15 @@ import {
 } from '@/lib/three/engine';
 import { buildMower, buildTractor } from '@/lib/three/farm';
 import { buildBus, buildTruck } from '@/lib/three/heavy';
+import {
+    boundsAnchor,
+    highRoof,
+    lookBodyClass,
+    lookFinish,
+    lookKind,
+    type Anchor,
+    type Anchors,
+} from '@/lib/three/look';
 import { makeMaterials, type Materials } from '@/lib/three/materials';
 import {
     buildRoadVehicle,
@@ -31,7 +40,7 @@ import {
     buildUtility,
 } from '@/lib/three/small';
 import { buildUte } from '@/lib/three/ute';
-import type { MachineKind } from '@/types';
+import type { DamageArea, MachineKind, VehicleLook } from '@/types';
 
 export type MachineOptions = {
     kind: MachineKind;
@@ -44,6 +53,8 @@ export type MachineOptions = {
     rightHandDrive?: boolean;
     /** Subdivision levels for the bodywork: 3 for the best, 2 when slower. */
     levels?: number;
+    /** What an AI read from the photos, for matching the model to them. */
+    look?: VehicleLook | null;
 };
 
 export type Machine = {
@@ -55,7 +66,25 @@ export type Machine = {
     parts: PartMap;
     bay: EngineBay | null;
     materials: Materials;
+    /** Where on the machine an area the AI can name is, for pinning damage. */
+    anchor: (area: DamageArea) => Anchor | null;
 };
+
+/**
+ * On a truck the cab's lines stop at the cab, so anything behind it is
+ * found on the whole machine instead.
+ */
+const BEHIND_THE_CAB = new Set<DamageArea>([
+    'rear_bumper',
+    'tailgate',
+    'left_taillight',
+    'right_taillight',
+    'left_rear_quarter',
+    'right_rear_quarter',
+    'rear_window',
+    'roof',
+    'tray',
+]);
 
 /**
  * Pick the car body that matches what the VIN decoder or the doors say.
@@ -110,7 +139,12 @@ function orientBay(
  * and the engine from its specs in the bay the body leaves for it.
  */
 export function buildMachine(options: MachineOptions): Machine {
-    const materials = makeMaterials({ colour: options.colour });
+    const look = options.look ?? null;
+    const kind = lookKind(options.kind, look);
+    const materials = makeMaterials({
+        colour: options.colour,
+        finish: lookFinish(look),
+    });
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
@@ -118,12 +152,15 @@ export function buildMachine(options: MachineOptions): Machine {
         registration: options.registration ?? null,
         rightHandDrive: options.rightHandDrive ?? false,
         levels: options.levels,
+        look,
     };
-    const bodyClass = (options.bodyClass ?? '').toLowerCase();
+    const bodyClass = (
+        lookBodyClass(options.bodyClass, look) ?? ''
+    ).toLowerCase();
     const doors = options.doors ?? null;
     let bay: EngineBay | null;
 
-    switch (options.kind) {
+    switch (kind) {
         case 'car':
             bay = buildRoadVehicle(
                 materials,
@@ -136,12 +173,22 @@ export function buildMachine(options: MachineOptions): Machine {
             bay = buildRoadVehicle(materials, SUV_SPEC, body, road);
             break;
         case 'van':
-            bay = buildRoadVehicle(materials, VAN_SPEC, body, road);
+            bay = buildRoadVehicle(
+                materials,
+                look?.roof === 'high' ? highRoof(VAN_SPEC) : VAN_SPEC,
+                body,
+                road,
+            );
             break;
         case 'ute':
             bay = buildUte(materials, body, {
                 ...road,
-                crew: doors === null || doors >= 4,
+                crew:
+                    doors !== null
+                        ? doors >= 4
+                        : look?.cab
+                          ? look.cab === 'dual'
+                          : true,
             });
             break;
         case 'truck':
@@ -180,7 +227,7 @@ export function buildMachine(options: MachineOptions): Machine {
     const parts: PartMap = new Map();
 
     if (bay) {
-        if (['car', 'suv', 'van'].includes(options.kind)) {
+        if (['car', 'suv', 'van'].includes(kind)) {
             bay = orientBay(bay, options.driveType ?? '', options.engine);
         }
 
@@ -189,7 +236,48 @@ export function buildMachine(options: MachineOptions): Machine {
 
     root.add(engine);
 
-    return { root, body, engine, parts, bay, materials };
+    return {
+        root,
+        body,
+        engine,
+        parts,
+        bay,
+        materials,
+        anchor: anchorsFor(body, kind),
+    };
+}
+
+/**
+ * Find the areas of the machine the AI can name: from the body's lines
+ * where the builder left them, otherwise from its bounds. Worked out only
+ * when asked for, since most machines have nothing to pin.
+ */
+function anchorsFor(
+    body: THREE.Group,
+    kind: MachineKind,
+): (area: DamageArea) => Anchor | null {
+    const lined = body.userData.anchors as Anchors | undefined;
+    const found = new Map<DamageArea, Anchor>();
+    let bounds: THREE.Box3 | null = null;
+
+    return (area) => {
+        const fromLines =
+            kind === 'truck' && BEHIND_THE_CAB.has(area)
+                ? undefined
+                : lined?.get(area);
+
+        if (fromLines) {
+            return fromLines;
+        }
+
+        if (!found.has(area)) {
+            body.updateMatrixWorld(true);
+            bounds ??= new THREE.Box3().setFromObject(body);
+            found.set(area, boundsAnchor(body, bounds, area));
+        }
+
+        return found.get(area) ?? null;
+    };
 }
 
 /**

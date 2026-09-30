@@ -28,7 +28,9 @@ class PlannedInspectionController extends Controller
 
         $movedFrom = $plannedInspection->due_on;
 
-        $plannedInspection->update(['due_on' => $validated['due_on']]);
+        // Put there by hand, so the planner leaves it alone from now on, even
+        // on a day the shop is shut.
+        $plannedInspection->update(['due_on' => $validated['due_on'], 'pinned' => true]);
 
         // Moving the annual inspection to another month hands the monthly
         // check back to the month it left and takes it from the one it joined.

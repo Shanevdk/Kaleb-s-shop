@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { EnginePartKey } from '@/lib/engine-parts';
 import type { EngineInput } from '@/lib/three/engine';
+import type { Anchor } from '@/lib/three/look';
 import { buildMachine, shellMeshes, type Machine } from '@/lib/three/machine';
 import { ghostMaterial } from '@/lib/three/materials';
 import {
@@ -10,7 +11,15 @@ import {
     type PhotoProjection,
 } from '@/lib/three/photos';
 import { SEE_THROUGH_LAYER, Stage, type Appearance } from '@/lib/three/stage';
-import type { EngineSpecs, MachineKind, VehiclePhotos } from '@/types';
+import { cn } from '@/lib/utils';
+import { AREA_LABELS, SEVERITY_CLASSES } from '@/lib/vehicle-look';
+import type {
+    EngineSpecs,
+    LookDamage,
+    MachineKind,
+    VehicleLook,
+    VehiclePhotos,
+} from '@/types';
 
 export type ViewerView = 'machine' | 'engine';
 
@@ -27,6 +36,14 @@ export type MachineViewerProps = {
     view: ViewerView;
     selectedPart: EnginePartKey | null;
     appearance: Appearance;
+    /** What the AI read from the photos, to build the model to match. */
+    look?: VehicleLook | null;
+    /** Damage to pin on the model, numbered as it is listed. */
+    damage?: LookDamage[];
+    selectedDamage?: number | null;
+    /** The pin to swing round to; a new nonce swings again. */
+    focus?: { index: number; nonce: number } | null;
+    onSelectDamage?: (index: number) => void;
     onViewChange: (view: ViewerView) => void;
     onHoverPart: (part: EnginePartKey | 'engine' | null) => void;
     onSelectPart: (part: EnginePartKey | null) => void;
@@ -48,6 +65,9 @@ type Viewer = {
     machineFrame: Frame;
     engineFrame: Frame;
     marker: THREE.Vector3 | null;
+    /** Where each damage pin stands, in the order they are listed. */
+    pins: (Anchor | null)[];
+    radius: number;
     tween: { from: Frame; to: Frame; start: number; duration: number } | null;
     xray: { from: number; to: number; start: number } | null;
     amount: number;
@@ -187,6 +207,7 @@ function setXray(viewer: Viewer, amount: number): void {
 export default function MachineViewer(props: MachineViewerProps) {
     const container = useRef<HTMLDivElement>(null);
     const marker = useRef<HTMLButtonElement>(null);
+    const pinButtons = useRef<(HTMLButtonElement | null)[]>([]);
     const state = useRef<Viewer | null>(null);
     const latest = useRef(props);
     const [building, setBuilding] = useState(true);
@@ -210,6 +231,23 @@ export default function MachineViewer(props: MachineViewerProps) {
         props.colour ?? null,
         props.registration ?? null,
     ]);
+    // Only what changes the build: the damage pins move without one.
+    const lookKey = JSON.stringify(
+        props.look
+            ? [
+                  props.look.colour,
+                  props.look.body_style,
+                  props.look.cab,
+                  props.look.roof,
+                  props.look.wheels,
+                  props.look.tinted_windows,
+                  props.look.accessories,
+              ]
+            : null,
+    );
+    const damageKey = JSON.stringify(
+        (props.damage ?? []).map((mark) => mark.area),
+    );
 
     // Build the scene once per machine, and tear it down completely after.
     useEffect(() => {
@@ -314,6 +352,7 @@ export default function MachineViewer(props: MachineViewerProps) {
                 driveType: latest.current.driveType ?? null,
                 colour: latest.current.colour ?? null,
                 registration: latest.current.registration ?? null,
+                look: latest.current.look ?? null,
                 rightHandDrive: drivesOnTheLeft(),
                 // A third level looks no different on screen and costs
                 // half a second more of blocked main thread.
@@ -409,6 +448,8 @@ export default function MachineViewer(props: MachineViewerProps) {
                     ? frameFor(bounds, stage.camera, 38, 13, 0.92)
                     : frameFor(engineBox, stage.camera, 42, 30, 1.0, 1),
                 marker: markerPoint,
+                pins: [],
+                radius: bounds.getBoundingSphere(new THREE.Sphere()).radius,
                 tween: null,
                 xray: null,
                 amount: 0,
@@ -492,6 +533,38 @@ export default function MachineViewer(props: MachineViewerProps) {
                     button.style.pointerEvents = visible ? 'auto' : 'none';
                     button.style.transform = `translate(-50%, -50%) translate(${((projected.x + 1) / 2) * element.clientWidth}px, ${((1 - projected.y) / 2) * element.clientHeight}px)`;
                 }
+
+                // Damage pins stand on the body and hide round the back.
+                const toCamera = new THREE.Vector3();
+                const xray = viewer.amount;
+
+                viewer.pins.forEach((pin, index) => {
+                    const pinButton = pinButtons.current[index];
+
+                    if (!pinButton) {
+                        return;
+                    }
+
+                    if (!pin) {
+                        pinButton.style.opacity = '0';
+                        pinButton.style.pointerEvents = 'none';
+
+                        return;
+                    }
+
+                    const projected = pin.position
+                        .clone()
+                        .project(stage.camera);
+                    toCamera.copy(stage.camera.position).sub(pin.position);
+                    const visible =
+                        latest.current.view === 'machine' &&
+                        xray < 0.05 &&
+                        projected.z < 1 &&
+                        pin.normal.dot(toCamera) > 0;
+                    pinButton.style.opacity = visible ? '1' : '0';
+                    pinButton.style.pointerEvents = visible ? 'auto' : 'none';
+                    pinButton.style.transform = `translate(-50%, -50%) translate(${((projected.x + 1) / 2) * element.clientWidth}px, ${((1 - projected.y) / 2) * element.clientHeight}px)`;
+                });
             });
         }, 30);
 
@@ -525,7 +598,72 @@ export default function MachineViewer(props: MachineViewerProps) {
         };
         // The engine and body are compared by value through their keys.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [engineKey, bodyKey]);
+    }, [engineKey, bodyKey, lookKey]);
+
+    // Stand a pin on the body for each piece of damage, stepping pins on
+    // the same area apart so none hides another.
+    useEffect(() => {
+        const viewer = state.current;
+
+        if (!viewer) {
+            return;
+        }
+
+        const areas = JSON.parse(damageKey) as LookDamage['area'][];
+        const seen = new Map<string, number>();
+        viewer.pins = areas.map((area) => {
+            const anchor = viewer.machine.anchor(area);
+            const count = seen.get(area) ?? 0;
+            seen.set(area, count + 1);
+
+            if (!anchor) {
+                return null;
+            }
+
+            return {
+                position: anchor.position
+                    .clone()
+                    .addScaledVector(anchor.normal, 0.03)
+                    .add(new THREE.Vector3(0, count * 0.1, 0)),
+                normal: anchor.normal,
+            };
+        });
+    }, [damageKey, engineKey, bodyKey, lookKey, building]);
+
+    // Swing round to face a pin when one is picked from the list.
+    useEffect(() => {
+        const viewer = state.current;
+        const focus = props.focus;
+
+        if (!viewer || !focus) {
+            return;
+        }
+
+        const pin = viewer.pins[focus.index];
+
+        if (!pin) {
+            return;
+        }
+
+        const distance = Math.max(1.3, viewer.radius * 0.85);
+        const position = pin.position
+            .clone()
+            .addScaledVector(pin.normal, distance)
+            .add(new THREE.Vector3(0, distance * 0.3, 0));
+        position.y = Math.max(position.y, 0.35);
+        viewer.tween = {
+            from: {
+                position: viewer.stage.camera.position.clone(),
+                target: viewer.stage.controls.target.clone(),
+            },
+            to: { position, target: pin.position.clone() },
+            start: performance.now(),
+            duration: 900,
+        };
+        viewer.stage.controls.autoRotate = false;
+        // Only a new pick swings the camera.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.focus?.nonce]);
 
     // Fly between the whole machine and the engine.
     useEffect(() => {
@@ -556,7 +694,7 @@ export default function MachineViewer(props: MachineViewerProps) {
         viewer.hovered = null;
         paint(viewer, props.selectedPart);
         // A rebuilt scene must land on the right frame too.
-    }, [props.view, props.selectedPart, engineKey, bodyKey, building]);
+    }, [props.view, props.selectedPart, engineKey, bodyKey, lookKey, building]);
 
     // Wrap the walk-around photos over the body when asked to.
     const photoKey = JSON.stringify({
@@ -584,7 +722,7 @@ export default function MachineViewer(props: MachineViewerProps) {
         }
 
         viewer.projection.setEnabled(props.wrapPhotos === true);
-    }, [photoKey, props.wrapPhotos, engineKey, bodyKey, building]);
+    }, [photoKey, props.wrapPhotos, engineKey, bodyKey, lookKey, building]);
 
     // Keep the floor and the ghost in step with light and dark mode.
     useEffect(() => {
@@ -593,7 +731,7 @@ export default function MachineViewer(props: MachineViewerProps) {
         if (viewer) {
             applyAppearance(viewer, props.appearance);
         }
-    }, [props.appearance, engineKey, bodyKey, building]);
+    }, [props.appearance, engineKey, bodyKey, lookKey, building]);
 
     return (
         <div
@@ -619,6 +757,27 @@ export default function MachineViewer(props: MachineViewerProps) {
                     <Cog className="size-4" />
                 </span>
             </button>
+            {(props.damage ?? []).map((mark, index) => (
+                <button
+                    key={index}
+                    ref={(element) => {
+                        pinButtons.current[index] = element;
+                    }}
+                    type="button"
+                    title={`${AREA_LABELS[mark.area]}: ${mark.note}`}
+                    aria-label={`Damage ${index + 1}: ${AREA_LABELS[mark.area]}`}
+                    onClick={() => latest.current.onSelectDamage?.(index)}
+                    className={cn(
+                        'absolute top-0 left-0 z-10 flex size-6 items-center justify-center rounded-full border-2 border-white text-[11px] font-bold shadow-md transition-[opacity,scale] duration-200',
+                        SEVERITY_CLASSES[mark.severity],
+                        props.selectedDamage === index &&
+                            'ring-primary scale-125 ring-2',
+                    )}
+                    style={{ opacity: 0 }}
+                >
+                    {index + 1}
+                </button>
+            ))}
         </div>
     );
 }

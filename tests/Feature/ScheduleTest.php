@@ -2,6 +2,7 @@
 
 use App\Enums\ChecklistTemplate;
 use App\Enums\ServiceStatus;
+use App\Models\ClosedDay;
 use App\Models\Inspection;
 use App\Models\PlannedInspection;
 use App\Models\ServiceRecord;
@@ -33,28 +34,46 @@ test('a scheduler lands on the schedule and cannot open the records', function (
     $this->actingAs($scheduler)->get(route('inspections.index'))->assertForbidden();
 });
 
-test('opening the schedule books every vehicle in on a weekday from today on', function () {
+test('opening the schedule books every vehicle in on an open day from today on', function () {
     Vehicle::factory()->count(4)->create(['created_at' => '2026-01-10']);
 
     $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'))->assertOk();
 
     $booked = PlannedInspection::all();
+    $holidays = array_keys(ClosedDay::ontarioHolidays(2026));
 
     expect($booked->where('template', ChecklistTemplate::AnnualInspection))->toHaveCount(4)
         ->and($booked->every(fn (PlannedInspection $planned): bool => $planned->due_on->greaterThanOrEqualTo(today())))->toBeTrue()
         ->and($booked->every(fn (PlannedInspection $planned): bool => $planned->due_on->isWeekday()))->toBeTrue()
+        ->and($booked->every(fn (PlannedInspection $planned): bool => ! in_array($planned->due_on->toDateString(), $holidays, true)))->toBeTrue()
         ->and($booked->pluck('due_on')->map->toDateString()->unique()->count())->toBeGreaterThan(1);
 
     Vehicle::all()->each(function (Vehicle $vehicle) use ($booked): void {
         $annual = $booked->firstWhere(fn (PlannedInspection $planned): bool => $planned->vehicle_id === $vehicle->id
             && $planned->template === ChecklistTemplate::AnnualInspection);
-        $monthly = $booked->firstWhere(fn (PlannedInspection $planned): bool => $planned->vehicle_id === $vehicle->id
-            && $planned->template === ChecklistTemplate::MonthlyCheck);
+        $september = $booked->firstWhere(fn (PlannedInspection $planned): bool => $planned->vehicle_id === $vehicle->id
+            && $planned->period === '2026-09');
 
         // The annual inspection covers the monthly check in its month.
         expect($annual->period)->toBe('2026')
-            ->and($annual->due_on->month === 9 ? $monthly : $monthly?->period)->toBe($annual->due_on->month === 9 ? null : '2026-09');
+            ->and($september?->template)->toBe($annual->due_on->month === 9 ? null : ChecklistTemplate::MonthlyCheck);
     });
+});
+
+test('the months after the one on screen are booked in ahead', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'));
+
+    $months = PlannedInspection::where('vehicle_id', $vehicle->id)
+        ->get()
+        ->map(fn (PlannedInspection $planned): string => $planned->due_on->format('Y-m'))
+        ->unique()
+        ->sort()
+        ->values()
+        ->all();
+
+    expect($months)->toBe(['2026-09', '2026-10', '2026-11']);
 });
 
 test('annual inspections are spread across the months left in the year', function () {
@@ -77,12 +96,13 @@ test('opening the schedule again books nothing new and leaves moved checks alone
     $user = User::factory()->scheduler()->create();
 
     $this->actingAs($user)->get(route('schedule.index'));
-    $moved = PlannedInspection::where('template', ChecklistTemplate::MonthlyCheck)->firstOrFail();
+    $bookings = PlannedInspection::count();
+    $moved = PlannedInspection::where('period', '2026-09')->where('template', ChecklistTemplate::MonthlyCheck)->firstOrFail();
     $moved->update(['due_on' => '2026-09-29']);
 
     $this->actingAs($user)->get(route('schedule.index'));
 
-    expect(PlannedInspection::count())->toBe(3)
+    expect(PlannedInspection::count())->toBe($bookings)
         ->and($moved->fresh()->due_on->toDateString())->toBe('2026-09-29');
 });
 
@@ -93,16 +113,132 @@ test('a month that is already over is not booked', function () {
         ->get(route('schedule.index', ['month' => '2026-08']))
         ->assertInertia(fn ($page) => $page->where('month', '2026-08')->has('entries', 0));
 
-    expect(PlannedInspection::count())->toBe(0);
+    expect(PlannedInspection::where('due_on', '<', '2026-09-01')->count())->toBe(0);
 });
 
-test('checks booked at the weekend move to the next weekday', function () {
+test('checks are never booked on a Sunday or an Ontario holiday, and weekdays fill before Saturdays', function () {
+    // Friday before the Thanksgiving long weekend: Sat 10, Sun 11, Mon 12 (Thanksgiving).
+    $this->travelTo('2026-10-09 09:00:00');
+    Vehicle::factory()->count(8)->create(['created_at' => '2026-01-10']);
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'));
+
+    $days = PlannedInspection::where('due_on', '<=', '2026-10-31')->pluck('due_on')->map->toDateString();
+
+    expect($days)->not->toContain('2026-10-11')
+        ->and($days)->not->toContain('2026-10-12')
+        ->and($days)->not->toContain('2026-10-10')
+        ->and($days)->toContain('2026-10-13');
+});
+
+test('checks booked at the weekend move to the next open day', function () {
     $this->travelTo('2026-09-26 09:00:00');
     Vehicle::factory()->create(['created_at' => '2026-01-10']);
 
     $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'));
 
-    expect(PlannedInspection::sole()->due_on->toDateString())->toBe('2026-09-28');
+    expect(PlannedInspection::where('template', ChecklistTemplate::AnnualInspection)->sole()->due_on->toDateString())->toBe('2026-09-28');
+});
+
+test('the Ontario statutory holidays are worked out for the year', function () {
+    expect(ClosedDay::ontarioHolidays(2026))->toBe([
+        '2026-01-01' => "New Year's Day",
+        '2026-02-16' => 'Family Day',
+        '2026-04-03' => 'Good Friday',
+        '2026-05-18' => 'Victoria Day',
+        '2026-07-01' => 'Canada Day',
+        '2026-09-07' => 'Labour Day',
+        '2026-10-12' => 'Thanksgiving',
+        '2026-12-25' => 'Christmas Day',
+        '2026-12-26' => 'Boxing Day',
+        '2026-12-28' => 'Boxing Day (observed)',
+    ]);
+});
+
+test('a Christmas and Boxing Day weekend gives the Monday and Tuesday off', function () {
+    $holidays = ClosedDay::ontarioHolidays(2027);
+
+    expect($holidays['2027-12-27'])->toBe('Christmas Day (observed)')
+        ->and($holidays['2027-12-28'])->toBe('Boxing Day (observed)')
+        ->and($holidays['2027-03-26'])->toBe('Good Friday')
+        ->and($holidays['2027-05-24'])->toBe('Victoria Day');
+});
+
+test('the calendar shows the days the shop is closed', function () {
+    ClosedDay::factory()->create(['date' => '2026-09-18', 'reason' => 'Stocktake']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->get(route('schedule.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('closedDays.0', ['date' => '2026-09-07', 'reason' => 'Labour Day', 'id' => null])
+            ->where('closedDays.1.date', '2026-09-18')
+            ->where('closedDays.1.reason', 'Stocktake')
+        );
+});
+
+test('marking a day closed moves the checks the planner put there but not ones put there by hand', function () {
+    $scheduler = User::factory()->scheduler()->create();
+    $planned = PlannedInspection::factory()->create(['due_on' => '2026-09-22', 'period' => '2026-09']);
+    $pinned = PlannedInspection::factory()->create(['due_on' => '2026-09-22', 'period' => '2026-09', 'pinned' => true]);
+
+    foreach ([$planned, $pinned] as $monthly) {
+        PlannedInspection::factory()->annual()->create(['vehicle_id' => $monthly->vehicle_id, 'due_on' => '2026-11-10', 'period' => '2026']);
+    }
+
+    $this->actingAs($scheduler)
+        ->post(route('schedule.closed-days.store'), ['date' => '2026-09-22', 'reason' => 'Staff training'])
+        ->assertRedirect();
+
+    $closed = ClosedDay::sole();
+    $movedTo = $planned->fresh()->due_on;
+
+    expect($closed->user_id)->toBe($scheduler->id)
+        ->and($closed->reason)->toBe('Staff training')
+        ->and($movedTo->toDateString())->not->toBe('2026-09-22')
+        ->and($movedTo->isSunday())->toBeFalse()
+        ->and($movedTo->month)->toBe(9)
+        ->and($pinned->fresh()->due_on->toDateString())->toBe('2026-09-22');
+});
+
+test('a day the shop is already closed cannot be marked again', function (string $day) {
+    ClosedDay::factory()->create(['date' => '2026-09-22']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->post(route('schedule.closed-days.store'), ['date' => $day, 'reason' => 'Shop closed'])
+        ->assertSessionHasErrors('date');
+
+    expect(ClosedDay::count())->toBe(1);
+})->with([
+    'a Sunday' => '2026-09-20',
+    'a holiday' => '2026-10-12',
+    'already marked' => '2026-09-22',
+]);
+
+test('a marked day can be opened again', function () {
+    $closed = ClosedDay::factory()->create(['date' => '2026-09-22']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->delete(route('schedule.closed-days.destroy', $closed))
+        ->assertRedirect();
+
+    expect(ClosedDay::count())->toBe(0);
+});
+
+test('a shopper cannot close the shop', function () {
+    $this->actingAs(User::factory()->shopper()->create())
+        ->post(route('schedule.closed-days.store'), ['date' => '2026-09-22', 'reason' => 'Shop closed'])
+        ->assertForbidden();
+});
+
+test('a check moved by hand can go on a closed day and stays there', function () {
+    $planned = PlannedInspection::factory()->create(['due_on' => '2026-09-16', 'period' => '2026-09']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->patch(route('schedule.checks.update', $planned), ['due_on' => '2026-09-20'])
+        ->assertRedirect();
+
+    expect($planned->fresh()->due_on->toDateString())->toBe('2026-09-20')
+        ->and($planned->fresh()->pinned)->toBeTrue();
 });
 
 test('a check shows as done on the day it was done, and one past its day as overdue', function () {
@@ -252,11 +388,21 @@ test('a planned job can be taken off the schedule but one under way cannot', fun
         ->and(ServiceRecord::find($started->id))->not->toBeNull();
 });
 
-test('the daily command books this month and next', function () {
+test('the daily command books a check into every month of the coming year', function () {
     Vehicle::factory()->create(['created_at' => '2026-01-10']);
 
     $this->artisan('inspections:plan')->assertSuccessful();
 
-    expect(PlannedInspection::where('template', ChecklistTemplate::AnnualInspection)->count())->toBe(1)
-        ->and(PlannedInspection::where('template', ChecklistTemplate::MonthlyCheck)->count())->toBe(1);
+    $months = PlannedInspection::all()
+        ->map(fn (PlannedInspection $planned): string => $planned->due_on->format('Y-m'))
+        ->sort()
+        ->values()
+        ->all();
+
+    // One check a month; in each year one of them is the annual inspection.
+    expect($months)->toHaveCount(12)
+        ->and($months[0])->toBe('2026-09')
+        ->and($months[11])->toBe('2027-08')
+        ->and(array_unique($months))->toHaveCount(12)
+        ->and(PlannedInspection::where('template', ChecklistTemplate::AnnualInspection)->pluck('period')->sort()->values()->all())->toBe(['2026', '2027']);
 });

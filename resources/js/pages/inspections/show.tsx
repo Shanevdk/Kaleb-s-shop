@@ -6,29 +6,169 @@ import {
     setLayoutProps,
     usePoll,
 } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, ListChecks, Trash2 } from 'lucide-react';
-import { useEffect } from 'react';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    ListChecks,
+    Plus,
+    Trash2,
+    Undo2,
+    X,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import CheckStatusButtons from '@/components/check-status-buttons';
 import DeleteConfirm from '@/components/delete-confirm';
+import InputError from '@/components/input-error';
 import PageHeader from '@/components/page-header';
 import RepairPartsNote from '@/components/repair-parts-note';
 import StatCard from '@/components/stat-card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDate, formatOdometer } from '@/lib/format';
 import { destroy, index, show, update } from '@/routes/inspections';
-import { update as updateItem } from '@/routes/inspection-items';
+import {
+    destroy as destroyItem,
+    store as storeItem,
+    update as updateItem,
+} from '@/routes/inspection-items';
 import { show as showVehicle } from '@/routes/vehicles';
-import type { Inspection, InspectionItem } from '@/types';
+import type {
+    Inspection,
+    InspectionItem,
+    VehicleChecklistChanges,
+} from '@/types';
+
+/**
+ * Take a check off the list. A check that has already been looked at asks
+ * first, since whatever was found goes with it.
+ */
+function RemoveCheck({
+    item,
+    remember,
+}: {
+    item: InspectionItem;
+    remember: boolean;
+}) {
+    const options = { query: { remember: remember ? '1' : '0' } };
+    const needsConfirming = item.status !== 'pending' || Boolean(item.notes);
+    const button = (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive size-8 shrink-0"
+            aria-label={`Remove ${item.label}`}
+            onClick={
+                needsConfirming
+                    ? undefined
+                    : () =>
+                          router.delete(destroyItem.url(item.id, options), {
+                              preserveScroll: true,
+                          })
+            }
+        >
+            <X />
+        </Button>
+    );
+
+    return needsConfirming ? (
+        <DeleteConfirm
+            trigger={button}
+            title="Remove this check?"
+            description={`"${item.label}" has already been checked or has a note, and that goes with it.`}
+            confirmLabel="Remove check"
+            form={destroyItem.form(item.id, options)}
+        />
+    ) : (
+        button
+    );
+}
+
+/**
+ * Add a check to the end of a section, or to a new one.
+ */
+function AddCheck({
+    inspectionId,
+    section,
+    remember,
+}: {
+    inspectionId: string;
+    section?: string;
+    remember: boolean;
+}) {
+    return (
+        <Form
+            {...storeItem.form(inspectionId)}
+            options={{ preserveScroll: true }}
+            resetOnSuccess
+            className="grid gap-2"
+        >
+            {({ processing, errors }) => (
+                <>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        {section === undefined ? (
+                            <Input
+                                name="section"
+                                placeholder="Extra checks"
+                                aria-label="Section"
+                                className="h-8 sm:w-48"
+                            />
+                        ) : (
+                            <input
+                                type="hidden"
+                                name="section"
+                                value={section}
+                            />
+                        )}
+                        <input
+                            type="hidden"
+                            name="remember"
+                            value={remember ? '1' : '0'}
+                        />
+                        <Input
+                            name="label"
+                            placeholder={
+                                section === undefined
+                                    ? 'What needs checking'
+                                    : `Add a check to ${section.toLowerCase()}`
+                            }
+                            aria-label={
+                                section === undefined
+                                    ? 'New check'
+                                    : `New check for ${section}`
+                            }
+                            className="h-8 flex-1"
+                        />
+                        <Button
+                            type="submit"
+                            size="sm"
+                            variant="outline"
+                            disabled={processing}
+                        >
+                            <Plus />
+                            Add
+                        </Button>
+                    </div>
+                    <InputError message={errors.label} />
+                </>
+            )}
+        </Form>
+    );
+}
 
 export default function InspectionShow({
     inspection,
+    vehicleChanges,
 }: {
     inspection: Inspection;
+    vehicleChanges: VehicleChecklistChanges;
 }) {
     const vehicleName = inspection.vehicle?.display_name ?? 'Vehicle';
+    const [remember, setRemember] = useState(true);
+    const canEdit = !inspection.is_complete;
 
     setLayoutProps({
         breadcrumbs: [
@@ -70,6 +210,23 @@ export default function InspectionShow({
         },
         {},
     );
+
+    const isAddedForVehicle = (item: InspectionItem) =>
+        vehicleChanges.added.some(
+            (check) =>
+                check.label === item.label && check.section === item.section,
+        );
+    const leftOut = vehicleChanges.removed.filter(
+        (check) => !items.some((item) => item.label === check.label),
+    );
+
+    const putBack = (section: string, label: string) => {
+        router.post(
+            storeItem.url(inspection.id),
+            { section, label, remember: '1' },
+            { preserveScroll: true },
+        );
+    };
 
     const saveNote = (item: InspectionItem, notes: string) => {
         if ((item.notes ?? '') === notes) {
@@ -160,6 +317,26 @@ export default function InspectionShow({
 
                 <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
                     <div className="space-y-6">
+                        {canEdit && (
+                            <div className="bg-card flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border px-5 py-3">
+                                <Label className="flex items-center gap-2 font-normal">
+                                    <Checkbox
+                                        checked={remember}
+                                        onCheckedChange={(checked) =>
+                                            setRemember(checked === true)
+                                        }
+                                    />
+                                    Remember checks I add or remove for{' '}
+                                    {vehicleName}
+                                </Label>
+                                <span className="text-muted-foreground text-xs">
+                                    {remember
+                                        ? `They carry over to its next ${inspection.template_label.toLowerCase()}.`
+                                        : 'Changes are for this checklist only.'}
+                                </span>
+                            </div>
+                        )}
+
                         {Object.entries(sections).map(
                             ([section, sectionItems]) => (
                                 <section
@@ -189,8 +366,18 @@ export default function InspectionShow({
                                                 className="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
                                             >
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-medium">
+                                                    <p className="flex flex-wrap items-center gap-2 font-medium">
                                                         {item.label}
+                                                        {isAddedForVehicle(
+                                                            item,
+                                                        ) && (
+                                                            <Badge
+                                                                variant="secondary"
+                                                                className="font-normal"
+                                                            >
+                                                                This vehicle
+                                                            </Badge>
+                                                        )}
                                                     </p>
                                                     <Input
                                                         defaultValue={
@@ -218,17 +405,98 @@ export default function InspectionShow({
                                                     )}
                                                 </div>
 
-                                                <CheckStatusButtons
-                                                    item={item}
-                                                    disabled={
-                                                        inspection.is_complete
-                                                    }
-                                                />
+                                                <div className="flex items-center gap-1">
+                                                    <CheckStatusButtons
+                                                        item={item}
+                                                        disabled={
+                                                            inspection.is_complete
+                                                        }
+                                                    />
+                                                    {canEdit && (
+                                                        <RemoveCheck
+                                                            item={item}
+                                                            remember={remember}
+                                                        />
+                                                    )}
+                                                </div>
                                             </li>
                                         ))}
                                     </ul>
+
+                                    {canEdit && (
+                                        <div className="border-t px-5 py-3">
+                                            <AddCheck
+                                                inspectionId={inspection.id}
+                                                section={section}
+                                                remember={remember}
+                                            />
+                                        </div>
+                                    )}
                                 </section>
                             ),
+                        )}
+
+                        {canEdit && (
+                            <section className="bg-card space-y-3 rounded-xl border border-dashed px-5 py-4">
+                                <div>
+                                    <h2 className="font-semibold">
+                                        Add a check in a new section
+                                    </h2>
+                                    <p className="text-muted-foreground text-sm">
+                                        Leave the section blank to put it under
+                                        extra checks.
+                                    </p>
+                                </div>
+                                <AddCheck
+                                    inspectionId={inspection.id}
+                                    remember={remember}
+                                />
+                            </section>
+                        )}
+
+                        {canEdit && leftOut.length > 0 && (
+                            <section className="bg-card space-y-3 rounded-xl border px-5 py-4">
+                                <div>
+                                    <h2 className="font-semibold">
+                                        Left off for this vehicle
+                                    </h2>
+                                    <p className="text-muted-foreground text-sm">
+                                        Standard checks taken off {vehicleName}
+                                        's{' '}
+                                        {inspection.template_label.toLowerCase()}
+                                        .
+                                    </p>
+                                </div>
+                                <ul className="divide-y">
+                                    {leftOut.map((check) => (
+                                        <li
+                                            key={`${check.section}:${check.label}`}
+                                            className="flex items-center justify-between gap-3 py-2 text-sm"
+                                        >
+                                            <span>
+                                                {check.label}
+                                                <span className="text-muted-foreground">
+                                                    {' '}
+                                                    · {check.section}
+                                                </span>
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    putBack(
+                                                        check.section,
+                                                        check.label,
+                                                    )
+                                                }
+                                            >
+                                                <Undo2 />
+                                                Put back
+                                            </Button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </section>
                         )}
                     </div>
 
