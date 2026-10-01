@@ -109,7 +109,7 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::delete('vehicles/{vehicle}/look', [VehicleLookController::class, 'destroy'])
         ->name('vehicles.look.destroy');
     Route::resource('vehicles', VehicleController::class);
-    Route::resource('service-records', ServiceRecordController::class)->except('show');
+    Route::resource('service-records', ServiceRecordController::class);
 
     Route::resource('inspections', InspectionController::class)->except('edit');
     Route::post('inspections/{inspection}/items', [InspectionItemController::class, 'store'])

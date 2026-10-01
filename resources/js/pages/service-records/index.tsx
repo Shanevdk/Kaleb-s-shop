@@ -1,4 +1,4 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, router } from '@inertiajs/react';
 import { Pencil, Plus, Search, Trash2, Wrench } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
@@ -22,7 +22,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatHours } from '@/lib/format';
-import { create, destroy, edit, index } from '@/routes/service-records';
+import { create, destroy, edit, index, show } from '@/routes/service-records';
 import { show as showVehicle } from '@/routes/vehicles';
 import type { SelectOption, ServiceRecord } from '@/types';
 
@@ -178,7 +178,13 @@ export default function ServiceRecordsIndex({
                             </TableHeader>
                             <TableBody>
                                 {records.map((record) => (
-                                    <TableRow key={record.id}>
+                                    <TableRow
+                                        key={record.id}
+                                        onClick={() =>
+                                            router.visit(show(record.id).url)
+                                        }
+                                        className="hover:bg-muted/50 cursor-pointer"
+                                    >
                                         <TableCell className="text-muted-foreground">
                                             {formatDate(record.performed_on)}
                                         </TableCell>
@@ -196,6 +202,9 @@ export default function ServiceRecordsIndex({
                                                     href={showVehicle(
                                                         record.vehicle.id,
                                                     )}
+                                                    onClick={(event) =>
+                                                        event.stopPropagation()
+                                                    }
                                                     className="underline-offset-4 hover:underline"
                                                 >
                                                     {
@@ -217,7 +226,12 @@ export default function ServiceRecordsIndex({
                                         <TableCell className="text-right font-medium tabular-nums">
                                             {formatCurrency(record.total_cost)}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell
+                                            className="text-right"
+                                            onClick={(event) =>
+                                                event.stopPropagation()
+                                            }
+                                        >
                                             <div className="flex justify-end gap-1">
                                                 <Button
                                                     variant="ghost"

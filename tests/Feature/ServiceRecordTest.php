@@ -39,6 +39,28 @@ test('the service log can be filtered by vehicle and status', function () {
         ->assertInertia(fn ($page) => $page->has('records', 1)->where('records.0.id', $match->id));
 });
 
+test('a job can be opened to see its full detail', function () {
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create();
+    $record = ServiceRecord::factory()->for($user)->for($vehicle)->create(['title' => 'Front brake pads']);
+
+    $this->actingAs($user)
+        ->get(route('service-records.show', $record))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('service-records/show')
+            ->where('record.id', $record->id)
+            ->where('record.title', 'Front brake pads')
+        );
+});
+
+test('a shopper cannot open a job', function () {
+    $user = User::factory()->shopper()->create();
+    $record = ServiceRecord::factory()->create();
+
+    $this->actingAs($user)->get(route('service-records.show', $record))->assertForbidden();
+});
+
 test('a job can be logged against a vehicle', function () {
     $user = User::factory()->create();
     $vehicle = Vehicle::factory()->for($user)->create();

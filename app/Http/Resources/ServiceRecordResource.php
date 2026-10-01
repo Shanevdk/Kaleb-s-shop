@@ -33,7 +33,10 @@ class ServiceRecordResource extends JsonResource
             'labour_cost' => (float) $this->labour_cost,
             'total_cost' => $this->total_cost,
             'description' => $this->description,
-            'parts' => ServiceRecordPartResource::collection($this->whenLoaded('parts')),
+            'parts' => $this->whenLoaded(
+                'parts',
+                fn (): array => ServiceRecordPartResource::collection($this->parts)->resolve(),
+            ),
             'vehicle' => $this->whenLoaded('vehicle', fn (): array => [
                 'id' => $this->vehicle->id,
                 'display_name' => $this->vehicle->display_name,

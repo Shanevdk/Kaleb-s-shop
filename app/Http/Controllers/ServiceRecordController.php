@@ -105,6 +105,18 @@ class ServiceRecordController extends Controller
     }
 
     /**
+     * Display the full detail for a logged job.
+     */
+    public function show(ServiceRecord $serviceRecord): Response
+    {
+        Gate::authorize('view', $serviceRecord);
+
+        return Inertia::render('service-records/show', [
+            'record' => ServiceRecordResource::make($serviceRecord->load('vehicle', 'parts.inventoryItem'))->resolve(),
+        ]);
+    }
+
+    /**
      * Show the form for editing a logged job.
      */
     public function edit(Request $request, ServiceRecord $serviceRecord): Response
