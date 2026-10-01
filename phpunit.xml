@@ -39,6 +39,8 @@
         <env name="MONGODB_DATABASE" value="vdk_machanics_testing" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!-- Never let a test reach the real AI; tests that need it set a fake key. -->
+        <env name="OPENROUTER_API_KEY" value="" force="true"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

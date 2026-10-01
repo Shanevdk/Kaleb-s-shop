@@ -23,6 +23,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { assistant, dashboard, diagnose, lookup } from '@/routes';
+import { index as jobQueue } from '@/routes/job-queue';
 import {
     create as logJob,
     index as serviceLog,
@@ -55,6 +56,7 @@ const mainNavItems: NavEntry[] = [
         icon: Wrench,
         items: [
             { title: 'Diagnose', href: diagnose() },
+            { title: 'Job queue', href: jobQueue() },
             { title: 'Service log', href: serviceLog() },
             { title: 'Log job', href: logJob() },
         ],

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\LinkJobPartsToStock;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
 use Database\Factories\InventoryItemFactory;
@@ -55,6 +56,19 @@ class InventoryItem extends Model
 {
     /** @use HasFactory<InventoryItemFactory> */
     use HasFactory, HasUlids;
+
+    /**
+     * Open jobs that asked for the part by name before it was stocked, or
+     * before it was given that name, are pointed at it.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (InventoryItem $item): void {
+            if ($item->wasRecentlyCreated || $item->wasChanged(['name', 'unit'])) {
+                app(LinkJobPartsToStock::class)->linkOpenJobsTo($item);
+            }
+        });
+    }
 
     /**
      * Get the owner of the stocked part.

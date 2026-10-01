@@ -33,6 +33,14 @@ class ServiceRecordResource extends JsonResource
             'labour_cost' => (float) $this->labour_cost,
             'total_cost' => $this->total_cost,
             'description' => $this->description,
+            'estimate' => $this->estimate_status === null ? null : [
+                'status' => $this->estimate_status->value,
+                'hours' => $this->estimated_hours === null ? null : (float) $this->estimated_hours,
+                'low' => $this->estimated_hours_low === null ? null : (float) $this->estimated_hours_low,
+                'high' => $this->estimated_hours_high === null ? null : (float) $this->estimated_hours_high,
+                'reasoning' => $this->estimate_reasoning,
+                'estimated_at' => $this->estimated_at?->toIso8601String(),
+            ],
             'parts' => $this->whenLoaded(
                 'parts',
                 fn (): array => ServiceRecordPartResource::collection($this->parts)->resolve(),

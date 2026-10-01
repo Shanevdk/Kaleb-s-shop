@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\LinkJobPartsToStock;
 use App\Enums\UnitOfMeasure;
 use Database\Factories\ServiceRecordPartFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -40,6 +41,17 @@ class ServiceRecordPart extends Model
         'unit' => 'each',
         'quantity_taken' => 0,
     ];
+
+    /**
+     * A part typed in by name is pointed at the stocked part of that name, so
+     * the job sees what is on the shelf.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (ServiceRecordPart $part): void {
+            app(LinkJobPartsToStock::class)->linkPart($part);
+        });
+    }
 
     /**
      * Get the job the part is needed for.

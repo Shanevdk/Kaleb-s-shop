@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
-import MachineModel from '@/components/machine-model';
 import MachineSpecsList from '@/components/machine-specs';
 import PageHeader from '@/components/page-header';
 import PhotoCapture from '@/components/photo-capture';
@@ -30,6 +29,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import VehiclePhotosPanel from '@/components/vehicle-photos';
 import {
     formatCurrency,
     formatDate,
@@ -245,19 +245,10 @@ export default function VehicleShow({
                     </aside>
 
                     <div className="space-y-6">
-                        <MachineModel
-                            kind={vehicle.kind}
-                            kindLabel={vehicle.kind_label}
-                            engine={vehicle.engine}
-                            engineSummary={vehicle.engine_summary}
-                            doors={vehicle.specs?.doors ?? null}
-                            bodyClass={vehicle.specs?.body_class ?? null}
-                            driveType={vehicle.specs?.drive_type ?? null}
-                            colour={vehicle.colour}
-                            registration={vehicle.registration}
+                        <VehiclePhotosPanel
+                            vehicleId={vehicle.id}
                             photos={vehicle.photos}
                             photoAngles={photoAngles}
-                            vehicleId={vehicle.id}
                             look={vehicle.look}
                         />
 

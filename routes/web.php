@@ -9,13 +9,16 @@ use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
 use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\InventoryScanController;
+use App\Http\Controllers\JobQueueController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\PartOrderController;
 use App\Http\Controllers\PlannedInspectionController;
 use App\Http\Controllers\ReceivingController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleJobController;
+use App\Http\Controllers\ScreenSaverDataController;
 use App\Http\Controllers\ServiceRecordController;
+use App\Http\Controllers\ServiceRecordEstimateController;
 use App\Http\Controllers\ShoppingListController;
 use App\Http\Controllers\VehicleChecklistChangeController;
 use App\Http\Controllers\VehicleController;
@@ -64,6 +67,8 @@ Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    Route::get('screen-saver/data', [ScreenSaverDataController::class, 'index'])->name('screen-saver.data');
+
     Route::get('shopping-list', [ShoppingListController::class, 'index'])->name('shopping-list.index');
     Route::post('shopping-list/orders', [PartOrderController::class, 'store'])->name('shopping-list.orders.store');
     Route::delete('shopping-list/orders/{partOrder}', [PartOrderController::class, 'destroy'])
@@ -110,6 +115,12 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
         ->name('vehicles.look.destroy');
     Route::resource('vehicles', VehicleController::class);
     Route::resource('service-records', ServiceRecordController::class);
+    Route::post('service-records/{service_record}/estimate', [ServiceRecordEstimateController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('service-records.estimate.store');
+
+    Route::get('job-queue', [JobQueueController::class, 'index'])->name('job-queue.index');
+    Route::patch('job-queue/{serviceRecord}', [JobQueueController::class, 'update'])->name('job-queue.update');
 
     Route::resource('inspections', InspectionController::class)->except('edit');
     Route::post('inspections/{inspection}/items', [InspectionItemController::class, 'store'])

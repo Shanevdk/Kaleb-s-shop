@@ -246,12 +246,26 @@ export type ServiceRecord = {
     labour_cost: number;
     total_cost: number;
     description: string | null;
+    estimate: JobEstimate | null;
     parts?: ServiceRecordPart[];
     vehicle?: {
         id: string;
         display_name: string;
         registration: string | null;
     };
+};
+
+/**
+ * The AI's estimate of how long a job will take, worked out in the
+ * background whenever the job is saved with new notes.
+ */
+export type JobEstimate = {
+    status: 'pending' | 'ready' | 'failed';
+    hours: number | null;
+    low: number | null;
+    high: number | null;
+    reasoning: string | null;
+    estimated_at: string | null;
 };
 
 export type SelectOption = {

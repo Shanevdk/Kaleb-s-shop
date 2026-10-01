@@ -2,6 +2,7 @@ import { Form, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import ServiceRecordController from '@/actions/App/Http/Controllers/ServiceRecordController';
 import InputError from '@/components/input-error';
+import JobEstimate from '@/components/job-estimate';
 import ServiceRecordParts from '@/components/service-record-parts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +50,7 @@ export default function ServiceRecordForm({
         : (selectedVehicle ?? '');
 
     const [vehicleId, setVehicleId] = useState(defaultVehicle);
-
+    const [description, setDescription] = useState(record?.description ?? '');
     return (
         <Form {...action} className="space-y-8">
             {({ processing, errors }) => (
@@ -158,10 +159,22 @@ export default function ServiceRecordForm({
                             <Textarea
                                 id="description"
                                 name="description"
-                                defaultValue={record?.description ?? ''}
+                                value={description}
+                                onChange={(event) =>
+                                    setDescription(event.target.value)
+                                }
                                 placeholder="Parts used, torque specs, what to watch next service."
                             />
                             <InputError message={errors.description} />
+                            {record?.estimate ? (
+                                <JobEstimate estimate={record.estimate} />
+                            ) : (
+                                <p className="text-muted-foreground text-xs">
+                                    Once saved, the AI estimates how long the
+                                    job will take from the vehicle and these
+                                    notes, and again whenever they change.
+                                </p>
+                            )}
                         </div>
                     </section>
 

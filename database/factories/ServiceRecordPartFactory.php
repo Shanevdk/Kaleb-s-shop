@@ -22,7 +22,7 @@ class ServiceRecordPartFactory extends Factory
         return [
             'service_record_id' => ServiceRecord::factory(),
             'inventory_item_id' => null,
-            'name' => fake()->randomElement(['Rear wheel bearing', 'Brake pad set', 'Timing belt kit', 'Sump plug washer']),
+            'name' => fake()->randomElement(['Rear wheel bearing', 'Brake caliper', 'Timing belt kit', 'Sump plug washer']),
             'quantity' => fake()->numberBetween(1, 4),
             'unit' => UnitOfMeasure::Each,
             'quantity_taken' => 0,

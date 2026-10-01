@@ -1,5 +1,38 @@
 import { useSyncExternalStore } from 'react';
 
+/**
+ * What the screen saver can show. Pictures sit in a panel of their own,
+ * cycling independently, alongside whichever of the others is showing.
+ */
+export type ScreenSaverPanel = 'clock' | 'pictures' | 'schedule' | 'checklists';
+
+export const screenSaverPanels: {
+    value: ScreenSaverPanel;
+    label: string;
+    description: string;
+}[] = [
+    {
+        value: 'clock',
+        label: 'Clock',
+        description: 'A large digital clock, and the date.',
+    },
+    {
+        value: 'pictures',
+        label: 'Pictures',
+        description: 'Shown in a panel alongside whatever else is on.',
+    },
+    {
+        value: 'schedule',
+        label: "Today's jobs",
+        description: "What's booked in for today, from the schedule.",
+    },
+    {
+        value: 'checklists',
+        label: 'Open checklists',
+        description: 'Checklists started but not yet signed off.',
+    },
+];
+
 export type ScreenSaverSettings = {
     enabled: boolean;
     /** Minutes without a tap, click or key press before it drops down. */
@@ -7,6 +40,10 @@ export type ScreenSaverSettings = {
     clock: '12h' | '24h';
     showSeconds: boolean;
     showDate: boolean;
+    /** Which slides are in the rotation, and in what order. */
+    panels: ScreenSaverPanel[];
+    /** Seconds each slide (or, for pictures, each photo) stays up. */
+    secondsPerPanel: number;
 };
 
 export const defaultScreenSaverSettings: ScreenSaverSettings = {
@@ -15,11 +52,14 @@ export const defaultScreenSaverSettings: ScreenSaverSettings = {
     clock: '12h',
     showSeconds: true,
     showDate: true,
+    panels: ['clock'],
+    secondsPerPanel: 12,
 };
 
 const storageKey = 'screen-saver';
 const previewEvent = 'screen-saver:preview';
 const listeners = new Set<() => void>();
+const knownPanels = screenSaverPanels.map((panel) => panel.value);
 
 let cached: ScreenSaverSettings | null = null;
 
@@ -41,6 +81,12 @@ const read = (): ScreenSaverSettings => {
     }
 
     cached = { ...defaultScreenSaverSettings, ...stored };
+
+    const panels = Array.isArray(cached.panels)
+        ? cached.panels.filter((panel) => knownPanels.includes(panel))
+        : [];
+    cached.panels =
+        panels.length > 0 ? panels : defaultScreenSaverSettings.panels;
 
     return cached;
 };

@@ -1,5 +1,6 @@
 import { Head, Link, setLayoutProps } from '@inertiajs/react';
 import {
+    ArrowLeft,
     Banknote,
     Clock,
     Package,
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
+import JobEstimate, { useEstimatePolling } from '@/components/job-estimate';
 import PageHeader from '@/components/page-header';
 import StatCard from '@/components/stat-card';
 import StatusBadge from '@/components/status-badge';
@@ -44,6 +46,8 @@ export default function ServiceRecordShow({
         ],
     });
 
+    useEstimatePolling([record.estimate], ['record']);
+
     const parts = record.parts ?? [];
 
     return (
@@ -56,6 +60,13 @@ export default function ServiceRecordShow({
                     description={`${record.type_label} · ${formatDate(record.performed_on)}`}
                     actions={
                         <>
+                            <Button
+                                variant="outline"
+                                onClick={() => window.history.back()}
+                            >
+                                <ArrowLeft />
+                                Back
+                            </Button>
                             {record.vehicle && (
                                 <Button variant="outline" asChild>
                                     <Link
@@ -128,6 +139,8 @@ export default function ServiceRecordShow({
                         icon={Banknote}
                     />
                 </div>
+
+                <JobEstimate estimate={record.estimate} />
 
                 {record.description && (
                     <div className="bg-card space-y-2 rounded-xl border p-6">
