@@ -86,7 +86,7 @@ function PanelToggles({
             return;
         }
 
-        // Always leave at least one slide in the rotation.
+        // Always leave something on the screen saver.
         if (panels.length > 1) {
             updateScreenSaver({
                 panels: panels.filter((panel) => panel !== value),
@@ -233,8 +233,7 @@ function PicturesManager({ disabled }: { disabled: boolean }) {
 
 export default function ScreenSaverSettings() {
     const settings = useScreenSaver();
-    const showsMultiple =
-        settings.panels.length > 1 || settings.panels.includes('pictures');
+    const showsPictures = settings.panels.includes('pictures');
 
     return (
         <>
@@ -289,11 +288,11 @@ export default function ScreenSaverSettings() {
                     />
                 </div>
 
-                {showsMultiple && (
+                {showsPictures && (
                     <div className="grid gap-2">
-                        <Label>Time on each screen</Label>
+                        <Label>Time on each picture</Label>
                         <Segmented
-                            label="Time on each screen"
+                            label="Time on each picture"
                             value={settings.secondsPerPanel}
                             disabled={!settings.enabled}
                             options={panelDelays.map((seconds) => ({

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import PageHeader from '@/components/page-header';
+import PhoneScannerDialog from '@/components/phone-scanner-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,9 +73,33 @@ export default function InventoryScan({
                 preserveScroll: true,
                 onFinish: () => {
                     pendingRef.current = null;
+                    bookNextFromPhone();
                 },
             },
         );
+    };
+
+    /**
+     * Codes from a paired phone can arrive several at once, and a new visit
+     * would cancel the one in flight, so they are booked in one at a time.
+     */
+    const phoneQueue = useRef<string[]>([]);
+
+    const bookNextFromPhone = () => {
+        if (pendingRef.current !== null) {
+            return;
+        }
+
+        const next = phoneQueue.current.shift();
+
+        if (next !== undefined) {
+            submitBarcode(next);
+        }
+    };
+
+    const queueFromPhone = (barcode: string) => {
+        phoneQueue.current.push(barcode);
+        bookNextFromPhone();
     };
 
     const scanner = useBarcodeScanner({
@@ -117,9 +142,15 @@ export default function InventoryScan({
                     title="Scan barcodes"
                     description="Point the camera at a part to book it in. Unknown codes can be linked to a part or added as a new one."
                     actions={
-                        <Button variant="outline" asChild>
-                            <Link href={index()}>Back to inventory</Link>
-                        </Button>
+                        <>
+                            <PhoneScannerDialog
+                                continuous
+                                onScan={(scan) => queueFromPhone(scan.barcode)}
+                            />
+                            <Button variant="outline" asChild>
+                                <Link href={index()}>Back to inventory</Link>
+                            </Button>
+                        </>
                     }
                 />
 

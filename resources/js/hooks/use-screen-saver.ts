@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * What the screen saver can show. Pictures sit in a panel of their own,
- * cycling independently, alongside whichever of the others is showing.
+ * What the screen saver can show. Everything picked is on screen at once,
+ * with the pictures filling the background behind the rest.
  */
 export type ScreenSaverPanel = 'clock' | 'pictures' | 'schedule' | 'checklists';
 
@@ -19,7 +19,7 @@ export const screenSaverPanels: {
     {
         value: 'pictures',
         label: 'Pictures',
-        description: 'Shown in a panel alongside whatever else is on.',
+        description: 'Fill the background, changing every few seconds.',
     },
     {
         value: 'schedule',
@@ -40,9 +40,9 @@ export type ScreenSaverSettings = {
     clock: '12h' | '24h';
     showSeconds: boolean;
     showDate: boolean;
-    /** Which slides are in the rotation, and in what order. */
+    /** What is on the screen saver. */
     panels: ScreenSaverPanel[];
-    /** Seconds each slide (or, for pictures, each photo) stays up. */
+    /** Seconds each background picture stays up. */
     secondsPerPanel: number;
 };
 

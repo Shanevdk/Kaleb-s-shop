@@ -12,6 +12,7 @@ use App\Http\Controllers\InventoryScanController;
 use App\Http\Controllers\JobQueueController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\PartOrderController;
+use App\Http\Controllers\PhoneScannerController;
 use App\Http\Controllers\PlannedInspectionController;
 use App\Http\Controllers\ReceivingController;
 use App\Http\Controllers\ScheduleController;
@@ -52,6 +53,17 @@ Route::get('site.webmanifest', function () {
         ],
     ])->withHeaders(['Content-Type' => 'application/manifest+json']);
 })->name('manifest');
+
+/**
+ * A phone lending its camera to a computer. The phone needs no login: the
+ * links are signed and short lived, and only ever add scanned codes.
+ */
+Route::get('phone-scanner/{token}', [PhoneScannerController::class, 'show'])
+    ->middleware('signed')
+    ->name('phone-scanner.show');
+Route::post('phone-scanner/{token}/scans', [PhoneScannerController::class, 'scan'])
+    ->middleware(['signed', 'throttle:60,1'])
+    ->name('phone-scanner.scan');
 
 Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
     Route::post('admin/users/{user}/verify', [UserController::class, 'verify'])
@@ -134,6 +146,12 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::post('inspection-items/{inspectionItem}/replan', [InspectionItemController::class, 'replan'])
         ->middleware('throttle:10,1')
         ->name('inspection-items.replan');
+
+    Route::post('phone-scanner', [PhoneScannerController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('phone-scanner.store');
+    Route::get('phone-scanner/{token}/scans', [PhoneScannerController::class, 'poll'])
+        ->name('phone-scanner.poll');
 
     Route::get('inventory/scan', [InventoryScanController::class, 'create'])->name('inventory.scan');
     Route::post('inventory/scan', [InventoryScanController::class, 'store'])->name('inventory.scan.store');

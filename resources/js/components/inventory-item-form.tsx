@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import InventoryItemController from '@/actions/App/Http/Controllers/InventoryItemController';
 import BarcodeScanDialog from '@/components/barcode-scan-dialog';
 import InputError from '@/components/input-error';
+import PhoneScannerDialog from '@/components/phone-scanner-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -293,6 +294,16 @@ export default function InventoryItemForm({
                                     </p>
                                 )}
                                 <InputError message={errors.barcode} />
+                                <div>
+                                    <PhoneScannerDialog
+                                        size="sm"
+                                        label="Scan with my phone"
+                                        onScan={(scan) => {
+                                            setBarcode(scan.barcode);
+                                            describeFromBarcode(scan.barcode);
+                                        }}
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid gap-2">

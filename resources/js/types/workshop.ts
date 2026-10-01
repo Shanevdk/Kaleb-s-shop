@@ -518,3 +518,15 @@ export type DecodedBarcode = {
     inventory_item_id: string | null;
     part_order_id: string | null;
 };
+
+/**
+ * A barcode a paired phone scanned, already decoded on the server.
+ */
+export type PhoneScan = {
+    id: number;
+    barcode: string;
+    description: string | null;
+    brand: string | null;
+    source: 'inventory' | 'lookup' | null;
+    inventory_item_id: string | null;
+};

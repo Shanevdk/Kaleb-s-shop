@@ -1,6 +1,7 @@
-import { usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
+import AppWordmark from '@/components/app-wordmark';
 import {
     screenSaverPreviewEvent,
     useScreenSaver,
@@ -9,7 +10,6 @@ import type { ScreenSaverSettings } from '@/hooks/use-screen-saver';
 import { useScreenSaverData } from '@/hooks/use-screen-saver-data';
 import type {
     ScreenSaverChecklist,
-    ScreenSaverData,
     ScreenSaverJob,
 } from '@/hooks/use-screen-saver-data';
 import { useScreenSaverImageUrls } from '@/hooks/use-screen-saver-images';
@@ -28,18 +28,15 @@ const activityEvents = [
     'dragover',
 ] as const;
 
-type Slide = { type: 'clock' } | { type: 'schedule' } | { type: 'checklists' };
-
 /**
- * A clock (and, if set up, today's jobs and open checklists) that drops
- * down over the app after a while with nobody using it, with any photos
- * added kept in a panel of their own alongside whichever of those is
- * showing. It only goes back up when it is deliberately tapped, clicked or
- * a key is pressed - not from a scroll, a drag or the mouse drifting.
+ * Everything at once, dropped down over the app after a while with nobody
+ * using it: the pictures fill the background, cross-fading from one to the
+ * next, with the clock, today's jobs and the open checklists on top. It only
+ * goes back up when it is deliberately tapped, clicked or a key is pressed -
+ * not from a scroll, a drag or the mouse drifting.
  */
 export default function ScreenSaver() {
     const settings = useScreenSaver();
-    const { name } = usePage().props;
     const [active, setActive] = useState(false);
     const activeRef = useRef(false);
     const timer = useRef<number | undefined>(undefined);
@@ -47,24 +44,10 @@ export default function ScreenSaver() {
     const pictures = useScreenSaverImageUrls();
     const showPictures =
         settings.panels.includes('pictures') && pictures.length > 0;
-    const needsData =
-        settings.panels.includes('schedule') ||
-        settings.panels.includes('checklists');
-    const data = useScreenSaverData(active && needsData);
-
-    const mainPanels = useMemo(
-        () => settings.panels.filter((panel) => panel !== 'pictures'),
-        [settings.panels],
-    );
-
-    const slides = useMemo<Slide[]>(() => {
-        const built = mainPanels.map((panel): Slide => ({
-            type: panel as Slide['type'],
-        }));
-
-        // Something always has to be on screen.
-        return built.length > 0 ? built : [{ type: 'clock' }];
-    }, [mainPanels]);
+    const showClock = settings.panels.includes('clock');
+    const showSchedule = settings.panels.includes('schedule');
+    const showChecklists = settings.panels.includes('checklists');
+    const data = useScreenSaverData(active && (showSchedule || showChecklists));
 
     const arm = useCallback(() => {
         window.clearTimeout(timer.current);
@@ -141,31 +124,7 @@ export default function ScreenSaver() {
             window.removeEventListener('keydown', onKey, { capture: true });
     }, [active, wake]);
 
-    // Step through the slides while it is down.
-    const [slideIndex, setSlideIndex] = useState(0);
-
-    useEffect(() => {
-        if (!active) {
-            setSlideIndex(0);
-
-            return;
-        }
-
-        if (slides.length <= 1) {
-            return;
-        }
-
-        const step = window.setInterval(() => {
-            setSlideIndex((index) => (index + 1) % slides.length);
-        }, settings.secondsPerPanel * 1000);
-
-        return () => window.clearInterval(step);
-    }, [active, slides.length, settings.secondsPerPanel]);
-
-    const slide = slides[slideIndex % slides.length];
-
-    // Step through the photos, independently of the main slide, while a
-    // picture panel is showing.
+    // Step through the background pictures while it is down.
     const [pictureIndex, setPictureIndex] = useState(0);
 
     useEffect(() => {
@@ -186,6 +145,28 @@ export default function ScreenSaver() {
         return () => window.clearInterval(step);
     }, [active, showPictures, pictures.length, settings.secondsPerPanel]);
 
+    // Wander a little every minute so nothing burns into the screen.
+    const [drift, setDrift] = useState({ x: 0, y: 0 });
+
+    useEffect(() => {
+        if (!active) {
+            return;
+        }
+
+        const wander = window.setInterval(
+            () =>
+                setDrift({
+                    x: Math.round((Math.random() - 0.5) * 24),
+                    y: Math.round((Math.random() - 0.5) * 16),
+                }),
+            60_000,
+        );
+
+        return () => window.clearInterval(wander);
+    }, [active]);
+
+    const hasSidePanels = showSchedule || showChecklists;
+
     return (
         <div
             role="dialog"
@@ -199,117 +180,151 @@ export default function ScreenSaver() {
                 wake();
             }}
             className={cn(
-                'bg-brand-navy fixed inset-0 z-[100] flex cursor-pointer overflow-hidden text-white shadow-2xl transition-transform duration-700 ease-out select-none motion-reduce:transition-none',
+                'bg-brand-navy fixed inset-0 z-[100] cursor-pointer overflow-hidden text-white shadow-2xl transition-transform duration-700 ease-out select-none motion-reduce:transition-none',
                 active
                     ? 'translate-y-0'
                     : 'pointer-events-none -translate-y-full',
             )}
         >
             {active && (
-                <div className="flex h-full w-full flex-col md:flex-row">
-                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-10">
-                        <SlideView
-                            slide={slide}
-                            settings={settings}
-                            shopName={name}
-                            data={data}
-                        />
-                    </div>
-
+                <>
                     {showPictures && (
-                        <PicturePanel
-                            url={pictures[pictureIndex % pictures.length].url}
+                        <Backdrop
+                            urls={pictures.map((picture) => picture.url)}
+                            current={pictureIndex % pictures.length}
+                            seconds={settings.secondsPerPanel}
                         />
                     )}
-                </div>
+
+                    <div
+                        className="relative flex h-full w-full flex-col gap-6 overflow-y-auto p-6 transition-transform duration-[3000ms] ease-in-out sm:p-10"
+                        style={{
+                            transform: `translate(${drift.x}px, ${drift.y}px)`,
+                        }}
+                    >
+                        <header className="flex items-center gap-3">
+                            <span className="bg-brand-navy ring-brand-orange flex size-11 items-center justify-center rounded-xl ring-2 ring-offset-2 ring-offset-transparent">
+                                <AppLogoIcon className="size-8 fill-current" />
+                            </span>
+                            <AppWordmark className="h-6 drop-shadow" onDark />
+                        </header>
+
+                        <div
+                            className={cn(
+                                'grid flex-1 items-center gap-8',
+                                hasSidePanels &&
+                                    'lg:grid-cols-[1fr_minmax(20rem,28rem)]',
+                            )}
+                        >
+                            {showClock ? (
+                                <Clock
+                                    settings={settings}
+                                    centred={!hasSidePanels}
+                                />
+                            ) : (
+                                <div />
+                            )}
+
+                            {hasSidePanels && (
+                                <div className="grid content-center gap-4">
+                                    {showSchedule && (
+                                        <SchedulePanel
+                                            jobs={data?.jobsToday ?? null}
+                                        />
+                                    )}
+                                    {showChecklists && (
+                                        <ChecklistsPanel
+                                            checklists={
+                                                data?.checklistsInProgress ??
+                                                null
+                                            }
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
             )}
 
             <div className="bg-brand-orange absolute inset-x-0 bottom-0 h-1.5" />
-            <p className="absolute inset-x-0 bottom-8 text-center text-xs tracking-[0.3em] text-white/50 uppercase">
+            <p className="absolute inset-x-0 bottom-4 text-center text-xs tracking-[0.3em] text-white/60 uppercase drop-shadow">
                 Tap anywhere to carry on
             </p>
         </div>
     );
 }
 
-function SlideView({
-    slide,
-    settings,
-    shopName,
-    data,
-}: {
-    slide: Slide;
-    settings: ScreenSaverSettings;
-    shopName: string;
-    data: ScreenSaverData | null;
-}) {
-    if (slide.type === 'schedule') {
-        return (
-            <SchedulePanel jobs={data?.jobsToday ?? null} shopName={shopName} />
-        );
-    }
-
-    if (slide.type === 'checklists') {
-        return (
-            <ChecklistsPanel
-                checklists={data?.checklistsInProgress ?? null}
-                shopName={shopName}
-            />
-        );
-    }
-
-    return <Clock settings={settings} shopName={shopName} />;
-}
-
 /**
- * A fixed strip of the screen, separate from whichever main slide is
- * showing, that keeps cycling through the photos on its own.
+ * The pictures filling the screen behind everything, each fading in over the
+ * last with a slow zoom, under a tint so the writing on top stays readable.
  */
-function PicturePanel({ url }: { url: string }) {
+function Backdrop({
+    urls,
+    current,
+    seconds,
+}: {
+    urls: string[];
+    current: number;
+    seconds: number;
+}) {
     return (
-        <div className="relative h-56 w-full shrink-0 overflow-hidden border-t border-white/10 md:h-full md:w-2/5 md:max-w-md md:border-t-0 md:border-l">
-            <img src={url} alt="" className="h-full w-full object-cover" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent md:bg-gradient-to-l" />
+        <div className="absolute inset-0" aria-hidden>
+            {urls.map((url, index) => (
+                <img
+                    key={url}
+                    src={url}
+                    alt=""
+                    className={cn(
+                        'absolute inset-0 h-full w-full object-cover ease-linear motion-reduce:transition-none',
+                        index === current
+                            ? 'scale-110 opacity-100'
+                            : 'scale-100 opacity-0',
+                    )}
+                    style={{
+                        transitionProperty: 'opacity, transform',
+                        transitionDuration: `1500ms, ${seconds * 1000 + 1500}ms`,
+                    }}
+                />
+            ))}
+            <div className="from-brand-navy/90 via-brand-navy/55 absolute inset-0 bg-gradient-to-r to-black/45" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
         </div>
     );
 }
 
-function PanelHeading({ children }: { children: string }) {
+/**
+ * A see-through card for the panels sitting over the pictures.
+ */
+function Card({ heading, children }: { heading: string; children: ReactNode }) {
     return (
-        <p className="text-brand-orange text-sm font-medium tracking-[0.3em] uppercase">
+        <section className="space-y-3 rounded-2xl border border-white/15 bg-black/35 p-5 shadow-xl backdrop-blur-md">
+            <p className="text-brand-orange text-sm font-semibold tracking-[0.3em] uppercase">
+                {heading}
+            </p>
             {children}
-        </p>
+        </section>
     );
 }
 
-function SchedulePanel({
-    jobs,
-    shopName,
-}: {
-    jobs: ScreenSaverJob[] | null;
-    shopName: string;
-}) {
+function SchedulePanel({ jobs }: { jobs: ScreenSaverJob[] | null }) {
     return (
-        <div className="flex w-full max-w-xl flex-col items-center gap-6 px-6 text-center">
-            <PanelHeading>Today&rsquo;s jobs</PanelHeading>
-
+        <Card heading="Today’s jobs">
             {jobs === null ? null : jobs.length === 0 ? (
-                <p className="text-lg text-white/70">
-                    Nothing booked in for today.
-                </p>
+                <p className="text-white/70">Nothing booked in for today.</p>
             ) : (
-                <ul className="w-full space-y-2.5 text-left">
-                    {jobs.slice(0, 6).map((job) => (
+                <ul className="space-y-2">
+                    {jobs.slice(0, 5).map((job) => (
                         <li
                             key={job.id}
-                            className="flex items-center justify-between gap-4 rounded-lg bg-white/5 px-4 py-3"
+                            className="flex items-center justify-between gap-4 rounded-lg bg-white/10 px-4 py-2.5"
                         >
                             <div className="min-w-0">
                                 <p className="truncate font-medium">
                                     {job.title}
                                 </p>
                                 {job.vehicle && (
-                                    <p className="truncate text-sm text-white/50">
+                                    <p className="truncate text-sm text-white/60">
                                         {job.vehicle}
                                     </p>
                                 )}
@@ -319,37 +334,32 @@ function SchedulePanel({
                             </span>
                         </li>
                     ))}
+                    {jobs.length > 5 && (
+                        <li className="text-sm text-white/60">
+                            and {jobs.length - 5} more
+                        </li>
+                    )}
                 </ul>
             )}
-
-            <p className="text-sm tracking-[0.3em] text-white/40 uppercase">
-                {shopName}
-            </p>
-        </div>
+        </Card>
     );
 }
 
 function ChecklistsPanel({
     checklists,
-    shopName,
 }: {
     checklists: ScreenSaverChecklist[] | null;
-    shopName: string;
 }) {
     return (
-        <div className="flex w-full max-w-xl flex-col items-center gap-6 px-6 text-center">
-            <PanelHeading>Open checklists</PanelHeading>
-
+        <Card heading="Open checklists">
             {checklists === null ? null : checklists.length === 0 ? (
-                <p className="text-lg text-white/70">
-                    Nothing left in progress.
-                </p>
+                <p className="text-white/70">Nothing left in progress.</p>
             ) : (
-                <ul className="w-full space-y-2.5 text-left">
-                    {checklists.slice(0, 6).map((checklist) => (
+                <ul className="space-y-2">
+                    {checklists.slice(0, 4).map((checklist) => (
                         <li
                             key={checklist.id}
-                            className="space-y-1.5 rounded-lg bg-white/5 px-4 py-3"
+                            className="space-y-1.5 rounded-lg bg-white/10 px-4 py-2.5"
                         >
                             <div className="flex items-center justify-between gap-4">
                                 <div className="min-w-0">
@@ -357,17 +367,17 @@ function ChecklistsPanel({
                                         {checklist.title}
                                     </p>
                                     {checklist.vehicle && (
-                                        <p className="truncate text-sm text-white/50">
+                                        <p className="truncate text-sm text-white/60">
                                             {checklist.vehicle}
                                         </p>
                                     )}
                                 </div>
-                                <span className="shrink-0 text-sm text-white/50 tabular-nums">
+                                <span className="shrink-0 text-sm text-white/60 tabular-nums">
                                     {checklist.checkedCount}/
                                     {checklist.itemsCount}
                                 </span>
                             </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
                                 <div
                                     className="bg-brand-orange h-full rounded-full"
                                     style={{
@@ -377,44 +387,30 @@ function ChecklistsPanel({
                             </div>
                         </li>
                     ))}
+                    {checklists.length > 4 && (
+                        <li className="text-sm text-white/60">
+                            and {checklists.length - 4} more
+                        </li>
+                    )}
                 </ul>
             )}
-
-            <p className="text-sm tracking-[0.3em] text-white/40 uppercase">
-                {shopName}
-            </p>
-        </div>
+        </Card>
     );
 }
 
 function Clock({
     settings,
-    shopName,
+    centred,
 }: {
     settings: ScreenSaverSettings;
-    shopName: string;
+    centred: boolean;
 }) {
     const [now, setNow] = useState(() => new Date());
-    const [drift, setDrift] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
         const tick = window.setInterval(() => setNow(new Date()), 1000);
 
         return () => window.clearInterval(tick);
-    }, []);
-
-    // Wander a little every minute so nothing burns into the screen.
-    useEffect(() => {
-        const wander = window.setInterval(
-            () =>
-                setDrift({
-                    x: Math.round((Math.random() - 0.5) * 80),
-                    y: Math.round((Math.random() - 0.5) * 60),
-                }),
-            60_000,
-        );
-
-        return () => window.clearInterval(wander);
     }, []);
 
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -442,15 +438,13 @@ function Clock({
 
     return (
         <div
-            className="flex flex-col items-center gap-4 px-6 text-center transition-transform duration-[3000ms] ease-in-out"
-            style={{ transform: `translate(${drift.x}px, ${drift.y}px)` }}
+            className={cn(
+                'flex flex-col gap-3 drop-shadow-lg',
+                centred ? 'items-center text-center' : 'items-start',
+            )}
         >
-            <div className="bg-brand-navy ring-brand-orange flex size-14 items-center justify-center rounded-2xl ring-2 ring-offset-4 ring-offset-transparent">
-                <AppLogoIcon className="size-10 fill-current" />
-            </div>
-
             <p className="flex items-baseline gap-3 font-light tabular-nums">
-                <span className="text-[clamp(4rem,16vw,12rem)] leading-none tracking-tight">
+                <span className="text-[clamp(4rem,14vw,11rem)] leading-none tracking-tight">
                     {time}
                 </span>
                 {dayPeriod && (
@@ -461,14 +455,10 @@ function Clock({
             </p>
 
             {settings.showDate && (
-                <p className="text-[clamp(1rem,3vw,1.75rem)] text-white/80">
+                <p className="text-[clamp(1rem,3vw,1.75rem)] text-white/85">
                     {date}
                 </p>
             )}
-
-            <p className="text-sm tracking-[0.3em] text-white/40 uppercase">
-                {shopName}
-            </p>
         </div>
     );
 }
