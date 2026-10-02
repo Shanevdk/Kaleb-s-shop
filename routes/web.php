@@ -25,6 +25,7 @@ use App\Http\Controllers\VehicleChecklistChangeController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VehicleLookController;
 use App\Http\Controllers\VehiclePhotoController;
+use App\Http\Controllers\WorkOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -64,6 +65,14 @@ Route::get('phone-scanner/{token}', [PhoneScannerController::class, 'show'])
 Route::post('phone-scanner/{token}/scans', [PhoneScannerController::class, 'scan'])
     ->middleware(['signed', 'throttle:60,1'])
     ->name('phone-scanner.scan');
+
+/**
+ * A job's work order, to share. No login needed: the link is signed
+ * and only shows the job it was made for.
+ */
+Route::get('work-orders/{serviceRecord}', [WorkOrderController::class, 'show'])
+    ->middleware('signed')
+    ->name('work-orders.show');
 
 Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
     Route::post('admin/users/{user}/verify', [UserController::class, 'verify'])
@@ -130,6 +139,9 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::post('service-records/{service_record}/estimate', [ServiceRecordEstimateController::class, 'store'])
         ->middleware('throttle:5,1')
         ->name('service-records.estimate.store');
+    Route::put('service-records/{service_record}/work-order', [WorkOrderController::class, 'update'])
+        ->middleware('throttle:10,1')
+        ->name('service-records.work-order.update');
 
     Route::get('job-queue', [JobQueueController::class, 'index'])->name('job-queue.index');
     Route::patch('job-queue/{serviceRecord}', [JobQueueController::class, 'update'])->name('job-queue.update');

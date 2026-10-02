@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     Banknote,
     Clock,
+    FileText,
     Package,
     Pencil,
     Trash2,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
+import WorkOrderDialog from '@/components/work-order-dialog';
 import JobEstimate, { useEstimatePolling } from '@/components/job-estimate';
 import PageHeader from '@/components/page-header';
 import StatCard from '@/components/stat-card';
@@ -32,12 +34,14 @@ import {
 } from '@/lib/format';
 import { destroy, edit, index } from '@/routes/service-records';
 import { show as showVehicle } from '@/routes/vehicles';
-import type { ServiceRecord } from '@/types';
+import type { WorkOrder, ServiceRecord } from '@/types';
 
 export default function ServiceRecordShow({
     record,
+    workOrder,
 }: {
     record: ServiceRecord;
+    workOrder: { url: string; sheet: WorkOrder };
 }) {
     setLayoutProps({
         breadcrumbs: [
@@ -46,7 +50,7 @@ export default function ServiceRecordShow({
         ],
     });
 
-    useEstimatePolling([record.estimate], ['record']);
+    useEstimatePolling([record.estimate], ['record', 'workOrder']);
 
     const parts = record.parts ?? [];
 
@@ -76,6 +80,17 @@ export default function ServiceRecordShow({
                                     </Link>
                                 </Button>
                             )}
+                            <WorkOrderDialog
+                                recordId={record.id}
+                                sheet={workOrder.sheet}
+                                url={workOrder.url}
+                                trigger={
+                                    <Button variant="outline">
+                                        <FileText />
+                                        Work order
+                                    </Button>
+                                }
+                            />
                             <Button variant="outline" asChild>
                                 <Link href={edit(record.id)}>
                                     <Pencil />

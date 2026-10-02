@@ -5,7 +5,10 @@ namespace App\Actions;
 use App\Actions\Assistant\AssistantUnavailable;
 use App\Actions\Assistant\OpenRouter;
 use App\Models\ServiceRecord;
+use App\Models\ServiceRecordPart;
 use App\Models\Vehicle;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class EstimateJobDuration
@@ -31,7 +34,7 @@ class EstimateJobDuration
      */
     public function handle(ServiceRecord $serviceRecord, ?string $notes): array
     {
-        $estimate = $this->ask($serviceRecord, self::withoutEstimate($notes));
+        $estimate = Arr::except($this->ask($serviceRecord, self::withoutEstimate($notes)), 'part_prices');
 
         return [
             ...$estimate,
@@ -40,9 +43,11 @@ class EstimateJobDuration
     }
 
     /**
-     * Estimate a saved job from its own notes, for storing on the job.
+     * Estimate a saved job from its own notes, for storing on the job, with
+     * a price for each of its parts the shelf has no price for, keyed by the
+     * part line's id.
      *
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, model: string|null}
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>, model: string|null}
      *
      * @throws AssistantUnavailable
      */
@@ -70,7 +75,7 @@ class EstimateJobDuration
     /**
      * Have the model estimate the job.
      *
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, model: string|null}
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>, model: string|null}
      *
      * @throws AssistantUnavailable
      */
@@ -78,12 +83,15 @@ class EstimateJobDuration
     {
         $this->openRouter->ensureConfigured();
 
+        // Numbered from 1, the way the model sees them.
+        $parts = $serviceRecord->parts()->with('inventoryItem')->oldest('id')->get()->values();
+
         ['message' => $message, 'model' => $model] = $this->openRouter->complete([
             ['role' => 'system', 'content' => $this->instructions()],
-            ['role' => 'user', 'content' => $this->brief($serviceRecord, $serviceRecord->vehicle, $notes)],
+            ['role' => 'user', 'content' => $this->brief($serviceRecord, $serviceRecord->vehicle, $notes, $parts)],
         ], timeout: 40, reasoning: 'low', budget: self::BUDGET);
 
-        $estimate = $this->parse(trim((string) ($message['content'] ?? '')));
+        $estimate = $this->parse(trim((string) ($message['content'] ?? '')), $parts);
 
         if ($estimate === null) {
             throw new AssistantUnavailable(__('The AI could not work out an estimate. Try again in a moment.'));
@@ -98,22 +106,41 @@ class EstimateJobDuration
     private function instructions(): string
     {
         return <<<'PROMPT'
-        You help a mechanic in a small workshop estimate how long a job will take, so it can be scheduled and quoted. Base it on the job itself, any notes already on it, and the vehicle's details and recent history. Give a realistic time for one qualified mechanic working alone on this job in this workshop: the whole job start to finish, not just the headline repair time from a flat-rate guide, so include things like getting the vehicle up, removing what is in the way and testing the fix after.
+        You help a company's in-house mechanics estimate a repair on one of the company's own vehicles or machines: how long it will take, and what the parts it needs will cost, so it can be scheduled and the cost signed off. Base it on the job itself, any notes already on it, and the vehicle's details and recent history.
+
+        The time is how long the repair takes one qualified mechanic working alone, start to finish: not just the headline repair time from a flat-rate guide, so include things like getting the vehicle up, removing what is in the way and testing the fix after.
+
+        Some parts may be marked "no price known". For each of those, give what one of it typically costs to buy new right now, in the same currency as any shelf prices listed, as a plain number with no currency symbol. Price the part for this vehicle where it matters. Leave out parts that already have a shelf price.
 
         Answer with ONLY a JSON object, no prose before or after and no markdown fences, in exactly this shape:
         {
           "hours": a number of hours, to the nearest quarter hour,
           "range": {"low": number, "high": number},
-          "reasoning": "One or two sentences on what the time accounts for, and anything that could make it run long."
+          "reasoning": "One or two sentences on what the time accounts for, and anything that could make it run long.",
+          "part_prices": [{"part": the number of a part marked "no price known", "price_each": number}]
         }
         PROMPT;
     }
 
     /**
-     * Describe the job and the vehicle for the model.
+     * Describe the job, its parts and the vehicle for the model.
+     *
+     * @param  Collection<int, ServiceRecordPart>  $parts
      */
-    private function brief(ServiceRecord $serviceRecord, ?Vehicle $vehicle, ?string $notes): string
+    private function brief(ServiceRecord $serviceRecord, ?Vehicle $vehicle, ?string $notes, Collection $parts): string
     {
+        $partLines = $parts
+            ->map(fn (ServiceRecordPart $part, int $index): string => sprintf(
+                '%d. %s × %s, %s',
+                $index + 1,
+                $part->name,
+                trim(rtrim(rtrim((string) $part->quantity, '0'), '.').' '.$part->unit->abbreviation()),
+                $part->hasShelfPrice()
+                    ? 'shelf price '.number_format((float) $part->inventoryItem->unit_cost, 2, '.', '').' each'
+                    : 'no price known',
+            ))
+            ->all();
+
         $history = $vehicle === null ? [] : $vehicle->serviceRecords()
             ->where('id', '!=', $serviceRecord->id)
             ->latest('performed_on')
@@ -136,6 +163,7 @@ class EstimateJobDuration
             $vehicle?->odometer !== null ? "Odometer or hours: {$vehicle->odometer}" : null,
             filled($vehicle?->notes) ? "Notes on the vehicle: {$vehicle->notes}" : null,
             $history !== [] ? "Recent work on it:\n- ".implode("\n- ", $history) : null,
+            $partLines !== [] ? "Parts the job needs:\n".implode("\n", $partLines) : 'No parts listed for the job.',
         ]));
     }
 
@@ -143,9 +171,10 @@ class EstimateJobDuration
      * Read the model's JSON answer, forgiving the fences and chatter free
      * models like to wrap it in. Null when there is no usable estimate.
      *
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string}|null
+     * @param  Collection<int, ServiceRecordPart>  $parts
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>}|null
      */
-    private function parse(string $content): ?array
+    private function parse(string $content, Collection $parts): ?array
     {
         $start = strpos($content, '{');
         $end = strrpos($content, '}');
@@ -170,7 +199,38 @@ class EstimateJobDuration
             'low' => $low !== null && $low <= $hours ? $low : null,
             'high' => $high !== null && $high >= $hours ? $high : null,
             'reasoning' => Str::limit(trim((string) ($data['reasoning'] ?? '')), 400),
+            'part_prices' => $this->partPrices($data['part_prices'] ?? null, $parts),
         ];
+    }
+
+    /**
+     * Match the prices the model gave back to the parts it was asked to
+     * price, dropping any for a part that has a shelf price, does not exist
+     * or comes with a price that makes no sense.
+     *
+     * @param  Collection<int, ServiceRecordPart>  $parts
+     * @return array<string, float>
+     */
+    private function partPrices(mixed $answer, Collection $parts): array
+    {
+        $prices = [];
+
+        foreach (is_array($answer) ? $answer : [] as $line) {
+            if (! is_array($line) || ! is_numeric($line['part'] ?? null) || ! is_numeric($line['price_each'] ?? null)) {
+                continue;
+            }
+
+            $part = $parts->get((int) $line['part'] - 1);
+            $price = round((float) $line['price_each'], 2);
+
+            if ($part === null || $part->hasShelfPrice() || $price <= 0 || $price > 100000) {
+                continue;
+            }
+
+            $prices[$part->id] = $price;
+        }
+
+        return $prices;
     }
 
     /**

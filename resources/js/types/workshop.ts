@@ -256,6 +256,39 @@ export type ServiceRecord = {
 };
 
 /**
+ * A job as it goes on its work order.
+ */
+export type WorkOrder = {
+    title: string;
+    type_label: string;
+    status_label: string;
+    reason: string;
+    updated_on: string | null;
+    estimating: boolean;
+    vehicle: {
+        name: string;
+        registration: string | null;
+        vin: string | null;
+        odometer: number | null;
+    } | null;
+    parts: WorkOrderPart[];
+    cost: { total: number; unpriced: number };
+    time: { hours: number; low: number | null; high: number | null } | null;
+};
+
+/**
+ * A part on a work order, priced off the shelf or by the AI's estimate.
+ */
+export type WorkOrderPart = {
+    name: string;
+    quantity: number;
+    unit_abbreviation: string;
+    price_each: number | null;
+    line_total: number | null;
+    priced_by: 'shelf' | 'estimate' | null;
+};
+
+/**
  * The AI's estimate of how long a job will take, worked out in the
  * background whenever the job is saved with new notes.
  */

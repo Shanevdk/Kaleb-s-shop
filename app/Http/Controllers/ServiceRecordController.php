@@ -8,6 +8,7 @@ use App\Enums\ServiceType;
 use App\Enums\UnitOfMeasure;
 use App\Http\Requests\ServiceRecordRequest;
 use App\Http\Resources\ServiceRecordResource;
+use App\Http\Resources\WorkOrderResource;
 use App\Models\Fitment;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
@@ -112,7 +113,11 @@ class ServiceRecordController extends Controller
         Gate::authorize('view', $serviceRecord);
 
         return Inertia::render('service-records/show', [
-            'record' => ServiceRecordResource::make($serviceRecord->load('vehicle', 'parts.inventoryItem'))->resolve(),
+            'record' => ServiceRecordResource::make($serviceRecord->load('vehicle', 'parts.inventoryItem', 'inspectionItem'))->resolve(),
+            'workOrder' => [
+                'url' => $serviceRecord->workOrderUrl(),
+                'sheet' => WorkOrderResource::make($serviceRecord)->resolve(),
+            ],
         ]);
     }
 
@@ -140,7 +145,13 @@ class ServiceRecordController extends Controller
     {
         $serviceRecord->update($request->recordAttributes());
 
+        $partsBefore = $this->partsFingerprint($serviceRecord);
+
         $this->syncParts($serviceRecord, $request->parts());
+
+        if ($this->partsFingerprint($serviceRecord) !== $partsBefore) {
+            $serviceRecord->estimateAgain();
+        }
 
         $this->flashStockResult($serviceRecord, __('Job updated.'));
 
@@ -247,6 +258,21 @@ class ServiceRecordController extends Controller
         $this->syncServiceRecordStock->release($serviceRecord, $dropped);
 
         $dropped->each(fn (ServiceRecordPart $part) => $part->delete());
+    }
+
+    /**
+     * Get a fingerprint of which parts the job calls for and how many, so a
+     * change to them can be told apart from a save that left them alone.
+     */
+    private function partsFingerprint(ServiceRecord $serviceRecord): string
+    {
+        return md5((string) json_encode(
+            $serviceRecord->parts()
+                ->orderBy('id')
+                ->get(['name', 'quantity', 'unit', 'inventory_item_id'])
+                ->map(fn (ServiceRecordPart $part): array => [$part->name, $part->quantity, $part->unit->value, $part->inventory_item_id])
+                ->all(),
+        ));
     }
 
     /**

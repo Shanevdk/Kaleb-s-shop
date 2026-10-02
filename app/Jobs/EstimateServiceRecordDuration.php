@@ -11,8 +11,9 @@ use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
 /**
- * Works out how long a job will take, after the page that saved it has gone
- * back, so saving stays instant while the model thinks it over.
+ * Works out how long a job will take and what its unpriced parts cost,
+ * after the page that saved it has gone back, so saving stays instant while
+ * the model thinks it over.
  */
 class EstimateServiceRecordDuration implements ShouldQueue
 {
@@ -64,6 +65,12 @@ class EstimateServiceRecordDuration implements ShouldQueue
             'estimate_reasoning' => $estimate['reasoning'] !== '' ? $estimate['reasoning'] : null,
             'estimated_at' => now(),
         ])->saveQuietly();
+
+        // Straight to the table: the parts are only being priced, so there is
+        // nothing to link to the shelf again.
+        foreach ($estimate['part_prices'] as $partId => $priceEach) {
+            $this->serviceRecord->parts()->whereKey($partId)->update(['estimated_unit_cost' => $priceEach]);
+        }
     }
 
     /**

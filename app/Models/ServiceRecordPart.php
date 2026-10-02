@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string $quantity
  * @property UnitOfMeasure $unit
  * @property string $quantity_taken
+ * @property string|null $estimated_unit_cost
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -44,13 +45,40 @@ class ServiceRecordPart extends Model
 
     /**
      * A part typed in by name is pointed at the stocked part of that name, so
-     * the job sees what is on the shelf.
+     * the job sees what is on the shelf. A line that becomes a different part
+     * loses the price the AI guessed for the old one.
      */
     protected static function booted(): void
     {
         static::saving(function (ServiceRecordPart $part): void {
             app(LinkJobPartsToStock::class)->linkPart($part);
+
+            if ($part->exists && $part->isDirty(['name', 'inventory_item_id'])) {
+                $part->estimated_unit_cost = null;
+            }
         });
+    }
+
+    /**
+     * Get what one of the part costs: the shelf price when the shelf has
+     * one, otherwise the AI's estimate, otherwise nothing known yet.
+     */
+    public function priceEach(): ?float
+    {
+        if ($this->hasShelfPrice()) {
+            return (float) $this->inventoryItem->unit_cost;
+        }
+
+        return $this->estimated_unit_cost === null ? null : (float) $this->estimated_unit_cost;
+    }
+
+    /**
+     * Determine whether the price comes off the shelf rather than from the
+     * AI's estimate.
+     */
+    public function hasShelfPrice(): bool
+    {
+        return $this->inventoryItem !== null && (float) $this->inventoryItem->unit_cost > 0;
     }
 
     /**
@@ -111,6 +139,7 @@ class ServiceRecordPart extends Model
             'quantity' => 'decimal:2',
             'unit' => UnitOfMeasure::class,
             'quantity_taken' => 'decimal:2',
+            'estimated_unit_cost' => 'decimal:2',
         ];
     }
 }

@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 
 /**
  * @property string $id
@@ -31,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property string $parts_cost
  * @property string $labour_cost
  * @property string|null $description
+ * @property string|null $issue_reason
  * @property EstimateStatus|null $estimate_status
  * @property string|null $estimated_hours
  * @property string|null $estimated_hours_low
@@ -40,7 +42,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['vehicle_id', 'inspection_item_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description'])]
+#[Fillable(['vehicle_id', 'inspection_item_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description', 'issue_reason'])]
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */
@@ -67,11 +69,31 @@ class ServiceRecord extends Model
     }
 
     /**
+     * Whether an estimate has already been asked for while saving this
+     * instance, so changing the parts in the same save does not ask twice.
+     */
+    public bool $estimateQueued = false;
+
+    /**
+     * Have the estimate worked out again, say because the parts the job calls
+     * for changed and the cost has to cover the new ones. Nothing happens if
+     * one is already on its way from this save.
+     */
+    public function estimateAgain(): void
+    {
+        if ($this->canBeEstimated() && ! $this->estimateQueued) {
+            $this->queueEstimate();
+        }
+    }
+
+    /**
      * Mark the estimate as on its way and have it worked out after the
      * response has gone back.
      */
     private function queueEstimate(): void
     {
+        $this->estimateQueued = true;
+
         $this->forceFill(['estimate_status' => EstimateStatus::Pending])->saveQuietly();
 
         EstimateServiceRecordDuration::dispatch($this, $this->estimateFingerprint())->afterCommit();
@@ -137,6 +159,70 @@ class ServiceRecord extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /**
+     * Get the checklist item the job was planned from, if it was flagged on one.
+     *
+     * @return BelongsTo<InspectionItem, $this>
+     */
+    public function inspectionItem(): BelongsTo
+    {
+        return $this->belongsTo(InspectionItem::class);
+    }
+
+    /**
+     * Get what is wrong, for the work order: what was written up for it, or
+     * failing that what was flagged on the checklist or noted on the job.
+     */
+    public function issueReason(): string
+    {
+        if (filled($this->issue_reason)) {
+            return $this->issue_reason;
+        }
+
+        $item = $this->inspectionItem;
+
+        if ($item !== null) {
+            return filled($item->notes) ? "{$item->label}: {$item->notes}" : $item->label;
+        }
+
+        return EstimateJobDuration::withoutEstimate($this->description);
+    }
+
+    /**
+     * Get what the parts for the job should cost, and how many of them have
+     * no price yet: neither on the shelf nor estimated by the AI.
+     *
+     * @return array{total: float, unpriced: int}
+     */
+    public function partsEstimate(): array
+    {
+        $total = 0.0;
+        $unpriced = 0;
+
+        foreach ($this->parts as $part) {
+            $priceEach = $part->priceEach();
+
+            if ($priceEach === null) {
+                $unpriced++;
+
+                continue;
+            }
+
+            $total += $priceEach * (float) $part->quantity;
+        }
+
+        return ['total' => round($total, 2), 'unpriced' => $unpriced];
+    }
+
+    /**
+     * Get the link anyone can open the job's work order with, no login
+     * needed. The sheet always shows the job as it is now.
+     */
+    public function workOrderUrl(): string
+    {
+        return URL::signedRoute('work-orders.show', $this);
     }
 
     /**

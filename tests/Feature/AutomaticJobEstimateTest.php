@@ -4,7 +4,9 @@ use App\Enums\EstimateStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
 use App\Jobs\EstimateServiceRecordDuration;
+use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
+use App\Models\ServiceRecordPart;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Http\Client\Request;
@@ -150,4 +152,69 @@ test('a failed estimate is marked so the page stops waiting', function () {
     runEstimate($record);
 
     expect($record->refresh()->estimate_status)->toBe(EstimateStatus::Failed);
+});
+
+test('the AI prices the parts the shelf has no price for, and leaves shelf prices alone', function () {
+    Queue::fake();
+    $record = ServiceRecord::factory()->planned()->create(['title' => 'Front brake pads']);
+    $cleaner = InventoryItem::factory()->create(['name' => 'Brake cleaner', 'unit_cost' => 30]);
+    $record->parts()->create(['inventory_item_id' => $cleaner->id, 'name' => 'Brake cleaner', 'quantity' => 2, 'unit' => 'each']);
+    $pads = $record->parts()->create(['name' => 'Front brake pad set', 'quantity' => 1, 'unit' => 'each']);
+
+    // Answer by the numbers the parts were given in the brief, pricing the
+    // shelf part too to show that price is ignored.
+    Http::fake(['openrouter.ai/*' => function (Request $request) {
+        $brief = $request['messages'][1]['content'];
+        preg_match('/^(\d+)\. Front brake pad set/m', $brief, $padsLine);
+        preg_match('/^(\d+)\. Brake cleaner/m', $brief, $cleanerLine);
+
+        return Http::response(hoursReply(2.5, json_encode([
+            'hours' => 2.5,
+            'reasoning' => 'Pads and a clean-up.',
+            'part_prices' => [
+                ['part' => (int) $padsLine[1], 'price_each' => 89.5],
+                ['part' => (int) $cleanerLine[1], 'price_each' => 999],
+            ],
+        ])));
+    }]);
+
+    runEstimate($record);
+
+    expect($pads->refresh()->estimated_unit_cost)->toBe('89.50')
+        ->and(ServiceRecordPart::query()->where('name', 'Brake cleaner')->sole()->estimated_unit_cost)->toBeNull();
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][1]['content'], 'Brake cleaner × 2, shelf price 30.00 each')
+        && str_contains($request['messages'][1]['content'], 'Front brake pad set × 1, no price known'));
+});
+
+test('changing the parts on a job queues a fresh estimate so they get priced, and a save that leaves them alone does not', function () {
+    Queue::fake();
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->planned()->create(['description' => 'Pedal is soft.']);
+    $form = [
+        'vehicle_id' => $record->vehicle_id,
+        'title' => $record->title,
+        'type' => $record->type->value,
+        'status' => ServiceStatus::Planned->value,
+        'performed_on' => $record->performed_on->toDateString(),
+        'description' => 'Pedal is soft.',
+    ];
+    Queue::fake();
+
+    $this->actingAs($user)->put(route('service-records.update', $record), [
+        ...$form,
+        'parts' => [['id' => null, 'inventory_item_id' => null, 'name' => 'Front brake pad set', 'quantity' => 1, 'unit' => 'each']],
+    ])->assertRedirect();
+
+    Queue::assertPushed(EstimateServiceRecordDuration::class, 1);
+
+    $part = ServiceRecordPart::sole();
+    Queue::fake();
+
+    $this->actingAs($user)->put(route('service-records.update', $record), [
+        ...$form,
+        'parts' => [['id' => $part->id, 'inventory_item_id' => null, 'name' => 'Front brake pad set', 'quantity' => 1, 'unit' => 'each']],
+    ])->assertRedirect();
+
+    Queue::assertNothingPushed();
 });
