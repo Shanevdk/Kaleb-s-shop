@@ -38,12 +38,54 @@ class LinkJobPartsToStock
      */
     public function linkOpenJobsTo(InventoryItem $item): void
     {
+        $this->linkOpenJobsAskingFor($item->name, $item->unit, $item);
+    }
+
+    /**
+     * Point the open jobs asking for a part under some other name at the
+     * stocked part that turned up for it, such as an order for a "Front wiper
+     * blade" that arrived as a "Bosch ICON 26A".
+     */
+    public function linkOpenJobsAskingFor(string $name, UnitOfMeasure $unit, InventoryItem $item): void
+    {
         ServiceRecordPart::query()
             ->whereNull('inventory_item_id')
-            ->whereRaw('lower(trim(name)) = ?', [self::normalise($item->name)])
-            ->where('unit', $item->unit->value)
+            ->whereRaw('lower(trim(name)) = ?', [self::normalise($name)])
+            ->where('unit', $unit->value)
             ->whereHas('serviceRecord', fn ($query) => $query->where('status', '!=', ServiceStatus::Completed->value))
             ->update(['inventory_item_id' => $item->id]);
+    }
+
+    /**
+     * Point every open job part typed in by name at the stocked part of the
+     * same name, for parts written straight into the database where the
+     * linking done on save never ran, such as an import.
+     *
+     * Finished jobs are left alone so no stock moves. Returns how many parts
+     * were linked.
+     */
+    public function linkUnlinkedOpenJobParts(): int
+    {
+        $linked = 0;
+
+        $parts = ServiceRecordPart::query()
+            ->with('serviceRecord')
+            ->whereNull('inventory_item_id')
+            ->whereHas('serviceRecord', fn ($query) => $query->where('status', '!=', ServiceStatus::Completed->value))
+            ->lazyById();
+
+        foreach ($parts as $part) {
+            $item = blank($part->name)
+                ? null
+                : $this->stockedPartNamed($part->name, $part->unit, $part->serviceRecord?->vehicle_id);
+
+            if ($item !== null) {
+                ServiceRecordPart::query()->whereKey($part->id)->update(['inventory_item_id' => $item->id]);
+                $linked++;
+            }
+        }
+
+        return $linked;
     }
 
     /**

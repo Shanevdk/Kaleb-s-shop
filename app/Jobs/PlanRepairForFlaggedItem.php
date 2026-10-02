@@ -32,9 +32,9 @@ class PlanRepairForFlaggedItem implements ShouldQueue
      */
     public function handle(PlanRepairFromInspection $planRepair): void
     {
-        // Running inside the web request, so give the free models, and the
-        // fallbacks behind them, longer than a page load gets.
-        set_time_limit(300);
+        // The plan keeps its own time budget; this is headroom on top so PHP
+        // never cuts the answer off.
+        set_time_limit(90);
 
         $planRepair->handle($this->item, $this->user);
     }

@@ -39,13 +39,13 @@ test('a shopper cannot add records', function () {
         ->assertForbidden();
 });
 
-test('every page tells the front end what the signed in person can do', function (string $role, bool $manageTeam, bool $workOnRecords) {
+test('every page tells the front end what the signed in person can do', function (string $role, bool $manageTeam, bool $mechanicsShop) {
     $this->actingAs(User::factory()->create(['role' => $role]))
         ->get(route('shopping-list.index'))
         ->assertInertia(fn ($page) => $page
             ->where('auth.role', $role)
             ->where('auth.can.manageTeam', $manageTeam)
-            ->where('auth.can.workOnRecords', $workOnRecords)
+            ->where('auth.can.mechanicsShop', $mechanicsShop)
         );
 })->with([
     'admin' => ['admin', true, true],

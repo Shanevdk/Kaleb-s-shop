@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Actions\DecodeBarcode;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
+use App\Models\InventoryItem;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -44,6 +45,7 @@ class InventoryItemRequest extends FormRequest
             'supplier' => ['nullable', 'string', 'max:120'],
             'location' => ['nullable', 'string', 'max:60'],
             'quantity' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            'quantity_shown' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'minimum_quantity' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'unit_cost' => ['required', 'numeric', 'min:0', 'max:999999'],
             'notes' => ['nullable', 'string', 'max:5000'],
@@ -77,6 +79,21 @@ class InventoryItemRequest extends FormRequest
         }
 
         return $fitments;
+    }
+
+    /**
+     * Get how much the amount on hand was changed by on the edit form.
+     *
+     * The change is measured from what the form showed when it was opened,
+     * not from what is on the shelf now, so stock a job took in the meantime
+     * is never put back by saving the form. Without the amount shown, the
+     * number typed in is taken as the new count.
+     */
+    public function quantityChange(InventoryItem $inventoryItem): float
+    {
+        $shown = $this->validated('quantity_shown') ?? $inventoryItem->quantity;
+
+        return round((float) $this->validated('quantity') - (float) $shown, 2);
     }
 
     /**

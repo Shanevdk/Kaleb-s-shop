@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,6 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property UserRole $role
+ * @property array<int, string>|null $permissions
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -79,6 +81,36 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the equipment records the user added.
+     *
+     * @return HasMany<Equipment, $this>
+     */
+    public function equipment(): HasMany
+    {
+        return $this->hasMany(Equipment::class);
+    }
+
+    /**
+     * Get the equipment checklists the user ran.
+     *
+     * @return HasMany<EquipmentChecklist, $this>
+     */
+    public function equipmentChecklists(): HasMany
+    {
+        return $this->hasMany(EquipmentChecklist::class);
+    }
+
+    /**
+     * Get the equipment service records the user logged.
+     *
+     * @return HasMany<EquipmentServiceRecord, $this>
+     */
+    public function equipmentServiceRecords(): HasMany
+    {
+        return $this->hasMany(EquipmentServiceRecord::class);
+    }
+
+    /**
      * Get the stock the user has taken off the shelf or put back on it.
      *
      * @return HasMany<StockMovement, $this>
@@ -99,6 +131,17 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user holds the given permission, either because
+     * their role grants it by default or because it was added to their
+     * account individually.
+     */
+    public function hasPermission(Permission $permission): bool
+    {
+        return in_array($permission->value, $this->role->defaultPermissions(), true)
+            || in_array($permission->value, $this->permissions ?? [], true);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -109,6 +152,7 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'permissions' => 'array',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }

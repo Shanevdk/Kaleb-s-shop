@@ -17,8 +17,8 @@ class ShoppingListController extends Controller
 {
     /**
      * Display everything that has to be bought: parts the open jobs call for
-     * that are not on the shelf, and stock that has fallen to its reorder
-     * point.
+     * that are not on the shelf, what finished jobs still owe the shelf, and
+     * stock that has fallen to its reorder point.
      */
     public function index(Request $request): Response
     {
@@ -56,6 +56,10 @@ class ShoppingListController extends Controller
      * Roll every part the open jobs call for into one line each, and keep the
      * ones the shelf cannot cover.
      *
+     * A finished job that found the shelf short still owes the rest of a part
+     * we stock, so that is counted too. Parts we do not stock on a finished
+     * job came from somewhere else and are left off.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function shortForOpenJobs(Request $request): array
@@ -67,7 +71,12 @@ class ShoppingListController extends Controller
 
         $parts = ServiceRecordPart::query()
             ->with(['inventoryItem', 'serviceRecord.vehicle'])
-            ->whereIn('service_record_id', $openJobIds)
+            ->where(fn ($query) => $query
+                ->whereIn('service_record_id', $openJobIds)
+                ->orWhere(fn ($query) => $query
+                    ->whereNotNull('inventory_item_id')
+                    ->whereColumn('quantity_taken', '<', 'quantity')
+                    ->whereHas('serviceRecord', fn ($query) => $query->where('status', ServiceStatus::Completed->value))))
             ->get();
 
         $lines = [];

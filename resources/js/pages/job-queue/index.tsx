@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { CheckCircle2, Circle, ListTodo } from 'lucide-react';
 import { useState } from 'react';
-import type { DragEvent, KeyboardEvent } from 'react';
+import type { DragEvent, KeyboardEvent, SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 import EmptyState from '@/components/empty-state';
 import JobEstimate, { useEstimatePolling } from '@/components/job-estimate';
@@ -236,73 +236,85 @@ function PartsStatus({ job }: { job: ServiceRecord }) {
     const outstanding = outstandingParts(job);
     const stocked = isFullyStocked(job);
 
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <button
-                    type="button"
-                    draggable={false}
-                    onClick={(event) => event.stopPropagation()}
-                    onDragStart={(event) => event.stopPropagation()}
-                    aria-label={
-                        stocked
-                            ? `${job.title}: all parts in stock`
-                            : `${job.title}: missing parts, click for details`
-                    }
-                    title={
-                        stocked
-                            ? 'All parts in stock'
-                            : 'Missing parts — click for details'
-                    }
-                    className={cn(
-                        'mt-1 size-3 shrink-0 rounded-sm',
-                        stocked ? 'bg-emerald-500' : 'bg-red-500',
-                    )}
-                />
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{job.title}</DialogTitle>
-                    <DialogDescription>
-                        {outstanding.length === 0
-                            ? 'Every part this job needs is in stock.'
-                            : 'Parts still needed for this job.'}
-                    </DialogDescription>
-                </DialogHeader>
+    /**
+     * The dialog renders in a portal, but React still passes its clicks and
+     * key presses up to the job card, which would open the job. Everything
+     * from the box and its dialog stops here instead.
+     */
+    const keepFromCard = (event: SyntheticEvent) => event.stopPropagation();
 
-                {outstanding.length > 0 && (
-                    <ul className="divide-y">
-                        {outstanding.map((part) => (
-                            <li
-                                key={part.id}
-                                className="flex items-center justify-between gap-3 py-2 text-sm"
-                            >
-                                <div className="min-w-0">
-                                    <p className="truncate font-medium">
-                                        {part.name}
-                                    </p>
-                                    <p className="text-muted-foreground text-xs">
-                                        {part.on_hand == null
-                                            ? 'Not stocked'
-                                            : `${formatNumber(part.on_hand)} ${part.unit_abbreviation} on hand`}
-                                    </p>
-                                </div>
-                                <span
-                                    className={cn(
-                                        'shrink-0 text-xs font-medium tabular-nums',
-                                        part.shortfall > 0
-                                            ? 'text-red-600 dark:text-red-500'
-                                            : 'text-muted-foreground',
-                                    )}
+    return (
+        <span
+            className="contents"
+            onClick={keepFromCard}
+            onKeyDown={keepFromCard}
+            onDragStart={keepFromCard}
+        >
+            <Dialog>
+                <DialogTrigger asChild>
+                    <button
+                        type="button"
+                        draggable={false}
+                        aria-label={
+                            stocked
+                                ? `${job.title}: all parts in stock`
+                                : `${job.title}: missing parts, click for details`
+                        }
+                        title={
+                            stocked
+                                ? 'All parts in stock'
+                                : 'Missing parts — click for details'
+                        }
+                        className={cn(
+                            'mt-1 size-3 shrink-0 rounded-sm',
+                            stocked ? 'bg-emerald-500' : 'bg-red-500',
+                        )}
+                    />
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{job.title}</DialogTitle>
+                        <DialogDescription>
+                            {outstanding.length === 0
+                                ? 'Every part this job needs is in stock.'
+                                : 'Parts still needed for this job.'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {outstanding.length > 0 && (
+                        <ul className="divide-y">
+                            {outstanding.map((part) => (
+                                <li
+                                    key={part.id}
+                                    className="flex items-center justify-between gap-3 py-2 text-sm"
                                 >
-                                    {formatNumber(part.quantity_outstanding)}{' '}
-                                    {part.unit_abbreviation} needed
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </DialogContent>
-        </Dialog>
+                                    <div className="min-w-0">
+                                        <p className="truncate font-medium">
+                                            {part.name}
+                                        </p>
+                                        <p className="text-muted-foreground text-xs">
+                                            {part.on_hand == null
+                                                ? 'Not stocked'
+                                                : `${formatNumber(part.on_hand)} ${part.unit_abbreviation} on hand`}
+                                        </p>
+                                    </div>
+                                    <span
+                                        className={cn(
+                                            'shrink-0 text-xs font-medium tabular-nums',
+                                            part.shortfall > 0
+                                                ? 'text-red-600 dark:text-red-500'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {formatNumber(part.quantity_outstanding)}{' '}
+                                        {part.unit_abbreviation} needed
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </DialogContent>
+            </Dialog>
+        </span>
     );
 }

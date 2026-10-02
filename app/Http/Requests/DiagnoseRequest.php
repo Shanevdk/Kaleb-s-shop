@@ -14,7 +14,7 @@ class DiagnoseRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('work-on-records');
+        return $this->user()->can('diagnose');
     }
 
     /**

@@ -69,6 +69,34 @@ export default function Receiving({
             );
     };
 
+    /**
+     * The open order the last scan belongs to, if the code is already tied to
+     * one. Such a scan only ever fills in that order; any other order opened
+     * afterwards starts from its own details.
+     */
+    const scannedOrderId =
+        lastScan !== null &&
+        pending.some((order) => order.id === lastScan.part_order_id)
+            ? lastScan.part_order_id
+            : null;
+
+    const scanFor = (order: PartOrder): DecodedBarcode | null => {
+        if (scannedOrderId !== null && scannedOrderId !== order.id) {
+            return null;
+        }
+
+        return lastScan;
+    };
+
+    /**
+     * Whichever way the dialog shuts, the scan it was opened with is used up,
+     * so it can never be carried into the next order by mistake.
+     */
+    const closeOrder = () => {
+        setReceivingOrder(null);
+        setLastScan(null);
+    };
+
     return (
         <>
             <Head title="Receive parts" />
@@ -101,7 +129,7 @@ export default function Receiving({
                     }
                 />
 
-                {lastScan && !receivingOrder && (
+                {lastScan && scannedOrderId === null && !receivingOrder && (
                     <div className="bg-card flex items-start gap-3 rounded-xl border p-4">
                         <ScanBarcode className="text-muted-foreground mt-0.5 size-5 shrink-0" />
                         <div className="min-w-0 flex-1 space-y-1">
@@ -274,12 +302,9 @@ export default function Receiving({
                 <ReceiveOrderDialog
                     key={receivingOrder.id}
                     order={receivingOrder}
-                    scan={lastScan}
-                    onClose={() => setReceivingOrder(null)}
-                    onReceived={() => {
-                        setReceivingOrder(null);
-                        setLastScan(null);
-                    }}
+                    scan={scanFor(receivingOrder)}
+                    onClose={closeOrder}
+                    onReceived={closeOrder}
                 />
             )}
         </>

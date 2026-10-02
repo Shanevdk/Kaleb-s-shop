@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\Permission;
 use App\Models\User;
 use App\Models\Vehicle;
 
@@ -12,7 +13,7 @@ class VehiclePolicy
      */
     public function view(User $user, Vehicle $vehicle): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Vehicles);
     }
 
     /**
@@ -20,7 +21,7 @@ class VehiclePolicy
      */
     public function update(User $user, Vehicle $vehicle): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Vehicles);
     }
 
     /**
@@ -28,6 +29,6 @@ class VehiclePolicy
      */
     public function delete(User $user, Vehicle $vehicle): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Vehicles);
     }
 }

@@ -306,6 +306,71 @@ export type SelectOption = {
     label: string;
 };
 
+export type EquipmentStatus = 'active' | 'out_of_service' | 'retired';
+
+export type Equipment = {
+    id: string;
+    name: string;
+    category: string | null;
+    serial_number: string | null;
+    location: string | null;
+    status: EquipmentStatus;
+    status_label: string;
+    purchased_on: string | null;
+    notes: string | null;
+    checklists_count?: number;
+    service_records_count?: number;
+    spend?: number;
+    last_serviced_on?: string | null;
+};
+
+export type EquipmentChecklistItem = {
+    id: string;
+    label: string;
+    status: CheckStatus;
+    status_label: string;
+    notes: string | null;
+    position: number;
+};
+
+export type EquipmentChecklist = {
+    id: string;
+    equipment_id: string;
+    title: string;
+    performed_on: string;
+    notes: string | null;
+    is_complete: boolean;
+    checked_count?: number;
+    flagged_count?: number;
+    fixed_count?: number;
+    items_count?: number;
+    items?: EquipmentChecklistItem[];
+    equipment?: {
+        id: string;
+        name: string;
+    };
+};
+
+export type EquipmentServiceRecord = {
+    id: string;
+    equipment_id: string;
+    title: string;
+    type: string;
+    type_label: string;
+    status: ServiceStatus;
+    status_label: string;
+    performed_on: string;
+    hours: number;
+    parts_cost: number;
+    labour_cost: number;
+    total_cost: number;
+    description: string | null;
+    equipment?: {
+        id: string;
+        name: string;
+    };
+};
+
 export type UnitOption = SelectOption & {
     abbreviation: string;
     is_measured: boolean;

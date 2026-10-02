@@ -195,6 +195,34 @@ test('the import keeps records whose author is gone but skips ones missing a par
         ->and(StockMovement::sole()->inventory_item_id)->not->toBeNull();
 });
 
+test('the import links parts typed onto open jobs to the stocked part of the same name, but not on finished ones', function () {
+    $ids = seedMongoShop();
+    $openJob = new ObjectId;
+
+    mongo()->selectCollection('service_records')->insertOne([
+        '_id' => $openJob,
+        'user_id' => (string) $ids['user'],
+        'vehicle_id' => (string) $ids['vehicle'],
+        'title' => 'Next oil change',
+        'type' => 'oil_change',
+        'status' => 'planned',
+        'performed_on' => new UTCDateTime(strtotime('2026-10-01 00:00:00') * 1000),
+    ]);
+
+    mongo()->selectCollection('service_record_parts')->insertMany([
+        ['_id' => new ObjectId, 'service_record_id' => (string) $openJob, 'name' => ' engine OIL ', 'quantity' => new Decimal128('5'), 'unit' => 'litre'],
+        ['_id' => new ObjectId, 'service_record_id' => (string) $ids['record'], 'name' => 'Engine oil', 'quantity' => new Decimal128('5'), 'unit' => 'litre'],
+    ]);
+
+    $this->artisan('app:import-mongodb')->assertSuccessful();
+
+    $item = InventoryItem::sole();
+
+    expect(ServiceRecord::firstWhere('title', 'Next oil change')->parts()->sole()->inventory_item_id)->toBe($item->id)
+        ->and(ServiceRecord::firstWhere('title', 'Oil change')->parts()->sole()->inventory_item_id)->toBeNull()
+        ->and((float) $item->quantity)->toBe(7.5);
+});
+
 test('a dry run reports the import without saving any of it', function () {
     seedMongoShop();
 

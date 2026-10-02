@@ -35,6 +35,12 @@ class PlanRepairFromInspection
      */
     private const MAX_PARTS = 10;
 
+    /**
+     * Seconds the AI gets, fallbacks included, so the plan comes back inside
+     * the minute a web request is allowed.
+     */
+    private const BUDGET = 40;
+
     public function __construct(private OpenRouter $openRouter) {}
 
     /**
@@ -57,7 +63,7 @@ class PlanRepairFromInspection
             ['message' => $message] = $this->openRouter->complete([
                 ['role' => 'system', 'content' => $this->instructions()],
                 ['role' => 'user', 'content' => $this->describe($item, $shelf)],
-            ], timeout: 45, reasoning: 'low');
+            ], timeout: 40, reasoning: 'low', budget: self::BUDGET);
 
             $plan = $this->parse((string) ($message['content'] ?? ''), $shelf);
         } catch (AssistantUnavailable|JsonException $exception) {

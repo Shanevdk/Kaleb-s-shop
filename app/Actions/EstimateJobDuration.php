@@ -45,9 +45,10 @@ class EstimateJobDuration
     /**
      * Estimate a saved job from its own notes, for storing on the job, with
      * a price for each of its parts the shelf has no price for, keyed by the
-     * part line's id.
+     * part line's id and carrying the name the line had when it was priced,
+     * so a line renamed in the meantime is not given the old part's price.
      *
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>, model: string|null}
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, array{name: string, price_each: float}>, model: string|null}
      *
      * @throws AssistantUnavailable
      */
@@ -75,7 +76,7 @@ class EstimateJobDuration
     /**
      * Have the model estimate the job.
      *
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>, model: string|null}
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, array{name: string, price_each: float}>, model: string|null}
      *
      * @throws AssistantUnavailable
      */
@@ -172,7 +173,7 @@ class EstimateJobDuration
      * models like to wrap it in. Null when there is no usable estimate.
      *
      * @param  Collection<int, ServiceRecordPart>  $parts
-     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, float>}|null
+     * @return array{hours: float, low: float|null, high: float|null, reasoning: string, part_prices: array<string, array{name: string, price_each: float}>}|null
      */
     private function parse(string $content, Collection $parts): ?array
     {
@@ -209,7 +210,7 @@ class EstimateJobDuration
      * or comes with a price that makes no sense.
      *
      * @param  Collection<int, ServiceRecordPart>  $parts
-     * @return array<string, float>
+     * @return array<string, array{name: string, price_each: float}>
      */
     private function partPrices(mixed $answer, Collection $parts): array
     {
@@ -227,7 +228,7 @@ class EstimateJobDuration
                 continue;
             }
 
-            $prices[$part->id] = $price;
+            $prices[$part->id] = ['name' => $part->name, 'price_each' => $price];
         }
 
         return $prices;

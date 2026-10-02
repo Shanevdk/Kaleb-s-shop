@@ -1,8 +1,10 @@
 <?php
 
+use App\Actions\Assistant\OpenRouter;
 use App\Enums\EstimateStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
+use App\Http\Resources\WorkOrderResource;
 use App\Jobs\EstimateServiceRecordDuration;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
@@ -12,6 +14,7 @@ use App\Models\Vehicle;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * A chat completion carrying an estimate of the given hours.
@@ -217,4 +220,94 @@ test('changing the parts on a job queues a fresh estimate so they get priced, an
     ])->assertRedirect();
 
     Queue::assertNothingPushed();
+});
+
+test('a price for a part line renamed while the AI was thinking is not put on the renamed line', function () {
+    Queue::fake();
+    $record = ServiceRecord::factory()->planned()->create(['title' => 'Front brake pads']);
+    $pads = $record->parts()->create(['name' => 'Front brake pad set', 'quantity' => 1, 'unit' => 'each']);
+    $hose = $record->parts()->create(['name' => 'Brake hose', 'quantity' => 1, 'unit' => 'each']);
+
+    Http::fake(['openrouter.ai/*' => function (Request $request) use ($pads) {
+        $brief = $request['messages'][1]['content'];
+        preg_match('/^(\d+)\. Front brake pad set/m', $brief, $padsLine);
+        preg_match('/^(\d+)\. Brake hose/m', $brief, $hoseLine);
+
+        $pads->update(['name' => 'Rear brake shoe set']);
+
+        return Http::response(hoursReply(2.5, json_encode([
+            'hours' => 2.5,
+            'part_prices' => [
+                ['part' => (int) $padsLine[1], 'price_each' => 89.5],
+                ['part' => (int) $hoseLine[1], 'price_each' => 25],
+            ],
+        ])));
+    }]);
+
+    runEstimate($record);
+
+    expect($pads->refresh()->estimated_unit_cost)->toBeNull()
+        ->and($hose->refresh()->estimated_unit_cost)->toBe('25.00');
+});
+
+test('an estimate the AI is too busy for is marked failed so it can be asked for again', function () {
+    Queue::fake();
+    Http::fake();
+    $record = ServiceRecord::factory()->planned()->create();
+    RateLimiter::increment(OpenRouter::RATE_LIMIT_KEY, amount: OpenRouter::CALLS_PER_MINUTE);
+
+    runEstimate($record);
+
+    expect($record->refresh()->estimate_status)->toBe(EstimateStatus::Failed);
+    Http::assertNothingSent();
+});
+
+test('an estimate that never came back is given up on, so pages stop waiting and it can be asked for again', function () {
+    Queue::fake();
+    $this->travelTo('2026-10-02 09:00:00');
+    $record = ServiceRecord::factory()->planned()->create();
+    $user = User::factory()->create();
+
+    expect($record->refresh()->estimate_requested_at->toDateTimeString())->toBe('2026-10-02 09:00:00')
+        ->and($record->isAwaitingEstimate())->toBeTrue();
+
+    $this->travel(ServiceRecord::ESTIMATE_WAIT_LIMIT_MINUTES)->minutes();
+
+    expect($record->refresh()->isAwaitingEstimate())->toBeFalse()
+        ->and($record->currentEstimateStatus())->toBe(EstimateStatus::Failed);
+
+    $this->withoutVite()
+        ->actingAs($user)
+        ->get(route('service-records.show', $record))
+        ->assertInertia(fn ($page) => $page->where('record.estimate.status', 'failed'));
+
+    expect(WorkOrderResource::make($record)->resolve()['estimating'])->toBeFalse();
+});
+
+test('an estimate still within its time is waited on, and one left pending without a time is not', function () {
+    Queue::fake();
+    $record = ServiceRecord::factory()->planned()->create();
+
+    $this->travel(ServiceRecord::ESTIMATE_WAIT_LIMIT_MINUTES - 1)->minutes();
+
+    expect($record->refresh()->currentEstimateStatus())->toBe(EstimateStatus::Pending);
+
+    expect(WorkOrderResource::make($record)->resolve()['estimating'])->toBeTrue();
+
+    $record->forceFill(['estimate_requested_at' => null])->saveQuietly();
+
+    expect($record->isAwaitingEstimate())->toBeFalse();
+});
+
+test('an estimate that comes back after it was given up on is still stored', function () {
+    Queue::fake();
+    Http::fake(['openrouter.ai/*' => Http::response(hoursReply(2.5))]);
+    $record = ServiceRecord::factory()->planned()->create();
+
+    $this->travel(ServiceRecord::ESTIMATE_WAIT_LIMIT_MINUTES + 5)->minutes();
+    runEstimate($record);
+
+    expect($record->refresh())
+        ->estimate_status->toBe(EstimateStatus::Ready)
+        ->estimated_hours->toBe('2.50');
 });

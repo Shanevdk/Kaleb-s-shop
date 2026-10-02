@@ -52,3 +52,15 @@ test('it summarises today\'s open jobs and any checklist still in progress', fun
         ->and($response->json('checklistsInProgress.0.id'))->toBe($openChecklist->id)
         ->and($response->json('checklistsInProgress.0.itemsCount'))->toBeGreaterThan(0);
 });
+
+test('a shopper gets no jobs or checklists, just the date', function () {
+    ServiceRecord::factory()->planned()->create(['performed_on' => '2026-09-15']);
+    Inspection::factory()->withItems()->create(['performed_on' => '2026-09-10']);
+
+    $response = $this->actingAs(User::factory()->shopper()->create())
+        ->getJson(route('screen-saver.data'))
+        ->assertOk();
+
+    expect($response->json('jobsToday'))->toBe([])
+        ->and($response->json('checklistsInProgress'))->toBe([]);
+});

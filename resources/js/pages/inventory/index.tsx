@@ -157,12 +157,23 @@ export default function InventoryIndex({
                             className="pl-9"
                             aria-label="Search inventory"
                         />
+                        {/* A search keeps whatever else is filtered on. */}
                         {filters.category && (
                             <input
                                 type="hidden"
                                 name="category"
                                 value={filters.category}
                             />
+                        )}
+                        {filters.vehicle && (
+                            <input
+                                type="hidden"
+                                name="vehicle"
+                                value={filters.vehicle}
+                            />
+                        )}
+                        {filters.low_stock && (
+                            <input type="hidden" name="low_stock" value="1" />
                         )}
                     </Form>
 

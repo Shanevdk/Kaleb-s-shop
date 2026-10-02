@@ -74,31 +74,57 @@ export function useBarcodeScanner({
         let camera: Camera | null = null;
         let view: DataCaptureView | null = null;
 
+        /**
+         * Switch the camera off and free the engine. The cleanup calls it, and
+         * so does `start()` whenever it finds it was stopped part way through:
+         * anything it set up after the cleanup ran would otherwise be left on.
+         * Each piece is let go of once, so calling it again is harmless.
+         */
+        const tearDown = () => {
+            const [openView, openCamera, openContext] = [view, camera, context];
+            view = null;
+            camera = null;
+            context = null;
+
+            openView?.detachFromElement();
+            void openCamera
+                ?.switchToDesiredState(FrameSourceState.Off)
+                .catch(() => {});
+            void openContext?.dispose();
+        };
+
         const start = async () => {
             setStatus('starting');
             setError(null);
 
             try {
-                context = await DataCaptureContext.forLicenseKey(licenseKey, {
-                    libraryLocation,
-                    moduleLoaders: [barcodeCaptureLoader()],
-                });
+                const startedContext = await DataCaptureContext.forLicenseKey(
+                    licenseKey,
+                    {
+                        libraryLocation,
+                        moduleLoaders: [barcodeCaptureLoader()],
+                    },
+                );
+                context = startedContext;
 
                 if (disposed) {
+                    tearDown();
+
                     return;
                 }
 
-                camera = Camera.pickBestGuessForPosition(
+                const startedCamera = Camera.pickBestGuessForPosition(
                     CameraPosition.WorldFacing,
                 );
-                await context.setFrameSource(camera);
+                camera = startedCamera;
+                await startedContext.setFrameSource(startedCamera);
 
                 const settings = new BarcodeCaptureSettings();
                 settings.enableSymbologies(symbologies);
                 settings.codeDuplicateFilter = 1500;
 
                 const capture = await BarcodeCapture.forContext(
-                    context,
+                    startedContext,
                     settings,
                 );
 
@@ -112,26 +138,54 @@ export function useBarcodeScanner({
                     },
                 });
 
-                view = await DataCaptureView.forContext(context);
+                const startedView =
+                    await DataCaptureView.forContext(startedContext);
+                view = startedView;
 
-                if (disposed || hostRef.current === null) {
+                if (disposed) {
+                    tearDown();
+
                     return;
                 }
 
-                view.connectToElement(hostRef.current);
+                if (hostRef.current === null) {
+                    return;
+                }
+
+                startedView.connectToElement(hostRef.current);
                 await BarcodeCaptureOverlay.withBarcodeCaptureForView(
                     capture,
-                    view,
+                    startedView,
                 );
 
-                await camera.switchToDesiredState(FrameSourceState.On);
+                if (disposed) {
+                    tearDown();
+
+                    return;
+                }
+
+                await startedCamera.switchToDesiredState(FrameSourceState.On);
+
+                // Closed while the camera was coming on: turn it back off.
+                if (disposed) {
+                    tearDown();
+
+                    return;
+                }
+
                 await capture.setEnabled(true);
 
-                if (!disposed) {
-                    setStatus('running');
+                if (disposed) {
+                    tearDown();
+
+                    return;
                 }
+
+                setStatus('running');
             } catch (thrown) {
                 if (disposed) {
+                    tearDown();
+
                     return;
                 }
 
@@ -148,9 +202,7 @@ export function useBarcodeScanner({
 
         return () => {
             disposed = true;
-            view?.detachFromElement();
-            void camera?.switchToDesiredState(FrameSourceState.Off);
-            void context?.dispose();
+            tearDown();
         };
     }, [active, licenseKey, libraryLocation]);
 

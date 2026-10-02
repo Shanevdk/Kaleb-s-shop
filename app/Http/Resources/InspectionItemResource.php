@@ -27,7 +27,7 @@ class InspectionItemResource extends JsonResource
             'status_label' => $this->status->label(),
             'notes' => $this->notes,
             'position' => $this->position,
-            'parts_status' => $this->parts_status?->value,
+            'parts_status' => $this->currentPartsStatus()?->value,
             'repair_job' => $this->whenLoaded('repairJob', fn (): ?array => $this->repairJob === null ? null : [
                 'id' => $this->repairJob->id,
                 'title' => $this->repairJob->title,

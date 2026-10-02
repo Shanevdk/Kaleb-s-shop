@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\EstimateStatus;
 use App\Http\Requests\WorkOrderRequest;
 use App\Http\Resources\WorkOrderResource;
 use App\Mail\WorkOrderMail;
 use App\Models\ServiceRecord;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,10 +22,16 @@ class WorkOrderController extends Controller
 {
     /**
      * Show the work order to whoever has the link. No login needed; the
-     * link is signed, so it only opens the job it was made for.
+     * link is signed, so it only opens the job it was made for, and carries
+     * the job's current key, so a link shared before the last reset is dead.
      */
-    public function show(ServiceRecord $serviceRecord): Response
+    public function show(Request $request, ServiceRecord $serviceRecord): Response
     {
+        abort_unless(
+            $serviceRecord->work_order_key !== null && hash_equals($serviceRecord->work_order_key, (string) $request->query('key')),
+            403,
+        );
+
         $serviceRecord->load('vehicle', 'parts.inventoryItem', 'inspectionItem');
 
         return Inertia::render('work-order', [
@@ -41,11 +47,19 @@ class WorkOrderController extends Controller
      */
     public function update(WorkOrderRequest $request, ServiceRecord $serviceRecord): RedirectResponse
     {
+        if ($request->boolean('reset_link')) {
+            $serviceRecord->resetWorkOrderLink();
+
+            Inertia::flash('toast', ['type' => 'success', 'message' => __('Work order link reset. Links shared before now no longer open.')]);
+
+            return back();
+        }
+
         $serviceRecord->update($request->safe()->only(['issue_reason']));
 
         $serviceRecord->load('vehicle', 'parts.inventoryItem', 'inspectionItem');
 
-        if ($serviceRecord->estimate_status !== EstimateStatus::Pending
+        if (! $serviceRecord->isAwaitingEstimate()
             && ($serviceRecord->estimated_hours === null || $serviceRecord->partsEstimate()['unpriced'] > 0)) {
             $serviceRecord->estimateAgain();
         }
@@ -54,6 +68,14 @@ class WorkOrderController extends Controller
 
         if ($email === '') {
             Inertia::flash('toast', ['type' => 'success', 'message' => __('Work order saved.')]);
+
+            return back();
+        }
+
+        // The log mailer only writes the email to a file, so saying it was
+        // sent would be untrue.
+        if (config('mail.default') === 'log') {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => __('Work order saved, but email is not set up on this site yet, so nothing was sent. Copy the link and send it yourself.')]);
 
             return back();
         }

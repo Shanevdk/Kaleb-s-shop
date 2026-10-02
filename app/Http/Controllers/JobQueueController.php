@@ -8,6 +8,7 @@ use App\Http\Resources\ServiceRecordResource;
 use App\Models\ServiceRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -45,6 +46,9 @@ class JobQueueController extends Controller
 
     /**
      * Move a job to another column on the board.
+     *
+     * The new column and the stock it moves are saved together, so a job is
+     * never left completed without having taken its parts.
      */
     public function update(Request $request, ServiceRecord $serviceRecord): RedirectResponse
     {
@@ -54,9 +58,11 @@ class JobQueueController extends Controller
             'status' => ['required', Rule::enum(ServiceStatus::class)],
         ]);
 
-        $serviceRecord->update($validated);
+        $short = DB::transaction(function () use ($request, $serviceRecord, $validated): array {
+            $serviceRecord->update($validated);
 
-        $short = $this->syncServiceRecordStock->handle($serviceRecord);
+            return $this->syncServiceRecordStock->handle($serviceRecord, $request->user());
+        });
 
         if ($short === []) {
             Inertia::flash('toast', ['type' => 'success', 'message' => __(':title moved to :status.', [

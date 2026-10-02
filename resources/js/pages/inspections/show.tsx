@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import CheckStatusButtons from '@/components/check-status-buttons';
 import DeleteConfirm from '@/components/delete-confirm';
 import InputError from '@/components/input-error';
+import NoteInput from '@/components/note-input';
 import PageHeader from '@/components/page-header';
 import RepairPartsNote from '@/components/repair-parts-note';
 import StatCard from '@/components/stat-card';
@@ -228,18 +229,6 @@ export default function InspectionShow({
         );
     };
 
-    const saveNote = (item: InspectionItem, notes: string) => {
-        if ((item.notes ?? '') === notes) {
-            return;
-        }
-
-        router.patch(
-            updateItem(item.id).url,
-            { status: item.status, notes },
-            { preserveScroll: true, preserveState: true },
-        );
-    };
-
     return (
         <>
             <Head title={inspection.title} />
@@ -379,20 +368,10 @@ export default function InspectionShow({
                                                             </Badge>
                                                         )}
                                                     </p>
-                                                    <Input
-                                                        defaultValue={
-                                                            item.notes ?? ''
-                                                        }
-                                                        placeholder="Add a note"
-                                                        aria-label={`Note for ${item.label}`}
-                                                        className="mt-2 h-8 border-0 border-b border-dashed px-0 text-sm shadow-none focus-visible:ring-0"
-                                                        onBlur={(event) =>
-                                                            saveNote(
-                                                                item,
-                                                                event.target
-                                                                    .value,
-                                                            )
-                                                        }
+                                                    <NoteInput
+                                                        url={updateItem(item.id).url}
+                                                        notes={item.notes}
+                                                        label={item.label}
                                                     />
                                                     {item.status ===
                                                         'attention' && (

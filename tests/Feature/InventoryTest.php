@@ -2,6 +2,7 @@
 
 use App\Enums\PartCategory;
 use App\Models\InventoryItem;
+use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -211,6 +212,50 @@ test('a part photo can be removed', function () {
 
     expect($item->refresh()->image_path)->toBeNull();
     Storage::disk('public')->assertMissing($original);
+});
+
+test('saving the edit form leaves alone stock a job took after the form was opened', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['quantity' => 10, 'location' => 'Shelf A']);
+
+    $item->update(['quantity' => 6]);
+
+    $this->actingAs($user)->put(route('inventory.update', $item), [
+        'name' => $item->name,
+        'category' => $item->category->value,
+        'quantity' => 10,
+        'quantity_shown' => 10,
+        'minimum_quantity' => $item->minimum_quantity,
+        'unit_cost' => $item->unit_cost,
+        'location' => 'Shelf B',
+    ])->assertRedirect(route('inventory.index'));
+
+    expect($item->refresh()->quantity)->toEqual(6.0)
+        ->and($item->location)->toBe('Shelf B')
+        ->and(StockMovement::count())->toBe(0);
+});
+
+test('changing the amount on hand in the edit form applies the change as a stock movement', function () {
+    $user = User::factory()->create();
+    $item = InventoryItem::factory()->for($user)->create(['quantity' => 10]);
+
+    $item->update(['quantity' => 6]);
+
+    $this->actingAs($user)->put(route('inventory.update', $item), [
+        'name' => $item->name,
+        'category' => $item->category->value,
+        'quantity' => 12,
+        'quantity_shown' => 10,
+        'minimum_quantity' => $item->minimum_quantity,
+        'unit_cost' => $item->unit_cost,
+    ])->assertRedirect(route('inventory.index'));
+
+    $movement = StockMovement::sole();
+
+    expect($item->refresh()->quantity)->toEqual(8.0)
+        ->and((float) $movement->quantity)->toBe(2.0)
+        ->and($movement->user_id)->toBe($user->id)
+        ->and($movement->note)->toBe('Count corrected');
 });
 
 test('a shopper cannot edit a part', function () {

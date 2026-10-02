@@ -14,3 +14,11 @@ test('authenticated users can visit the dashboard', function () {
     $response = $this->get(route('dashboard'));
     $response->assertOk();
 });
+
+test('an account with only the equipment permission lands on the equipment list', function () {
+    $user = User::factory()->shopper()->create(['permissions' => ['equipment']]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('equipment.index'));
+});

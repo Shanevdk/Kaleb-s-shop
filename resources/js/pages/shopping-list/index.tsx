@@ -50,7 +50,10 @@ export default function ShoppingList({
     stats: Stats;
 }) {
     // Shoppers see the list but cannot open the parts or jobs behind it.
-    const canEdit = usePage().props.auth.can.workOnRecords;
+    const { can } = usePage().props.auth;
+    const canOpenInventory = can.inventory;
+    const canOpenJobs = can.serviceLog;
+    const canReceive = can.receiving;
 
     return (
         <>
@@ -61,7 +64,7 @@ export default function ShoppingList({
                     title="Shopping list"
                     description="What the open jobs need that the shelves cannot cover, plus anything down to its reorder point. Tick a line once it is ordered."
                     actions={
-                        canEdit && (
+                        canReceive && (
                             <Button variant="outline" asChild>
                                 <Link href={receiving()}>
                                     <PackageCheck />
@@ -155,7 +158,7 @@ export default function ShoppingList({
                                                 </TableCell>
                                                 <TableCell className="max-w-xs">
                                                     {line.inventory_item_id &&
-                                                    canEdit ? (
+                                                    canOpenInventory ? (
                                                         <Link
                                                             href={editPart(
                                                                 line.inventory_item_id,
@@ -193,7 +196,7 @@ export default function ShoppingList({
                                                             (job) => {
                                                                 const label = `${job.title}${job.vehicle ? ` · ${job.vehicle}` : ''}`;
 
-                                                                return canEdit ? (
+                                                                return canOpenJobs ? (
                                                                     <Link
                                                                         key={
                                                                             job.id
@@ -252,7 +255,7 @@ export default function ShoppingList({
                                     </TableBody>
                                 </Table>
 
-                                {stats.not_stocked > 0 && canEdit && (
+                                {stats.not_stocked > 0 && canOpenInventory && (
                                     <footer className="border-t px-6 py-4">
                                         <Button
                                             variant="outline"
@@ -316,7 +319,7 @@ export default function ShoppingList({
                                                     <OrderToggle line={line} />
                                                 </TableCell>
                                                 <TableCell className="max-w-xs">
-                                                    {canEdit ? (
+                                                    {canOpenInventory ? (
                                                         <Link
                                                             href={editPart(
                                                                 line.inventory_item_id as string,

@@ -358,6 +358,14 @@ export default function InventoryItemForm({
                                     defaultValue={item?.quantity ?? 0}
                                     required
                                 />
+                                {/* The amount the form opened with, so saving applies only the change made here. */}
+                                {item && (
+                                    <input
+                                        type="hidden"
+                                        name="quantity_shown"
+                                        value={item.quantity}
+                                    />
+                                )}
                                 <InputError message={errors.quantity} />
                             </div>
 

@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\URL;
 use Symfony\Component\Mailer\Exception\TransportException;
 
 /**
@@ -107,6 +108,32 @@ test('a link signed for one job cannot be pointed at another', function () {
     $tampered = str_replace($record->id, $other->id, $record->workOrderUrl());
 
     $this->get($tampered)->assertForbidden();
+});
+
+test('a signed link without the job\'s key does not open', function () {
+    $record = brakeJob();
+    $record->workOrderUrl();
+
+    $this->get(URL::signedRoute('work-orders.show', $record))->assertForbidden();
+    $this->get(URL::signedRoute('work-orders.show', ['serviceRecord' => $record, 'key' => 'guessed']))->assertForbidden();
+});
+
+test('resetting the link stops links shared before it from opening', function () {
+    Mail::fake();
+    $record = brakeJob();
+    $oldLink = $record->workOrderUrl();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), ['reset_link' => true])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'success');
+
+    auth()->logout();
+
+    $this->get($oldLink)->assertForbidden();
+    $this->get($record->fresh()->workOrderUrl())->assertOk();
+    expect($record->fresh()->issue_reason)->toBe('Front pads are down to 2mm and grinding.');
+    Mail::assertNothingSent();
 });
 
 test('without a written reason the sheet says what was flagged on the checklist', function () {
@@ -208,13 +235,13 @@ test('the work order can be emailed, with replies going to whoever sent it', fun
             ->assertSeeInHtml('$210.00 + 1 unpriced')
             ->assertSeeInHtml('≈ $120.00', false)
             ->assertSeeInHtml('2 h–3 h', false)
-            ->assertSeeInHtml(e($record->workOrderUrl()), false)
+            ->assertSeeInHtml(e($record->fresh()->workOrderUrl()), false)
             ->assertDontSeeInHtml('$250.00')
             ->assertDontSeeInHtml('riding the brakes');
 
         // The link is also written out as clickable text, for mail apps that
         // drop the button.
-        $link = preg_quote(e($record->workOrderUrl()), '#');
+        $link = preg_quote(e($record->fresh()->workOrderUrl()), '#');
         expect($mail->render())->toMatch("#<a href=\"{$link}\"[^>]*>{$link}</a>#");
 
         return $mail->hasTo('manager@example.com')
@@ -236,6 +263,44 @@ test('a sheet that could not be emailed is still saved, and the sender is told',
         ->assertInertiaFlash('toast.type', 'error');
 
     expect($record->fresh()->issue_reason)->toBe('Rear tyres are below the legal tread depth.');
+});
+
+test('a site with no mail service says nothing was sent instead of claiming it was emailed', function () {
+    Mail::fake();
+    config(['mail.default' => 'log']);
+    $record = brakeJob();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Rear tyres are below the legal tread depth.',
+            'email' => 'manager@example.com',
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'warning');
+
+    expect($record->fresh()->issue_reason)->toBe('Rear tyres are below the legal tread depth.');
+    Mail::assertNothingSent();
+});
+
+test('links and images typed into a work order are not made live in the email', function () {
+    Mail::fake();
+    $record = brakeJob();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Pads worn. ![x](https://evil.example/pixel.png)',
+            'email' => 'manager@example.com',
+            'message' => '[Pay the invoice here](https://evil.example/pay)',
+        ])
+        ->assertRedirect();
+
+    Mail::assertSent(WorkOrderMail::class, function (WorkOrderMail $mail): bool {
+        $html = $mail->render();
+
+        return str_contains($html, 'Pay the invoice here')
+            && ! str_contains($html, 'href="https://evil.example')
+            && ! str_contains($html, 'src="https://evil.example');
+    });
 });
 
 test('the work order needs a reason and a real email address', function () {

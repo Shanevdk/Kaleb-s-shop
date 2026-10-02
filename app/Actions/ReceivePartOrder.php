@@ -11,7 +11,11 @@ use Illuminate\Validation\ValidationException;
 
 class ReceivePartOrder
 {
-    public function __construct(private RecordStockMovement $recordStockMovement) {}
+    public function __construct(
+        private RecordStockMovement $recordStockMovement,
+        private SyncServiceRecordStock $syncServiceRecordStock,
+        private LinkJobPartsToStock $linkJobPartsToStock,
+    ) {}
 
     /**
      * Book a delivery onto the shelf against the order it arrived for.
@@ -19,6 +23,10 @@ class ReceivePartOrder
      * A part the shop has never carried is added to the inventory, named by
      * the description the mechanic confirmed. A scanned code is stuck on the
      * part if it does not have one yet, so the next scan finds it.
+     *
+     * The open jobs the order was placed for are pointed at the part that
+     * arrived, even when it came in under another name, and finished jobs
+     * that found the shelf short take what they still owe, the oldest first.
      *
      * @param  array{description?: string|null, barcode?: string|null, brand?: string|null}  $details
      *
@@ -62,6 +70,10 @@ class ReceivePartOrder
                 $item->update(['barcode' => $barcode]);
             }
 
+            if ($order->inventory_item_id === null && $item->unit === $order->unit) {
+                $this->linkJobPartsToStock->linkOpenJobsAskingFor($order->name, $order->unit, $item);
+            }
+
             $this->recordStockMovement->handle($user, $item, $quantity, ['note' => __('Received')]);
 
             $received = round((float) $order->quantity_received + $quantity, 2);
@@ -72,6 +84,8 @@ class ReceivePartOrder
                 'received_by' => $user->id,
                 'received_at' => $received >= (float) $order->quantity_ordered ? now() : null,
             ]);
+
+            $this->syncServiceRecordStock->settleWhatFinishedJobsOwe($item, $user);
 
             return $item->refresh();
         });

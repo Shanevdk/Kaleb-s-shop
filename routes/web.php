@@ -5,6 +5,10 @@ use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\ClosedDayController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosisController;
+use App\Http\Controllers\EquipmentChecklistController;
+use App\Http\Controllers\EquipmentChecklistItemController;
+use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\EquipmentServiceRecordController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
 use App\Http\Controllers\InventoryItemController;
@@ -78,26 +82,31 @@ Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
     Route::post('admin/users/{user}/verify', [UserController::class, 'verify'])
         ->name('admin.users.verify');
 
+    Route::patch('admin/users/{user}/permissions', [UserController::class, 'updatePermissions'])
+        ->name('admin.users.permissions.update');
+
     Route::resource('admin/users', UserController::class)
         ->only(['index', 'create', 'store', 'update', 'destroy'])
         ->names('admin.users')
         ->parameters(['users' => 'user']);
 });
 
-// Everyone on the team, shoppers included.
+// Everyone on the team: the landing page and its data feed need no
+// permission of their own.
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('screen-saver/data', [ScreenSaverDataController::class, 'index'])->name('screen-saver.data');
+});
 
+Route::middleware(['auth', 'verified', 'can:shopping-list'])->group(function () {
     Route::get('shopping-list', [ShoppingListController::class, 'index'])->name('shopping-list.index');
     Route::post('shopping-list/orders', [PartOrderController::class, 'store'])->name('shopping-list.orders.store');
     Route::delete('shopping-list/orders/{partOrder}', [PartOrderController::class, 'destroy'])
         ->name('shopping-list.orders.destroy');
 });
 
-// Everyone but shoppers, schedulers included.
-Route::middleware(['auth', 'verified', 'can:manage-schedule'])->group(function () {
+Route::middleware(['auth', 'verified', 'can:schedule'])->group(function () {
     Route::get('schedule', [ScheduleController::class, 'index'])->name('schedule.index');
     Route::patch('schedule/checks/{plannedInspection}', [PlannedInspectionController::class, 'update'])
         ->name('schedule.checks.update');
@@ -111,20 +120,26 @@ Route::middleware(['auth', 'verified', 'can:manage-schedule'])->group(function (
         ->name('schedule.closed-days.destroy');
 });
 
-Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function () {
+Route::middleware(['auth', 'verified', 'can:assistant'])->group(function () {
     Route::get('assistant', [AssistantController::class, 'show'])->name('assistant');
     Route::post('assistant', [AssistantController::class, 'ask'])
         ->middleware('throttle:10,1')
         ->name('assistant.ask');
+});
 
+Route::middleware(['auth', 'verified', 'can:lookup'])->group(function () {
     Route::get('lookup', [LookupController::class, 'index'])->name('lookup');
     Route::get('lookup/decode', [LookupController::class, 'decode'])->name('lookup.decode');
+});
 
+Route::middleware(['auth', 'verified', 'can:diagnose'])->group(function () {
     Route::get('diagnose', [DiagnosisController::class, 'show'])->name('diagnose');
     Route::post('diagnose', [DiagnosisController::class, 'diagnose'])
         ->middleware('throttle:10,1')
         ->name('diagnose.run');
+});
 
+Route::middleware(['auth', 'verified', 'can:vehicles'])->group(function () {
     Route::post('vehicles/{vehicle}/photos/{angle}', [VehiclePhotoController::class, 'store'])
         ->name('vehicles.photos.store');
     Route::delete('vehicles/{vehicle}/photos/{angle}', [VehiclePhotoController::class, 'destroy'])
@@ -135,6 +150,9 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::delete('vehicles/{vehicle}/look', [VehicleLookController::class, 'destroy'])
         ->name('vehicles.look.destroy');
     Route::resource('vehicles', VehicleController::class);
+});
+
+Route::middleware(['auth', 'verified', 'can:service-log'])->group(function () {
     Route::resource('service-records', ServiceRecordController::class);
     Route::post('service-records/{service_record}/estimate', [ServiceRecordEstimateController::class, 'store'])
         ->middleware('throttle:5,1')
@@ -142,10 +160,14 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::put('service-records/{service_record}/work-order', [WorkOrderController::class, 'update'])
         ->middleware('throttle:10,1')
         ->name('service-records.work-order.update');
+});
 
+Route::middleware(['auth', 'verified', 'can:job-queue'])->group(function () {
     Route::get('job-queue', [JobQueueController::class, 'index'])->name('job-queue.index');
     Route::patch('job-queue/{serviceRecord}', [JobQueueController::class, 'update'])->name('job-queue.update');
+});
 
+Route::middleware(['auth', 'verified', 'can:inspections'])->group(function () {
     Route::resource('inspections', InspectionController::class)->except('edit');
     Route::post('inspections/{inspection}/items', [InspectionItemController::class, 'store'])
         ->name('inspection-items.store');
@@ -158,7 +180,10 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::post('inspection-items/{inspectionItem}/replan', [InspectionItemController::class, 'replan'])
         ->middleware('throttle:10,1')
         ->name('inspection-items.replan');
+});
 
+// Barcode-via-phone pairing is only used from the inventory screens today.
+Route::middleware(['auth', 'verified', 'can:inventory'])->group(function () {
     Route::post('phone-scanner', [PhoneScannerController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('phone-scanner.store');
@@ -169,10 +194,6 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::post('inventory/scan', [InventoryScanController::class, 'store'])->name('inventory.scan.store');
     Route::post('inventory/scan/link', [InventoryScanController::class, 'link'])->name('inventory.scan.link');
 
-    Route::get('receiving', [ReceivingController::class, 'index'])->name('receiving.index');
-    Route::get('receiving/decode', [ReceivingController::class, 'decode'])->name('receiving.decode');
-    Route::post('receiving/{partOrder}', [ReceivingController::class, 'store'])->name('receiving.store');
-
     Route::patch('inventory/{inventory_item}/adjust', [InventoryItemController::class, 'adjust'])
         ->name('inventory.adjust');
     Route::put('inventory/{inventory_item}/barcode', [InventoryItemController::class, 'assignBarcode'])
@@ -180,6 +201,38 @@ Route::middleware(['auth', 'verified', 'can:work-on-records'])->group(function (
     Route::resource('inventory', InventoryItemController::class)
         ->parameters(['inventory' => 'inventory_item'])
         ->except('show');
+});
+
+Route::middleware(['auth', 'verified', 'can:receiving'])->group(function () {
+    Route::get('receiving', [ReceivingController::class, 'index'])->name('receiving.index');
+    Route::get('receiving/decode', [ReceivingController::class, 'decode'])->name('receiving.decode');
+    Route::post('receiving/{partOrder}', [ReceivingController::class, 'store'])->name('receiving.store');
+});
+
+Route::middleware(['auth', 'verified', 'can:equipment'])->group(function () {
+    Route::resource('equipment', EquipmentController::class);
+    Route::post('equipment/{equipment}/checklists', [EquipmentChecklistController::class, 'store'])
+        ->name('equipment-checklists.store');
+    Route::get('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'show'])
+        ->name('equipment-checklists.show');
+    Route::patch('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'update'])
+        ->name('equipment-checklists.update');
+    Route::delete('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'destroy'])
+        ->name('equipment-checklists.destroy');
+    Route::post('equipment-checklists/{equipmentChecklist}/items', [EquipmentChecklistItemController::class, 'store'])
+        ->name('equipment-checklist-items.store');
+    Route::patch('equipment-checklist-items/{equipmentChecklistItem}', [EquipmentChecklistItemController::class, 'update'])
+        ->name('equipment-checklist-items.update');
+    Route::delete('equipment-checklist-items/{equipmentChecklistItem}', [EquipmentChecklistItemController::class, 'destroy'])
+        ->name('equipment-checklist-items.destroy');
+    Route::get('equipment-service-records', [EquipmentServiceRecordController::class, 'index'])
+        ->name('equipment-service-records.index');
+    Route::post('equipment/{equipment}/service-records', [EquipmentServiceRecordController::class, 'store'])
+        ->name('equipment-service-records.store');
+    Route::patch('equipment-service-records/{equipmentServiceRecord}', [EquipmentServiceRecordController::class, 'update'])
+        ->name('equipment-service-records.update');
+    Route::delete('equipment-service-records/{equipmentServiceRecord}', [EquipmentServiceRecordController::class, 'destroy'])
+        ->name('equipment-service-records.destroy');
 });
 
 require __DIR__.'/settings.php';

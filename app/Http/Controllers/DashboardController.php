@@ -17,13 +17,18 @@ class DashboardController extends Controller
     /**
      * Display the workshop overview.
      *
-     * Schedulers only have the schedule and shoppers only the shopping list,
-     * so those are their home pages.
+     * Only Kaleb's Shop has this overview as its home page. Equipment-only
+     * accounts land on the equipment list, schedulers on the schedule, and
+     * everyone else on the shopping list.
      */
     public function index(Request $request): Response|RedirectResponse
     {
-        if (Gate::denies('work-on-records')) {
-            return Gate::allows('manage-schedule')
+        if (Gate::denies('mechanics-shop')) {
+            if (Gate::allows('equipment')) {
+                return to_route('equipment.index');
+            }
+
+            return Gate::allows('schedule')
                 ? to_route('schedule.index')
                 : to_route('shopping-list.index');
         }

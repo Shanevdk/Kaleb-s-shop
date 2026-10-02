@@ -13,10 +13,12 @@ use App\Models\Fitment;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
 use App\Models\ServiceRecordPart;
+use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -93,14 +95,23 @@ class ServiceRecordController extends Controller
 
     /**
      * Store a newly logged job.
+     *
+     * The job, its parts and the stock they take are saved together, so a
+     * failure part way leaves nothing half done.
      */
     public function store(ServiceRecordRequest $request): RedirectResponse
     {
-        $record = $request->user()->serviceRecords()->create($request->recordAttributes());
+        $user = $request->user();
 
-        $this->syncParts($record, $request->parts());
+        $short = DB::transaction(function () use ($request, $user): array {
+            $record = $user->serviceRecords()->create($request->recordAttributes());
 
-        $this->flashStockResult($record, __('Job logged.'));
+            $this->syncParts($record, $request->parts(), $user);
+
+            return $this->syncServiceRecordStock->handle($record, $user);
+        });
+
+        $this->flashStockResult($short, __('Job logged.'));
 
         return to_route('service-records.index');
     }
@@ -140,20 +151,29 @@ class ServiceRecordController extends Controller
 
     /**
      * Update the given job.
+     *
+     * The job, its parts and the stock they take are saved together, so a
+     * failure part way leaves nothing half done.
      */
     public function update(ServiceRecordRequest $request, ServiceRecord $serviceRecord): RedirectResponse
     {
-        $serviceRecord->update($request->recordAttributes());
+        $user = $request->user();
 
-        $partsBefore = $this->partsFingerprint($serviceRecord);
+        $short = DB::transaction(function () use ($request, $serviceRecord, $user): array {
+            $serviceRecord->update($request->recordAttributes());
 
-        $this->syncParts($serviceRecord, $request->parts());
+            $partsBefore = $this->partsFingerprint($serviceRecord);
 
-        if ($this->partsFingerprint($serviceRecord) !== $partsBefore) {
-            $serviceRecord->estimateAgain();
-        }
+            $this->syncParts($serviceRecord, $request->parts(), $user);
 
-        $this->flashStockResult($serviceRecord, __('Job updated.'));
+            if ($this->partsFingerprint($serviceRecord) !== $partsBefore) {
+                $serviceRecord->estimateAgain();
+            }
+
+            return $this->syncServiceRecordStock->handle($serviceRecord, $user);
+        });
+
+        $this->flashStockResult($short, __('Job updated.'));
 
         return to_route('service-records.index');
     }
@@ -161,13 +181,15 @@ class ServiceRecordController extends Controller
     /**
      * Remove the given job.
      */
-    public function destroy(ServiceRecord $serviceRecord): RedirectResponse
+    public function destroy(Request $request, ServiceRecord $serviceRecord): RedirectResponse
     {
         Gate::authorize('delete', $serviceRecord);
 
-        $this->syncServiceRecordStock->release($serviceRecord, $serviceRecord->parts()->get());
+        DB::transaction(function () use ($request, $serviceRecord): void {
+            $this->syncServiceRecordStock->release($serviceRecord, $serviceRecord->parts()->get(), $request->user());
 
-        $serviceRecord->delete();
+            $serviceRecord->delete();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Job removed. Anything it took is back on the shelf.')]);
 
@@ -175,13 +197,13 @@ class ServiceRecordController extends Controller
     }
 
     /**
-     * Take what the job used off the shelf and say what happened, warning
-     * rather than succeeding quietly when the shelf could not cover a part.
+     * Say how taking what the job used off the shelf went, warning rather
+     * than succeeding quietly when the shelf could not cover a part.
+     *
+     * @param  array<int, string>  $short
      */
-    private function flashStockResult(ServiceRecord $serviceRecord, string $message): void
+    private function flashStockResult(array $short, string $message): void
     {
-        $short = $this->syncServiceRecordStock->handle($serviceRecord);
-
         if ($short === []) {
             Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
 
@@ -230,9 +252,13 @@ class ServiceRecordController extends Controller
      * how much of each line has already come off the shelf, and put back
      * anything a dropped line had taken.
      *
+     * A line switched to a different stocked part, or to none, puts what it
+     * took back on the old part first, so the stock is then taken from the
+     * new one instead.
+     *
      * @param  array<int, array{id: string|null, inventory_item_id: string|null, name: string, quantity: float, unit: string}>  $parts
      */
-    private function syncParts(ServiceRecord $serviceRecord, array $parts): void
+    private function syncParts(ServiceRecord $serviceRecord, array $parts, ?User $actingUser): void
     {
         $keptIds = [];
 
@@ -249,13 +275,17 @@ class ServiceRecordController extends Controller
                 continue;
             }
 
+            if ($attributes['inventory_item_id'] !== $existing->inventory_item_id) {
+                $this->syncServiceRecordStock->release($serviceRecord, [$existing], $actingUser);
+            }
+
             $existing->update($attributes);
             $keptIds[] = $existing->id;
         }
 
         $dropped = $serviceRecord->parts()->whereNotIn('id', $keptIds)->get();
 
-        $this->syncServiceRecordStock->release($serviceRecord, $dropped);
+        $this->syncServiceRecordStock->release($serviceRecord, $dropped, $actingUser);
 
         $dropped->each(fn (ServiceRecordPart $part) => $part->delete());
     }

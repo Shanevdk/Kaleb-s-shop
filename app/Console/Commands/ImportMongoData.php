@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\LinkJobPartsToStock;
 use DateTimeInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -69,8 +70,12 @@ class ImportMongoData extends Command
 
     /**
      * Execute the console command.
+     *
+     * The rows are written straight into the tables, so nothing runs as they
+     * are saved. Once they are in, the parts typed onto open jobs are linked
+     * to the stocked part of the same name, as saving them would have done.
      */
-    public function handle(): int
+    public function handle(LinkJobPartsToStock $linkJobPartsToStock): int
     {
         if (DB::connection()->getDriverName() === 'mongodb') {
             $this->error('The default connection is still MongoDB. Point DB_CONNECTION at the SQL database first.');
@@ -106,6 +111,8 @@ class ImportMongoData extends Command
             foreach (self::TABLES as $table => $foreignKeys) {
                 $summary[] = [$table, ...$this->copy($source, $table, $foreignKeys)];
             }
+
+            $linked = $linkJobPartsToStock->linkUnlinkedOpenJobParts();
         } catch (Throwable $exception) {
             DB::rollBack();
 
@@ -113,6 +120,7 @@ class ImportMongoData extends Command
         }
 
         $this->table(['Table', 'In MongoDB', 'Copied', 'Skipped'], $summary);
+        $this->info("Linked {$linked} typed-in job parts to the stocked part of the same name.");
 
         if ($this->option('dry-run')) {
             DB::rollBack();

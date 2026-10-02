@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UserRequest;
@@ -25,6 +26,7 @@ class UserController extends Controller
         return Inertia::render('admin/users/index', [
             'users' => UserResource::collection($users)->resolve(),
             'roles' => UserRole::options(),
+            'permissionOptions' => Permission::options(),
         ]);
     }
 
@@ -89,6 +91,28 @@ class UserController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __(':name is now a :role.', ['name' => $user->name, 'role' => strtolower($user->role->label())]),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Add or remove permissions on someone's account individually, on top
+     * of whatever their role already grants them.
+     */
+    public function updatePermissions(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'permissions' => ['array'],
+            'permissions.*' => [Rule::enum(Permission::class)],
+        ]);
+
+        $user->permissions = $request->input('permissions', []);
+        $user->save();
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __(":name's permissions were updated.", ['name' => $user->name]),
         ]);
 
         return back();

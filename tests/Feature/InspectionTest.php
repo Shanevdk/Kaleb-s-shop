@@ -190,3 +190,25 @@ test('only the items left needing attention count as outstanding work', function
         ->and(CheckStatus::Fixed->needsWork())->toBeFalse()
         ->and(CheckStatus::Good->needsWork())->toBeFalse();
 });
+
+test('saving only a note leaves the item\'s status as it is', function () {
+    $item = InspectionItem::factory()->create(['status' => CheckStatus::Good]);
+
+    $this->actingAs(User::factory()->create())
+        ->patch(route('inspection-items.update', $item), ['notes' => 'Tread at 4mm'])
+        ->assertRedirect();
+
+    expect($item->fresh())
+        ->status->toBe(CheckStatus::Good)
+        ->notes->toBe('Tread at 4mm');
+});
+
+test('a note longer than the checklist keeps is turned down', function () {
+    $item = InspectionItem::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->patch(route('inspection-items.update', $item), ['notes' => str_repeat('a', 256)])
+        ->assertSessionHasErrors('notes');
+
+    expect($item->fresh()->notes)->toBeNull();
+});

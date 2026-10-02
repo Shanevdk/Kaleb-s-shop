@@ -1,8 +1,11 @@
 <?php
 
 use App\Enums\PartCategory;
+use App\Enums\ServiceStatus;
 use App\Models\InventoryItem;
 use App\Models\PartOrder;
+use App\Models\ServiceRecord;
+use App\Models\ServiceRecordPart;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
@@ -99,6 +102,58 @@ test('receiving a part the shop never carried adds it to the inventory under the
         ->and($item->category)->toBe(PartCategory::Other)
         ->and((float) $item->quantity)->toBe(2.0)
         ->and($order->refresh()->inventory_item_id)->toBe($item->id);
+});
+
+test('receiving a part under another name points the open jobs it was ordered for at it', function () {
+    $mechanic = User::factory()->create();
+    $job = ServiceRecord::factory()->for($mechanic)->planned()->create();
+    $line = ServiceRecordPart::factory()->for($job)->create(['name' => 'Front wiper blade', 'quantity' => 1]);
+    $order = PartOrder::factory()->create(['name' => 'Front wiper blade', 'quantity_ordered' => 2]);
+
+    $this->actingAs($mechanic)->post(route('receiving.store', $order), [
+        'quantity' => 2,
+        'description' => 'Bosch ICON 26A',
+        'barcode' => '028851333307',
+    ])->assertSessionHasNoErrors();
+
+    $item = InventoryItem::sole();
+
+    expect($item->name)->toBe('Bosch ICON 26A')
+        ->and($line->refresh()->inventory_item_id)->toBe($item->id)
+        ->and($line->shortfall)->toBe(0.0);
+
+    $this->get(route('shopping-list.index'))
+        ->assertInertia(fn ($page) => $page->has('shortLines', 0));
+});
+
+test('stock booked in goes first to the finished jobs still owing it, oldest first', function () {
+    $mechanic = User::factory()->create();
+    $oil = InventoryItem::factory()->create(['name' => 'Engine oil', 'unit' => 'litre', 'quantity' => 0]);
+    $older = ServiceRecord::factory()->create(['status' => ServiceStatus::Completed, 'performed_on' => '2026-09-01']);
+    $newer = ServiceRecord::factory()->create(['status' => ServiceStatus::Completed, 'performed_on' => '2026-09-05']);
+
+    $olderLine = ServiceRecordPart::factory()->for($older)->create([
+        'inventory_item_id' => $oil->id, 'name' => $oil->name, 'unit' => 'litre', 'quantity' => 4, 'quantity_taken' => 2,
+    ]);
+    $newerLine = ServiceRecordPart::factory()->for($newer)->create([
+        'inventory_item_id' => $oil->id, 'name' => $oil->name, 'unit' => 'litre', 'quantity' => 2, 'quantity_taken' => 0,
+    ]);
+
+    $order = PartOrder::factory()->forItem($oil)->create(['unit' => 'litre', 'quantity_ordered' => 3]);
+
+    $this->actingAs($mechanic)
+        ->post(route('receiving.store', $order), ['quantity' => 3])
+        ->assertSessionHasNoErrors();
+
+    expect((float) $olderLine->refresh()->quantity_taken)->toBe(4.0)
+        ->and((float) $newerLine->refresh()->quantity_taken)->toBe(1.0)
+        ->and((float) $oil->refresh()->quantity)->toBe(0.0);
+
+    $this->assertDatabaseHas('stock_movements', [
+        'service_record_id' => $older->id,
+        'quantity' => -2,
+        'user_id' => $mechanic->id,
+    ]);
 });
 
 test('scanning a code that is on another part is refused', function () {

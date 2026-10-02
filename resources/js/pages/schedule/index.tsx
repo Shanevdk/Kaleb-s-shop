@@ -579,7 +579,8 @@ export default function Schedule({
                                     key={`${entry.kind}-${entry.id}`}
                                     entry={entry}
                                     today={today}
-                                    canWorkOnRecords={auth.can.workOnRecords}
+                                    canOpenInspections={auth.can.inspections}
+                                    canOpenJobs={auth.can.serviceLog}
                                 />
                             ))}
                         </ul>
@@ -629,17 +630,19 @@ export default function Schedule({
 function ScheduleEntryRow({
     entry,
     today,
-    canWorkOnRecords,
+    canOpenInspections,
+    canOpenJobs,
 }: {
     entry: ScheduleEntry;
     today: string;
-    canWorkOnRecords: boolean;
+    canOpenInspections: boolean;
+    canOpenJobs: boolean;
 }) {
     const isCheck = entry.kind !== 'job';
 
     // A check started today only counts if today falls inside its window.
     const canStart =
-        canWorkOnRecords &&
+        canOpenInspections &&
         entry.inspection_id === null &&
         entry.window !== null &&
         entry.window.from <= today &&
@@ -693,12 +696,12 @@ function ScheduleEntryRow({
                         </Link>
                     </Button>
                 )}
-                {canWorkOnRecords && entry.inspection_id && (
+                {canOpenInspections && entry.inspection_id && (
                     <Button size="sm" variant="outline" asChild>
                         <Link href={showCheck(entry.inspection_id)}>Open</Link>
                     </Button>
                 )}
-                {canWorkOnRecords && entry.service_record_id && (
+                {canOpenJobs && entry.service_record_id && (
                     <Button size="sm" variant="outline" asChild>
                         <Link href={editJob(entry.service_record_id)}>
                             Open

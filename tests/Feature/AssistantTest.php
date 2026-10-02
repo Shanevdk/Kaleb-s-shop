@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * A chat completion that answers in plain text.
@@ -297,6 +298,45 @@ test('the models are not tried once the time allowed has run out', function () {
 
     expect(fn () => app(OpenRouter::class)->complete([['role' => 'user', 'content' => 'Hello']], budget: 2))
         ->toThrow(AssistantUnavailable::class, 'The free AI models are slow right now. Try again in a minute.');
+
+    Http::assertNothingSent();
+});
+
+test('the whole shop shares a cap on calls to the AI each minute, and a refused call is never sent', function () {
+    Http::fake(['openrouter.ai/*' => Http::response(answer('Yes.'))]);
+    $openRouter = app(OpenRouter::class);
+
+    foreach (range(1, OpenRouter::CALLS_PER_MINUTE) as $call) {
+        $openRouter->complete([['role' => 'user', 'content' => 'Hello']]);
+    }
+
+    expect(fn () => $openRouter->complete([['role' => 'user', 'content' => 'Hello']]))
+        ->toThrow(AssistantUnavailable::class, 'The AI is busy with a lot of requests right now. Try again in a minute.');
+
+    Http::assertSentCount(OpenRouter::CALLS_PER_MINUTE);
+
+    $this->travel(61)->seconds();
+
+    expect($openRouter->complete([['role' => 'user', 'content' => 'Hello']])['message']['content'])->toBe('Yes.');
+});
+
+test('each fallback model tried counts against the cap', function () {
+    Http::fake(['openrouter.ai/*' => Http::response(['error' => 'busy'], 429)]);
+
+    expect(fn () => app(OpenRouter::class)->complete([['role' => 'user', 'content' => 'Hello']]))
+        ->toThrow(AssistantUnavailable::class);
+
+    expect(RateLimiter::attempts(OpenRouter::RATE_LIMIT_KEY))->toBe(2);
+});
+
+test('the assistant says the AI is busy once the shop has used up its calls for the minute', function () {
+    Http::fake();
+    RateLimiter::increment(OpenRouter::RATE_LIMIT_KEY, amount: OpenRouter::CALLS_PER_MINUTE);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('assistant.ask'), ['messages' => [['role' => 'user', 'content' => 'Hi']]])
+        ->assertServiceUnavailable()
+        ->assertJson(['message' => 'The AI is busy with a lot of requests right now. Try again in a minute.']);
 
     Http::assertNothingSent();
 });

@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/react';
 import { Minus } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -47,10 +47,21 @@ export default function UseStockDialog({
     const isValid = Number.isFinite(used) && used > 0;
     const remaining = Math.max(0, item.quantity - (isValid ? used : 0));
 
+    const [processing, setProcessing] = useState(false);
+
+    /**
+     * Set the moment a request goes out, ahead of the re-render that disables
+     * the button, so a double-click can never take the stock off twice.
+     */
+    const submitting = useRef(false);
+
     const submit = () => {
-        if (!isValid) {
+        if (!isValid || submitting.current) {
             return;
         }
+
+        submitting.current = true;
+        setProcessing(true);
 
         router.patch(
             adjust(item.id).url,
@@ -66,6 +77,10 @@ export default function UseStockDialog({
                     setOpen(false);
                     setAmount('');
                     setNote('');
+                },
+                onFinish: () => {
+                    submitting.current = false;
+                    setProcessing(false);
                 },
             },
         );
@@ -206,7 +221,11 @@ export default function UseStockDialog({
                             Cancel
                         </Button>
                     </DialogClose>
-                    <Button type="button" onClick={submit} disabled={!isValid}>
+                    <Button
+                        type="button"
+                        onClick={submit}
+                        disabled={!isValid || processing}
+                    >
                         Take it off the shelf
                     </Button>
                 </DialogFooter>

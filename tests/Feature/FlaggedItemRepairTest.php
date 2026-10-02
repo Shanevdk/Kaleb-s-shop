@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Assistant\OpenRouter;
 use App\Enums\CheckStatus;
 use App\Enums\RepairPartsStatus;
 use App\Enums\ServiceStatus;
@@ -11,6 +12,7 @@ use App\Models\ServiceRecord;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * A chat completion whose answer is the given repair plan.
@@ -226,4 +228,62 @@ test('the checklist shows the parts planned for a flagged item', function () {
             ->where('inspection.items.0.repair_job.parts.0.name', 'Front brake pad set')
             ->where('inspection.items.0.repair_job.parts.0.in_inventory', false)
         );
+});
+
+test('parts that never came back are given up on, so the checklist stops waiting and offers to try again', function () {
+    Queue::fake();
+    $this->travelTo('2026-10-02 09:00:00');
+    $user = User::factory()->create();
+    $item = InspectionItem::factory()->create();
+
+    $this->actingAs($user)
+        ->patch(route('inspection-items.update', $item), ['status' => CheckStatus::Attention->value])
+        ->assertRedirect();
+
+    expect($item->refresh()->parts_requested_at->toDateTimeString())->toBe('2026-10-02 09:00:00')
+        ->and($item->currentPartsStatus())->toBe(RepairPartsStatus::Pending);
+
+    $this->travel(InspectionItem::PARTS_WAIT_LIMIT_MINUTES)->minutes();
+
+    expect($item->refresh()->currentPartsStatus())->toBe(RepairPartsStatus::Failed);
+
+    $this->actingAs($user)
+        ->get(route('inspections.show', $item->inspection_id))
+        ->assertInertia(fn ($page) => $page->where('inspection.items.0.parts_status', 'failed'));
+
+    $this->actingAs($user)
+        ->post(route('inspection-items.replan', $item))
+        ->assertRedirect();
+
+    expect($item->refresh()->currentPartsStatus())->toBe(RepairPartsStatus::Pending)
+        ->and($item->parts_requested_at->toDateTimeString())->toBe('2026-10-02 09:10:00');
+});
+
+test('parts left pending from before the time was recorded are given up on', function () {
+    $item = InspectionItem::factory()->create(['status' => CheckStatus::Attention, 'parts_status' => RepairPartsStatus::Pending]);
+
+    expect($item->currentPartsStatus())->toBe(RepairPartsStatus::Failed);
+});
+
+test('a plan that comes back after it was given up on is still kept', function () {
+    $item = InspectionItem::factory()->create(['status' => CheckStatus::Attention]);
+    Http::fake(['openrouter.ai/*' => Http::response(repairPlanReply(['type' => 'tyres', 'parts' => []]))]);
+
+    $item->markAwaitingParts();
+    $this->travel(InspectionItem::PARTS_WAIT_LIMIT_MINUTES + 5)->minutes();
+
+    PlanRepairForFlaggedItem::dispatchSync($item, User::factory()->create());
+
+    expect($item->fresh()->currentPartsStatus())->toBe(RepairPartsStatus::NoneNeeded);
+});
+
+test('the item is marked as failed, without asking, when the shop has used up its AI calls for the minute', function () {
+    $item = InspectionItem::factory()->create(['status' => CheckStatus::Attention]);
+    Http::fake();
+    RateLimiter::increment(OpenRouter::RATE_LIMIT_KEY, amount: OpenRouter::CALLS_PER_MINUTE);
+
+    PlanRepairForFlaggedItem::dispatchSync($item, User::factory()->create());
+
+    expect($item->fresh()->parts_status)->toBe(RepairPartsStatus::Failed);
+    Http::assertNothingSent();
 });

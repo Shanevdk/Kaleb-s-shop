@@ -6,7 +6,7 @@ import {
     Loader2,
     ScanBarcode,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { Button } from '@/components/ui/button';
@@ -95,6 +95,15 @@ export default function PhoneScanner({
         autoStart: !expired,
         onScan: send,
     });
+
+    // Once the link runs out the camera's box goes away, so switch the
+    // camera itself off too rather than leave it running unseen.
+    useEffect(() => {
+        if (linkExpired) {
+            camera.stop();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [linkExpired]);
 
     const hasCamera = scanner.license_key !== '';
 

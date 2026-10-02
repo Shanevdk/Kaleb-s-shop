@@ -4,6 +4,7 @@ namespace App\Actions\Assistant;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Talks to the free models on OpenRouter, working down the fallback list
@@ -16,6 +17,19 @@ class OpenRouter
      * there is no point starting another attempt.
      */
     private const SHORTEST_ATTEMPT = 5;
+
+    /**
+     * The most calls the whole shop may send in a minute. Saving jobs and
+     * flagging checklist items each ask the AI something, so without a cap
+     * one busy afternoon could use up the free requests everyone shares and
+     * leave the assistant, diagnosis and estimates with nothing.
+     */
+    public const CALLS_PER_MINUTE = 30;
+
+    /**
+     * The rate limiter key the shop's calls are counted under.
+     */
+    public const RATE_LIMIT_KEY = 'openrouter-calls';
 
     /**
      * Throw unless an API key has been set.
@@ -44,6 +58,9 @@ class OpenRouter
      * Asking for a low reasoning effort keeps the thinking models, which
      * otherwise spend most of their time reasoning, to seconds rather than
      * a minute.
+     *
+     * The whole shop shares a cap on calls a minute. Past it nothing is sent,
+     * and the caller hears the AI is busy, the same as any other failure.
      *
      * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
@@ -77,6 +94,8 @@ class OpenRouter
 
                 $attemptTimeout = min($timeout, $remaining);
             }
+
+            $this->countCall();
 
             try {
                 $response = Http::withToken($config['key'])
@@ -126,5 +145,21 @@ class OpenRouter
         }
 
         throw new AssistantUnavailable($failure);
+    }
+
+    /**
+     * Count a call against the shop's allowance for the minute, or throw
+     * without sending it when the allowance is used up. Every model tried
+     * counts, since each one is a request against the free quota.
+     *
+     * @throws AssistantUnavailable
+     */
+    private function countCall(): void
+    {
+        if (RateLimiter::tooManyAttempts(self::RATE_LIMIT_KEY, self::CALLS_PER_MINUTE)) {
+            throw new AssistantUnavailable('The AI is busy with a lot of requests right now. Try again in a minute.');
+        }
+
+        RateLimiter::hit(self::RATE_LIMIT_KEY, 60);
     }
 }

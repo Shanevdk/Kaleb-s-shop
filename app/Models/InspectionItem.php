@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property CheckStatus $status
  * @property string|null $notes
  * @property RepairPartsStatus|null $parts_status
+ * @property Carbon|null $parts_requested_at
  * @property int $position
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -41,6 +42,50 @@ class InspectionItem extends Model
     protected $attributes = [
         'status' => 'pending',
     ];
+
+    /**
+     * Minutes the parts are waited on before working them out is given up
+     * as failed. The job gives itself a minute and a half at most, so a plan
+     * still pending after this died with the server it was running on and
+     * is never coming.
+     */
+    public const PARTS_WAIT_LIMIT_MINUTES = 10;
+
+    /**
+     * Mark the item as waiting on its parts being worked out.
+     */
+    public function markAwaitingParts(): void
+    {
+        $this->forceFill([
+            'parts_status' => RepairPartsStatus::Pending,
+            'parts_requested_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * Get where working out the parts has got to, counting a plan that has
+     * been pending for too long as failed, so the checklist stops waiting on
+     * it and it can be tried again. A late plan is still kept if it does
+     * turn up.
+     */
+    public function currentPartsStatus(): ?RepairPartsStatus
+    {
+        if ($this->parts_status === RepairPartsStatus::Pending && $this->partsHaveTimedOut()) {
+            return RepairPartsStatus::Failed;
+        }
+
+        return $this->parts_status;
+    }
+
+    /**
+     * Determine whether the parts were asked for too long ago to still be
+     * coming. One left pending from before the time was recorded counts too.
+     */
+    private function partsHaveTimedOut(): bool
+    {
+        return $this->parts_requested_at === null
+            || $this->parts_requested_at->lte(now()->subMinutes(self::PARTS_WAIT_LIMIT_MINUTES));
+    }
 
     /**
      * Get the checklist the item belongs to.
@@ -85,6 +130,7 @@ class InspectionItem extends Model
         return [
             'status' => CheckStatus::class,
             'parts_status' => RepairPartsStatus::class,
+            'parts_requested_at' => 'datetime',
             'position' => 'integer',
         ];
     }

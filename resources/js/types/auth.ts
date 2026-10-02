@@ -12,10 +12,32 @@ export type User = {
 
 export type UserRole = 'admin' | 'mechanic' | 'scheduler' | 'shopper';
 
+export type Permission =
+    | 'manage-team'
+    | 'mechanics-shop'
+    | 'vehicles'
+    | 'lookup'
+    | 'diagnose'
+    | 'job-queue'
+    | 'service-log'
+    | 'inspections'
+    | 'schedule'
+    | 'inventory'
+    | 'shopping-list'
+    | 'receiving'
+    | 'equipment'
+    | 'assistant';
+
 export type RoleOption = {
     value: UserRole;
     label: string;
     description: string;
+    default_permissions: Permission[];
+};
+
+export type PermissionOption = {
+    value: Permission;
+    label: string;
 };
 
 export type Auth = {
@@ -23,8 +45,19 @@ export type Auth = {
     role: UserRole;
     can: {
         manageTeam: boolean;
-        workOnRecords: boolean;
-        manageSchedule: boolean;
+        mechanicsShop: boolean;
+        vehicles: boolean;
+        lookup: boolean;
+        diagnose: boolean;
+        jobQueue: boolean;
+        serviceLog: boolean;
+        inspections: boolean;
+        schedule: boolean;
+        inventory: boolean;
+        shoppingList: boolean;
+        receiving: boolean;
+        equipment: boolean;
+        assistant: boolean;
     };
 };
 
@@ -34,6 +67,7 @@ export type TeamMember = {
     email: string;
     role: UserRole;
     role_label: string;
+    permissions: Permission[];
     is_verified: boolean;
     created_at: string | null;
     is_current_user: boolean;

@@ -34,9 +34,9 @@ class EstimateServiceRecordDuration implements ShouldQueue
      */
     public function handle(EstimateJobDuration $estimateJobDuration): void
     {
-        // Running inside the web request, so give the free models, and the
-        // fallbacks behind them, longer than a page load gets.
-        set_time_limit(300);
+        // The estimate keeps its own time budget; this is headroom on top so
+        // PHP never cuts the answer off.
+        set_time_limit(90);
 
         if ($this->isStale()) {
             return;
@@ -67,9 +67,13 @@ class EstimateServiceRecordDuration implements ShouldQueue
         ])->saveQuietly();
 
         // Straight to the table: the parts are only being priced, so there is
-        // nothing to link to the shelf again.
-        foreach ($estimate['part_prices'] as $partId => $priceEach) {
-            $this->serviceRecord->parts()->whereKey($partId)->update(['estimated_unit_cost' => $priceEach]);
+        // nothing to link to the shelf again. A line renamed while the model
+        // was thinking is a different part now, so it keeps no old price.
+        foreach ($estimate['part_prices'] as $partId => $price) {
+            $this->serviceRecord->parts()
+                ->whereKey($partId)
+                ->where('name', $price['name'])
+                ->update(['estimated_unit_cost' => $price['price_each']]);
         }
     }
 

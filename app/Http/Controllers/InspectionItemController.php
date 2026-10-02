@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CheckStatus;
-use App\Enums\RepairPartsStatus;
 use App\Jobs\PlanRepairForFlaggedItem;
 use App\Models\Inspection;
 use App\Models\InspectionItem;
@@ -88,8 +87,8 @@ class InspectionItemController extends Controller
         Gate::authorize('update', $inspectionItem->inspection);
 
         $validated = $request->validate([
-            'status' => ['required', Rule::enum(CheckStatus::class)],
-            'notes' => ['nullable', 'string', 'max:255'],
+            'status' => ['sometimes', 'required', Rule::enum(CheckStatus::class)],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         $wasFlagged = $inspectionItem->status === CheckStatus::Attention;
@@ -134,7 +133,7 @@ class InspectionItemController extends Controller
      */
     private function planRepair(Request $request, InspectionItem $inspectionItem): void
     {
-        $inspectionItem->update(['parts_status' => RepairPartsStatus::Pending]);
+        $inspectionItem->markAwaitingParts();
 
         PlanRepairForFlaggedItem::dispatch($inspectionItem, $request->user());
     }

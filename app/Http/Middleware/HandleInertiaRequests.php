@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Permission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -41,11 +43,11 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
                 'role' => $request->user()?->role?->value,
-                'can' => [
-                    'manageTeam' => (bool) $request->user()?->can('manage-team'),
-                    'workOnRecords' => (bool) $request->user()?->can('work-on-records'),
-                    'manageSchedule' => (bool) $request->user()?->can('manage-schedule'),
-                ],
+                'can' => collect(Permission::cases())
+                    ->mapWithKeys(fn (Permission $permission): array => [
+                        Str::camel($permission->value) => (bool) $request->user()?->can($permission->value),
+                    ])
+                    ->all(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'scandit' => fn (): ?array => $request->user() === null ? null : [

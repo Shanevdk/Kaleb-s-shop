@@ -38,6 +38,8 @@
         <env name="DB_DATABASE" value="vdk_machanics_testing" force="true"/>
         <env name="MONGODB_DATABASE" value="vdk_machanics_testing" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Tests never pre-render pages; with `npm run dev` running it would call the Vite server. -->
+        <env name="INERTIA_SSR_ENABLED" value="false" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <!-- Never let a test reach the real AI; tests that need it set a fake key. -->
         <env name="OPENROUTER_API_KEY" value="" force="true"/>

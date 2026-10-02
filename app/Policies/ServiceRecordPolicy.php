@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\Permission;
 use App\Models\ServiceRecord;
 use App\Models\User;
 
@@ -12,7 +13,7 @@ class ServiceRecordPolicy
      */
     public function view(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::ServiceLog);
     }
 
     /**
@@ -20,7 +21,7 @@ class ServiceRecordPolicy
      */
     public function update(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::ServiceLog);
     }
 
     /**
@@ -28,6 +29,6 @@ class ServiceRecordPolicy
      */
     public function delete(User $user, ServiceRecord $serviceRecord): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::ServiceLog);
     }
 }

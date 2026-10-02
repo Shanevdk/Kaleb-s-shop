@@ -93,6 +93,30 @@ test('parts for a finished job are not on the list', function () {
         ->assertInertia(fn ($page) => $page->has('shortLines', 0));
 });
 
+test('what a finished job still owes the shelf is on the list', function () {
+    $user = User::factory()->create();
+    $oil = InventoryItem::factory()->for($user)->create(['name' => 'Engine oil', 'unit' => 'litre', 'quantity' => 0, 'minimum_quantity' => 0]);
+    $record = ServiceRecord::factory()->for($user)->create(['status' => ServiceStatus::Completed]);
+
+    ServiceRecordPart::factory()->for($record)->create([
+        'inventory_item_id' => $oil->id,
+        'name' => $oil->name,
+        'unit' => 'litre',
+        'quantity' => 4,
+        'quantity_taken' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('shopping-list.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('shortLines', 1)
+            ->where('shortLines.0.inventory_item_id', $oil->id)
+            ->where('shortLines.0.shortfall', 3)
+            ->where('shortLines.0.jobs.0.id', $record->id)
+        );
+});
+
 test('stock at its reorder point is listed separately', function () {
     $user = User::factory()->create();
     InventoryItem::factory()->for($user)->create([
@@ -124,7 +148,7 @@ test('a shopper sees the whole shop shopping list', function () {
         ->assertInertia(fn ($page) => $page
             ->has('shortLines', 1)
             ->where('shortLines.0.name', 'Rear wheel bearing')
-            ->where('auth.can.workOnRecords', false)
+            ->where('auth.can.serviceLog', false)
         );
 });
 

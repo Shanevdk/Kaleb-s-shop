@@ -37,6 +37,10 @@ type ScanResult = {
 
 type LogEntry = ScanResult & { key: number };
 
+type Job =
+    | { kind: 'scan'; barcode: string; fromPhone: boolean }
+    | { kind: 'link'; barcode: string; inventoryItemId: string };
+
 export default function InventoryScan({
     scandit,
     items,
@@ -51,56 +55,113 @@ export default function InventoryScan({
     const manualRef = useRef<HTMLInputElement | null>(null);
 
     /**
-     * The last barcode sent to the server, so a scan that is still in flight
-     * is not fired again on the next camera frame.
+     * Everything waiting to go to the server. A new visit would cancel the
+     * one in flight and its result would never show, so camera, keyboard and
+     * phone codes, and barcode links, all go through here one at a time.
      */
-    const pendingRef = useRef<string | null>(null);
+    const queue = useRef<Job[]>([]);
 
-    const submitBarcode = (barcode: string) => {
-        const trimmed = barcode.trim();
+    /**
+     * The job the server is working on right now, if any.
+     */
+    const inFlight = useRef<Job | null>(null);
 
-        if (trimmed === '' || pendingRef.current === trimmed) {
+    const runNext = () => {
+        if (inFlight.current !== null) {
             return;
         }
 
-        pendingRef.current = trimmed;
+        const job = queue.current.shift();
+
+        if (job === undefined) {
+            return;
+        }
+
+        inFlight.current = job;
+
+        const onFinish = (visit: {
+            cancelled: boolean;
+            interrupted: boolean;
+        }) => {
+            inFlight.current = null;
+
+            // Cut short by leaving the page: starting the next one would
+            // cancel that visit in turn.
+            if (visit.cancelled || visit.interrupted) {
+                return;
+            }
+
+            runNext();
+        };
+
+        if (job.kind === 'link') {
+            router.post(
+                link.url(),
+                {
+                    barcode: job.barcode,
+                    inventory_item_id: job.inventoryItemId,
+                    delta: 1,
+                },
+                { onFinish },
+            );
+
+            return;
+        }
 
         router.post(
             store.url(),
-            { barcode: trimmed, delta: 1 },
+            { barcode: job.barcode, delta: 1 },
             {
                 preserveState: true,
                 preserveScroll: true,
-                onFinish: () => {
-                    pendingRef.current = null;
-                    bookNextFromPhone();
-                },
+                onFinish,
             },
         );
     };
 
-    /**
-     * Codes from a paired phone can arrive several at once, and a new visit
-     * would cancel the one in flight, so they are booked in one at a time.
-     */
-    const phoneQueue = useRef<string[]>([]);
+    const enqueue = (job: Job) => {
+        queue.current.push(job);
+        runNext();
+    };
 
-    const bookNextFromPhone = () => {
-        if (pendingRef.current !== null) {
+    /**
+     * The camera keeps reporting a code held in view, so a camera or keyboard
+     * code that is already in flight or waiting is not booked again. Phone
+     * codes are each a deliberate scan and always go in.
+     */
+    const submitBarcode = (barcode: string) => {
+        const trimmed = barcode.trim();
+
+        if (trimmed === '') {
             return;
         }
 
-        const next = phoneQueue.current.shift();
+        const alreadyWaiting = [inFlight.current, ...queue.current].some(
+            (job) =>
+                job?.kind === 'scan' &&
+                !job.fromPhone &&
+                job.barcode === trimmed,
+        );
 
-        if (next !== undefined) {
-            submitBarcode(next);
+        if (alreadyWaiting) {
+            return;
         }
+
+        enqueue({ kind: 'scan', barcode: trimmed, fromPhone: false });
     };
 
     const queueFromPhone = (barcode: string) => {
-        phoneQueue.current.push(barcode);
-        bookNextFromPhone();
+        const trimmed = barcode.trim();
+
+        if (trimmed !== '') {
+            enqueue({ kind: 'scan', barcode: trimmed, fromPhone: true });
+        }
     };
+
+    /**
+     * Counts results into the log, so each one keeps its own row.
+     */
+    const logKey = useRef(0);
 
     const scanner = useBarcodeScanner({
         licenseKey: scandit.license_key,
@@ -115,7 +176,7 @@ export default function InventoryScan({
 
         setLinkTarget('');
         setLog((entries) =>
-            [{ ...result, key: Date.now() }, ...entries].slice(0, 20),
+            [{ ...result, key: ++logKey.current }, ...entries].slice(0, 20),
         );
     }, [result]);
 
@@ -124,10 +185,18 @@ export default function InventoryScan({
             return;
         }
 
-        router.post(link.url(), {
+        const alreadyLinking = [inFlight.current, ...queue.current].some(
+            (job) => job?.kind === 'link' && job.barcode === result.barcode,
+        );
+
+        if (alreadyLinking) {
+            return;
+        }
+
+        enqueue({
+            kind: 'link',
             barcode: result.barcode,
-            inventory_item_id: linkTarget,
-            delta: 1,
+            inventoryItemId: linkTarget,
         });
     };
 

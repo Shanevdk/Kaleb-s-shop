@@ -32,7 +32,7 @@ class WorkOrderResource extends JsonResource
             'status_label' => $this->status->label(),
             'reason' => $this->issueReason(),
             'updated_on' => $this->updated_at?->toDateString(),
-            'estimating' => $this->estimate_status === EstimateStatus::Pending,
+            'estimating' => $this->isAwaitingEstimate(),
             'vehicle' => $vehicle === null ? null : [
                 'name' => "{$vehicle->year} {$vehicle->make} {$vehicle->model}",
                 'registration' => $vehicle->registration,
@@ -59,7 +59,7 @@ class WorkOrderResource extends JsonResource
                 ->values()
                 ->all(),
             'cost' => $this->partsEstimate(),
-            'time' => $this->estimate_status === EstimateStatus::Failed || $this->estimated_hours === null ? null : [
+            'time' => $this->currentEstimateStatus() === EstimateStatus::Failed || $this->estimated_hours === null ? null : [
                 'hours' => (float) $this->estimated_hours,
                 'low' => $this->estimated_hours_low === null ? null : (float) $this->estimated_hours_low,
                 'high' => $this->estimated_hours_high === null ? null : (float) $this->estimated_hours_high,

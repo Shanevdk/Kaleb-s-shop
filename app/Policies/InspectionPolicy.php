@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\Permission;
 use App\Models\Inspection;
 use App\Models\User;
 
@@ -12,7 +13,7 @@ class InspectionPolicy
      */
     public function view(User $user, Inspection $inspection): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inspections);
     }
 
     /**
@@ -20,7 +21,7 @@ class InspectionPolicy
      */
     public function update(User $user, Inspection $inspection): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inspections);
     }
 
     /**
@@ -28,6 +29,6 @@ class InspectionPolicy
      */
     public function delete(User $user, Inspection $inspection): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inspections);
     }
 }

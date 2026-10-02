@@ -1,8 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import {
     MailWarning,
     Plus,
     ShieldCheck,
+    SlidersHorizontal,
     Trash2,
     UserRound,
 } from 'lucide-react';
@@ -10,6 +12,14 @@ import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     Select,
     SelectContent,
@@ -27,17 +37,50 @@ import {
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { create, destroy, index, update, verify } from '@/routes/admin/users';
-import type { RoleOption, TeamMember } from '@/types';
+import { update as updatePermissions } from '@/routes/admin/users/permissions';
+import type { Permission, PermissionOption, RoleOption, TeamMember } from '@/types';
 
 export default function AdminUsersIndex({
     users,
     roles,
+    permissionOptions,
 }: {
     users: TeamMember[];
     roles: RoleOption[];
+    permissionOptions: PermissionOption[];
 }) {
     const changeRole = (user: TeamMember, role: string) => {
         router.patch(update(user.id).url, { role }, { preserveScroll: true });
+    };
+
+    // Tracks the permissions each account is mid-save with, so a second
+    // toggle fired before the first request lands builds on top of it
+    // instead of the stale set the page loaded with.
+    const [pendingPermissions, setPendingPermissions] = useState<
+        Record<string, Permission[]>
+    >({});
+
+    const togglePermission = (
+        user: TeamMember,
+        permission: Permission,
+        granted: boolean,
+    ) => {
+        const current = pendingPermissions[user.id] ?? user.permissions;
+        const next = granted
+            ? [...current, permission]
+            : current.filter((p) => p !== permission);
+
+        setPendingPermissions((state) => ({ ...state, [user.id]: next }));
+
+        router.patch(
+            updatePermissions(user.id).url,
+            { permissions: next },
+            {
+                preserveScroll: true,
+                onFinish: () =>
+                    setPendingPermissions(({ [user.id]: _, ...rest }) => rest),
+            },
+        );
     };
 
     const verifyUser = (user: TeamMember) => {
@@ -69,6 +112,7 @@ export default function AdminUsersIndex({
                                 <TableHead>Name</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Access</TableHead>
+                                <TableHead>Permissions</TableHead>
                                 <TableHead>Added</TableHead>
                                 <TableHead />
                             </TableRow>
@@ -136,6 +180,99 @@ export default function AdminUsersIndex({
                                                 </Badge>
                                             )}
                                         </span>
+                                    </TableCell>
+                                    <TableCell>
+                                        {(() => {
+                                            const permissions =
+                                                pendingPermissions[
+                                                    user.id
+                                                ] ?? user.permissions;
+                                            const defaultPermissions =
+                                                roles.find(
+                                                    (role) =>
+                                                        role.value ===
+                                                        user.role,
+                                                )?.default_permissions ?? [];
+                                            const extraCount =
+                                                permissions.length;
+
+                                            return (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger
+                                                        asChild
+                                                    >
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 gap-1"
+                                                            aria-label={`Permissions for ${user.name}`}
+                                                        >
+                                                            <SlidersHorizontal className="size-3.5" />
+                                                            {extraCount > 0
+                                                                ? `+${extraCount} extra`
+                                                                : 'Permissions'}
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="start">
+                                                        <DropdownMenuLabel>
+                                                            Extra permissions
+                                                        </DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        {permissionOptions.map(
+                                                            (permission) => {
+                                                                const fromRole =
+                                                                    defaultPermissions.includes(
+                                                                        permission.value,
+                                                                    );
+                                                                const granted =
+                                                                    fromRole ||
+                                                                    permissions.includes(
+                                                                        permission.value,
+                                                                    );
+
+                                                                return (
+                                                                    <DropdownMenuCheckboxItem
+                                                                        key={
+                                                                            permission.value
+                                                                        }
+                                                                        checked={
+                                                                            granted
+                                                                        }
+                                                                        disabled={
+                                                                            fromRole
+                                                                        }
+                                                                        onCheckedChange={(
+                                                                            checked,
+                                                                        ) =>
+                                                                            togglePermission(
+                                                                                user,
+                                                                                permission.value,
+                                                                                checked,
+                                                                            )
+                                                                        }
+                                                                        onSelect={(
+                                                                            event,
+                                                                        ) =>
+                                                                            event.preventDefault()
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            permission.label
+                                                                        }
+                                                                        {fromRole && (
+                                                                            <span className="text-muted-foreground ml-auto text-xs">
+                                                                                from
+                                                                                role
+                                                                            </span>
+                                                                        )}
+                                                                    </DropdownMenuCheckboxItem>
+                                                                );
+                                                            },
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
                                         {formatDate(

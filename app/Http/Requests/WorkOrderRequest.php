@@ -23,7 +23,8 @@ class WorkOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'issue_reason' => ['required', 'string', 'max:5000'],
+            'reset_link' => ['sometimes', 'boolean'],
+            'issue_reason' => ['exclude_if:reset_link,true', 'required', 'string', 'max:5000'],
             'email' => ['nullable', 'email', 'max:255'],
             'message' => ['nullable', 'string', 'max:2000'],
         ];

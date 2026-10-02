@@ -4,21 +4,23 @@
     $quantity = fn (float $value): string => rtrim(rtrim(number_format($value, 2), '0'), '.');
     $time = $sheet['time'];
     $cost = $sheet['cost'];
+    // Typed-in text is shown as written: without a [ it cannot become a link or image.
+    $plain = fn (?string $text): string => str_replace('[', '\[', (string) $text);
 @endphp
 <x-mail::message>
-# {{ $sheet['title'] }}
+# {{ $plain($sheet['title']) }}
 
 @if ($sheet['vehicle'])
-**{{ $sheet['vehicle']['name'] }}**@if ($sheet['vehicle']['registration']) · {{ $sheet['vehicle']['registration'] }}@endif
+**{{ $plain($sheet['vehicle']['name']) }}**@if ($sheet['vehicle']['registration']) · {{ $plain($sheet['vehicle']['registration']) }}@endif
 
 @endif
 @if ($note !== '')
-{{ $note }}
+{{ $plain($note) }}
 
 @endif
 ## What's wrong
 
-{{ $sheet['reason'] }}
+{{ $plain($sheet['reason']) }}
 
 ## Estimate
 
@@ -36,7 +38,7 @@
 | Part | Qty | Cost |
 | :-- | :-- | --: |
 @foreach ($sheet['parts'] as $part)
-| {{ $part['name'] }} | {{ $quantity($part['quantity']) }} {{ $part['unit_abbreviation'] }} | {{ $part['line_total'] === null ? '—' : ($part['priced_by'] === 'estimate' ? '≈ ' : '').$money($part['line_total']) }} |
+| {{ $plain($part['name']) }} | {{ $quantity($part['quantity']) }} {{ $part['unit_abbreviation'] }} | {{ $part['line_total'] === null ? '—' : ($part['priced_by'] === 'estimate' ? '≈ ' : '').$money($part['line_total']) }} |
 @endforeach
 </x-mail::table>
 
@@ -52,6 +54,6 @@ Costs come from stock prices, with ≈ marking a part priced by an AI estimate. 
 Reply to this email with any questions.
 
 Thanks,<br>
-{{ $sender->name }}<br>
+{{ $plain($sender->name) }}<br>
 {{ config('app.name') }}
 </x-mail::message>

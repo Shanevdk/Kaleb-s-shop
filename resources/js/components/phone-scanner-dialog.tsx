@@ -29,6 +29,10 @@ type PollResponse = {
  * Show a QR code that turns a phone into a barcode scanner for this page.
  * Every code the phone scans is handed to `onScan`. Unless `continuous` is
  * set, the dialog closes after the first one.
+ *
+ * The phone's link stays good after the dialog closes, so scans keep coming
+ * in until the pairing runs out or the page is left. Opening the dialog again
+ * shows the same code rather than starting a new pairing.
  */
 export default function PhoneScannerDialog({
     onScan,
@@ -47,7 +51,18 @@ export default function PhoneScannerDialog({
     const [expired, setExpired] = useState(false);
     const [received, setReceived] = useState(0);
     const [error, setError] = useState<string | null>(null);
+
+    /**
+     * The newest scan already handed on. Anything at or below it is dropped,
+     * so a scan is never booked twice.
+     */
     const lastId = useRef(0);
+
+    /**
+     * Whether a new code is being made, so opening the dialog twice in a row
+     * never starts two pairings.
+     */
+    const starting = useRef(false);
 
     const starter = useHttp<Record<string, never>, Pairing>({});
     const checker = useHttp<Record<string, never>, PollResponse>({});
@@ -55,7 +70,15 @@ export default function PhoneScannerDialog({
     const onScanRef = useRef(onScan);
     onScanRef.current = onScan;
 
+    const continuousRef = useRef(continuous);
+    continuousRef.current = continuous;
+
     const start = useCallback(() => {
+        if (starting.current) {
+            return;
+        }
+
+        starting.current = true;
         setPairing(null);
         setConnected(false);
         setExpired(false);
@@ -85,27 +108,56 @@ export default function PhoneScannerDialog({
             })
             .catch(() => {
                 // Already shown through the handlers above.
+            })
+            .finally(() => {
+                starting.current = false;
             });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Make a code each time the dialog opens.
+    const live = pairing !== null && !expired;
+
+    // Make a code when the dialog opens, unless the phone is still paired.
     useEffect(() => {
-        if (open) {
+        if (open && !live) {
             start();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, start]);
 
-    // While it is open, ask every couple of seconds what the phone has sent.
+    // For as long as the pairing lasts, open or not, ask every couple of
+    // seconds what the phone has sent.
     useEffect(() => {
-        if (!open || pairing === null || expired) {
+        if (pairing === null || expired) {
             return;
         }
 
+        /**
+         * Set once this pairing is replaced or the page is left, so a poll
+         * that comes back late is ignored.
+         */
+        let stopped = false;
+
+        /**
+         * Whether a poll is still waiting on the server, so a slow one is
+         * never overlapped by the next tick asking for the same scans.
+         */
+        let waiting = false;
+
+        const expiresAt = Date.parse(pairing.expires_at);
+
         const check = () => {
-            if (checker.processing) {
+            if (waiting) {
                 return;
             }
+
+            if (Date.now() >= expiresAt) {
+                setExpired(true);
+
+                return;
+            }
+
+            waiting = true;
 
             checker
                 .get(
@@ -118,7 +170,7 @@ export default function PhoneScannerDialog({
                     },
                 )
                 .then((response) => {
-                    if (!response) {
+                    if (stopped || !response) {
                         return;
                     }
 
@@ -130,33 +182,51 @@ export default function PhoneScannerDialog({
                         return;
                     }
 
-                    for (const scan of response.scans) {
-                        lastId.current = Math.max(lastId.current, scan.id);
+                    const fresh = response.scans.filter(
+                        (scan) => scan.id > lastId.current,
+                    );
+
+                    for (const scan of fresh) {
+                        lastId.current = scan.id;
                         setReceived((count) => count + 1);
                         onScanRef.current(scan);
                     }
 
-                    if (response.scans.length > 0 && !continuous) {
+                    if (fresh.length > 0 && !continuousRef.current) {
                         setOpen(false);
                     }
                 })
                 .catch(() => {
                     // Try again on the next tick.
+                })
+                .finally(() => {
+                    waiting = false;
                 });
         };
 
         const timer = window.setInterval(check, 2000);
 
-        return () => window.clearInterval(timer);
+        return () => {
+            stopped = true;
+            window.clearInterval(timer);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, pairing, expired, continuous]);
+    }, [pairing, expired]);
+
+    const phoneConnected = live && connected;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button type="button" variant="outline" size={size}>
                     <Smartphone />
-                    {label}
+                    {phoneConnected ? 'Phone connected' : label}
+                    {phoneConnected && (
+                        <span
+                            className="size-2 rounded-full bg-emerald-500"
+                            aria-hidden="true"
+                        />
+                    )}
                 </Button>
             </DialogTrigger>
 
@@ -165,7 +235,8 @@ export default function PhoneScannerDialog({
                 <DialogDescription>
                     Point your phone&rsquo;s camera at this code and open the
                     link. Then scan barcodes with the phone and they show up
-                    here. No login needed on the phone.
+                    here. No login needed on the phone. You can close this and
+                    keep scanning.
                 </DialogDescription>
 
                 <div className="flex flex-col items-center gap-4 py-2">

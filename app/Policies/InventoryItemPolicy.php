@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\Permission;
 use App\Models\InventoryItem;
 use App\Models\User;
 
@@ -12,7 +13,7 @@ class InventoryItemPolicy
      */
     public function view(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inventory);
     }
 
     /**
@@ -20,7 +21,7 @@ class InventoryItemPolicy
      */
     public function update(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inventory);
     }
 
     /**
@@ -28,6 +29,6 @@ class InventoryItemPolicy
      */
     public function delete(User $user, InventoryItem $inventoryItem): bool
     {
-        return $user->role->canWorkOnRecords();
+        return $user->hasPermission(Permission::Inventory);
     }
 }

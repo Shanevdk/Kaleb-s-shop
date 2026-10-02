@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -164,6 +165,76 @@ test('an admin cannot demote themselves and get locked out', function () {
         ->assertSessionHasErrors('role');
 
     expect($admin->refresh()->role)->toBe(UserRole::Admin);
+});
+
+test('the team page lists every permission as an option', function () {
+    $this->actingAs(admin())
+        ->get(route('admin.users.index'))
+        ->assertInertia(fn ($page) => $page
+            ->has('permissionOptions', count(Permission::cases()))
+        );
+});
+
+test('an admin can grant someone a permission their role would not otherwise include', function () {
+    $admin = admin();
+    $shopper = User::factory()->shopper()->create(['email_verified_at' => now()]);
+
+    expect($shopper->can('vehicles'))->toBeFalse();
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.permissions.update', $shopper), ['permissions' => ['vehicles']])
+        ->assertRedirect();
+
+    $shopper->refresh();
+
+    expect($shopper->permissions)->toBe(['vehicles'])
+        ->and($shopper->can('vehicles'))->toBeTrue();
+
+    $this->actingAs($shopper)->get(route('vehicles.index'))->assertOk();
+});
+
+test('taking a permission back off an account leaves its role alone', function () {
+    $admin = admin();
+    $shopper = User::factory()->shopper()->create(['email_verified_at' => now(), 'permissions' => ['vehicles']]);
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.permissions.update', $shopper), ['permissions' => []])
+        ->assertRedirect();
+
+    $shopper->refresh();
+
+    expect($shopper->permissions)->toBe([])
+        ->and($shopper->can('vehicles'))->toBeFalse()
+        ->and($shopper->can('shopping-list'))->toBeTrue();
+});
+
+test('permissions sent to update must be real permissions', function () {
+    $admin = admin();
+    $member = User::factory()->create(['email_verified_at' => now()]);
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.permissions.update', $member), ['permissions' => ['not-a-real-page']])
+        ->assertSessionHasErrors('permissions.0');
+
+    expect($member->refresh()->permissions)->toBeNull();
+});
+
+test('a non admin cannot change anyone else\'s permissions', function () {
+    $member = User::factory()->create(['email_verified_at' => now()]);
+    $shopper = User::factory()->shopper()->create(['email_verified_at' => now()]);
+
+    $this->actingAs($shopper)
+        ->patch(route('admin.users.permissions.update', $member), ['permissions' => ['vehicles']])
+        ->assertForbidden();
+
+    expect($member->refresh()->permissions)->toBeNull();
+});
+
+test('guests cannot change anyone\'s permissions', function () {
+    $member = User::factory()->create(['email_verified_at' => now()]);
+
+    $this->patch(route('admin.users.permissions.update', $member), ['permissions' => ['vehicles']])
+        ->assertRedirect(route('login'));
 });
 
 test('an admin can remove someone else while what they logged stays with the shop', function () {

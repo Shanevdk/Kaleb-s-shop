@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\Permission;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -30,13 +31,15 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Define what each role on the team may do.
+     * Define one gate per permission, named after each page it unlocks, so
+     * every page in the app can be gated individually. Each gate checks the
+     * account's role plus any permissions added to it on its own.
      */
     protected function configureAbilities(): void
     {
-        Gate::define('manage-team', fn (User $user): bool => $user->role->canManageTeam());
-        Gate::define('work-on-records', fn (User $user): bool => $user->role->canWorkOnRecords());
-        Gate::define('manage-schedule', fn (User $user): bool => $user->role->canManageSchedule());
+        foreach (Permission::cases() as $permission) {
+            Gate::define($permission->value, fn (User $user): bool => $user->hasPermission($permission));
+        }
     }
 
     /**

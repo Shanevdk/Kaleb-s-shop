@@ -5,11 +5,13 @@ import {
     Clock,
     Copy,
     ExternalLink,
+    RotateCcw,
     Share2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import DeleteConfirm from '@/components/delete-confirm';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -193,6 +195,20 @@ export default function WorkOrderDialog({
                                 Share
                             </Button>
                         )}
+                        <DeleteConfirm
+                            trigger={
+                                <Button type="button" variant="ghost" size="sm">
+                                    <RotateCcw />
+                                    Reset link
+                                </Button>
+                            }
+                            title="Reset the work order link?"
+                            description="Every link already shared or emailed for this job stops opening. You get a new link to share."
+                            confirmLabel="Reset link"
+                            form={update.form(recordId, {
+                                query: { reset_link: 1 },
+                            })}
+                        />
                     </div>
                 </div>
             </DialogContent>

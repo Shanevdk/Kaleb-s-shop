@@ -15,6 +15,7 @@ use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -100,7 +101,7 @@ class InventoryItemController extends Controller
     public function store(InventoryItemRequest $request): RedirectResponse
     {
         $inventoryItem = $request->user()->inventoryItems()->create([
-            ...$request->safe()->except(['image', 'remove_image', 'fitments']),
+            ...$request->safe()->except(['image', 'remove_image', 'fitments', 'quantity_shown']),
             'image_path' => $this->storeImage($request->file('image')),
         ]);
 
@@ -128,10 +129,18 @@ class InventoryItemController extends Controller
 
     /**
      * Update the given stocked part.
+     *
+     * The amount on hand is never written straight over. A change to it is
+     * applied as the difference from what the form showed and recorded as a
+     * stock movement, so stock moved since the form was opened still counts.
      */
-    public function update(InventoryItemRequest $request, InventoryItem $inventoryItem): RedirectResponse
-    {
-        $attributes = $request->safe()->except(['image', 'remove_image', 'fitments']);
+    public function update(
+        InventoryItemRequest $request,
+        InventoryItem $inventoryItem,
+        RecordStockMovement $recordStockMovement,
+    ): RedirectResponse {
+        $attributes = $request->safe()->except(['image', 'remove_image', 'fitments', 'quantity', 'quantity_shown']);
+        $quantityChange = $request->quantityChange($inventoryItem);
         $image = $request->file('image');
 
         if ($image instanceof UploadedFile) {
@@ -142,8 +151,14 @@ class InventoryItemController extends Controller
             $attributes['image_path'] = null;
         }
 
-        $inventoryItem->update($attributes);
-        $inventoryItem->syncFitments($request->fitments());
+        DB::transaction(function () use ($request, $inventoryItem, $recordStockMovement, $attributes, $quantityChange): void {
+            $inventoryItem->update($attributes);
+            $inventoryItem->syncFitments($request->fitments());
+
+            if ($quantityChange !== 0.0) {
+                $recordStockMovement->handle($request->user(), $inventoryItem, $quantityChange, ['note' => __('Count corrected')]);
+            }
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Part updated.')]);
 

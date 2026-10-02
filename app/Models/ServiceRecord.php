@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 /**
  * @property string $id
@@ -33,7 +34,9 @@ use Illuminate\Support\Facades\URL;
  * @property string $labour_cost
  * @property string|null $description
  * @property string|null $issue_reason
+ * @property string|null $work_order_key
  * @property EstimateStatus|null $estimate_status
+ * @property Carbon|null $estimate_requested_at
  * @property string|null $estimated_hours
  * @property string|null $estimated_hours_low
  * @property string|null $estimated_hours_high
@@ -69,6 +72,13 @@ class ServiceRecord extends Model
     }
 
     /**
+     * Minutes an estimate is waited on before it is given up as failed. The
+     * job gives itself a minute and a half at most, so one still pending
+     * after this died with the server it was running on and is never coming.
+     */
+    public const ESTIMATE_WAIT_LIMIT_MINUTES = 10;
+
+    /**
      * Whether an estimate has already been asked for while saving this
      * instance, so changing the parts in the same save does not ask twice.
      */
@@ -94,9 +104,45 @@ class ServiceRecord extends Model
     {
         $this->estimateQueued = true;
 
-        $this->forceFill(['estimate_status' => EstimateStatus::Pending])->saveQuietly();
+        $this->forceFill([
+            'estimate_status' => EstimateStatus::Pending,
+            'estimate_requested_at' => now(),
+        ])->saveQuietly();
 
         EstimateServiceRecordDuration::dispatch($this, $this->estimateFingerprint())->afterCommit();
+    }
+
+    /**
+     * Get where the estimate has got to, counting one that has been pending
+     * for too long as failed, so pages stop waiting on it and it can be
+     * asked for again. A late answer is still stored if it does turn up.
+     */
+    public function currentEstimateStatus(): ?EstimateStatus
+    {
+        if ($this->estimate_status === EstimateStatus::Pending && $this->estimateHasTimedOut()) {
+            return EstimateStatus::Failed;
+        }
+
+        return $this->estimate_status;
+    }
+
+    /**
+     * Determine whether an estimate is on its way and still worth waiting
+     * for, so there is no point asking for another.
+     */
+    public function isAwaitingEstimate(): bool
+    {
+        return $this->currentEstimateStatus() === EstimateStatus::Pending;
+    }
+
+    /**
+     * Determine whether the estimate was asked for too long ago to still be
+     * coming. One left pending from before the time was recorded counts too.
+     */
+    private function estimateHasTimedOut(): bool
+    {
+        return $this->estimate_requested_at === null
+            || $this->estimate_requested_at->lte(now()->subMinutes(self::ESTIMATE_WAIT_LIMIT_MINUTES));
     }
 
     /**
@@ -218,11 +264,25 @@ class ServiceRecord extends Model
 
     /**
      * Get the link anyone can open the job's work order with, no login
-     * needed. The sheet always shows the job as it is now.
+     * needed. The sheet always shows the job as it is now. The link carries
+     * the job's key, made the first time a link is asked for.
      */
     public function workOrderUrl(): string
     {
-        return URL::signedRoute('work-orders.show', $this);
+        if ($this->work_order_key === null) {
+            $this->resetWorkOrderLink();
+        }
+
+        return URL::signedRoute('work-orders.show', ['serviceRecord' => $this, 'key' => $this->work_order_key]);
+    }
+
+    /**
+     * Give the job a new work order key, so every link shared before now
+     * stops opening.
+     */
+    public function resetWorkOrderLink(): void
+    {
+        $this->forceFill(['work_order_key' => Str::random(40)])->saveQuietly();
     }
 
     /**
@@ -261,6 +321,7 @@ class ServiceRecord extends Model
             'parts_cost' => 'decimal:2',
             'labour_cost' => 'decimal:2',
             'estimate_status' => EstimateStatus::class,
+            'estimate_requested_at' => 'datetime',
             'estimated_hours' => 'decimal:2',
             'estimated_hours_low' => 'decimal:2',
             'estimated_hours_high' => 'decimal:2',
