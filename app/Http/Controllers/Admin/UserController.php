@@ -107,6 +107,12 @@ class UserController extends Controller
             'permissions.*' => [Rule::enum(Permission::class)],
         ]);
 
+        if ($request->user()->id === $user->id) {
+            return back()->withErrors([
+                'permissions' => __('You cannot change your own permissions.'),
+            ]);
+        }
+
         $user->permissions = $request->input('permissions', []);
         $user->save();
 

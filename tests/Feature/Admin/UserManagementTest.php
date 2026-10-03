@@ -167,6 +167,32 @@ test('an admin cannot demote themselves and get locked out', function () {
     expect($admin->refresh()->role)->toBe(UserRole::Admin);
 });
 
+test('an admin cannot grant themselves extra permissions through the team page', function () {
+    $admin = admin();
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.permissions.update', $admin), ['permissions' => ['vehicles']])
+        ->assertSessionHasErrors('permissions');
+
+    expect($admin->refresh()->permissions)->toBeNull();
+});
+
+test('someone delegated just manage-team cannot use it to grant themselves everything else', function () {
+    $delegate = User::factory()->scheduler()->create([
+        'email_verified_at' => now(),
+        'permissions' => ['manage-team'],
+    ]);
+
+    $everything = array_map(fn (Permission $permission): string => $permission->value, Permission::cases());
+
+    $this->actingAs($delegate)
+        ->patch(route('admin.users.permissions.update', $delegate), ['permissions' => $everything])
+        ->assertSessionHasErrors('permissions');
+
+    expect($delegate->refresh()->permissions)->toBe(['manage-team'])
+        ->and($delegate->can('vehicles'))->toBeFalse();
+});
+
 test('the team page lists every permission as an option', function () {
     $this->actingAs(admin())
         ->get(route('admin.users.index'))

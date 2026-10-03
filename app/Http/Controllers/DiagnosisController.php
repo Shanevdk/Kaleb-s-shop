@@ -53,6 +53,7 @@ class DiagnosisController extends Controller
         return response()->json($diagnoseProblem->handle(
             $request->safe()->except('vehicle_id'),
             $vehicleId === null ? null : Vehicle::query()->findOrFail($vehicleId),
+            $request->user(),
         ));
     }
 }

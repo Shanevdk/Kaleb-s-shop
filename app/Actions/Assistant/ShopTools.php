@@ -4,6 +4,7 @@ namespace App\Actions\Assistant;
 
 use App\Enums\CheckStatus;
 use App\Enums\PartCategory;
+use App\Enums\Permission;
 use App\Enums\ServiceStatus;
 use App\Models\Fitment;
 use App\Models\Inspection;
@@ -22,8 +23,9 @@ use Throwable;
 /**
  * The lookups the assistant can make into the shop's records.
  *
- * The records belong to the whole shop, the same as on every other page, and
- * nothing here writes.
+ * The records belong to the whole shop, the same as on every other page, but
+ * each tool still needs the same permission its own page needs, and nothing
+ * here writes.
  */
 class ShopTools
 {
@@ -33,7 +35,24 @@ class ShopTools
     private const MAX_ROWS = 50;
 
     /**
-     * Describe the tools in the shape the chat completions API expects.
+     * The permission each tool needs, matching the page it mirrors.
+     *
+     * @var array<string, Permission>
+     */
+    private const PERMISSIONS = [
+        'list_vehicles' => Permission::Vehicles,
+        'get_vehicle' => Permission::Vehicles,
+        'list_jobs' => Permission::ServiceLog,
+        'search_parts' => Permission::Inventory,
+        'list_issues' => Permission::Inspections,
+        'stock_history' => Permission::Inventory,
+    ];
+
+    public function __construct(private User $user) {}
+
+    /**
+     * Describe the tools in the shape the chat completions API expects,
+     * leaving out any the user holds no permission to use.
      *
      * @return array<int, array{type: string, function: array{name: string, description: string, parameters: array<string, mixed>}}>
      */
@@ -41,44 +60,65 @@ class ShopTools
     {
         $vehicleId = ['type' => 'string', 'description' => 'The id of a vehicle, as returned by list_vehicles.'];
 
-        return [
-            $this->tool('shop_summary', 'Get the headline numbers: vehicle count, open jobs, spend and hours overall and this month, parts low on stock, stock value and checklist items needing attention.'),
-            $this->tool('list_vehicles', 'List every vehicle and machine in the fleet with its id, identity, odometer, job count, total spend and last service date. Use this to find a vehicle id from a name, make, model or registration.'),
-            $this->tool('get_vehicle', 'Get everything about one vehicle: specs, notes, full service history with parts used, recent checklists, items flagged for attention, the stocked parts that fit it and recent stock taken for it.', [
-                'vehicle_id' => $vehicleId,
-            ], ['vehicle_id']),
-            $this->tool('list_jobs', 'List service jobs (service records), newest first, with costs, hours and parts. Filter by status, vehicle, text or date range.', [
-                'status' => ['type' => 'string', 'enum' => array_map(fn (ServiceStatus $status): string => $status->value, ServiceStatus::cases())],
-                'vehicle_id' => $vehicleId,
-                'search' => ['type' => 'string', 'description' => 'Text to look for in the job title or description.'],
-                'from' => ['type' => 'string', 'description' => 'Only jobs on or after this date, YYYY-MM-DD.'],
-                'to' => ['type' => 'string', 'description' => 'Only jobs on or before this date, YYYY-MM-DD.'],
-                'limit' => ['type' => 'integer', 'description' => 'How many jobs to return, up to 50. Defaults to 20.'],
-            ]),
-            $this->tool('search_parts', 'Search the parts inventory: stock on hand, reorder point, cost, location, barcode and which vehicles each part fits. Leave search empty to list everything.', [
-                'search' => ['type' => 'string', 'description' => 'Text to look for in the part name, part number, barcode, brand, supplier or location.'],
-                'category' => ['type' => 'string', 'enum' => array_map(fn (PartCategory $category): string => $category->value, PartCategory::cases())],
-                'low_stock_only' => ['type' => 'boolean', 'description' => 'Only parts at or below their reorder point.'],
-            ]),
-            $this->tool('list_issues', 'List checklist items that were flagged as needing attention and not yet fixed, with the vehicle, checklist and notes.', [
-                'vehicle_id' => $vehicleId,
-            ]),
-            $this->tool('stock_history', 'List stock taken off or put back on the shelf, newest first, with the part, vehicle, job and note.', [
-                'part_id' => ['type' => 'string', 'description' => 'The id of a part, as returned by search_parts.'],
-                'vehicle_id' => $vehicleId,
-                'limit' => ['type' => 'integer', 'description' => 'How many movements to return, up to 50. Defaults to 20.'],
-            ]),
+        $tools = [
+            $this->hasAnySummaryPermission()
+                ? $this->tool('shop_summary', 'Get the headline numbers: vehicle count, open jobs, spend and hours overall and this month, parts low on stock, stock value and checklist items needing attention. Only the numbers this user has permission to see come back.')
+                : null,
+            $this->can('list_vehicles')
+                ? $this->tool('list_vehicles', 'List every vehicle and machine in the fleet with its id, identity, odometer, job count, total spend and last service date. Use this to find a vehicle id from a name, make, model or registration.')
+                : null,
+            $this->can('get_vehicle')
+                ? $this->tool('get_vehicle', 'Get everything about one vehicle: specs, notes, full service history with parts used, recent checklists, items flagged for attention, the stocked parts that fit it and recent stock taken for it.', [
+                    'vehicle_id' => $vehicleId,
+                ], ['vehicle_id'])
+                : null,
+            $this->can('list_jobs')
+                ? $this->tool('list_jobs', 'List service jobs (service records), newest first, with costs, hours and parts. Filter by status, vehicle, text or date range.', [
+                    'status' => ['type' => 'string', 'enum' => array_map(fn (ServiceStatus $status): string => $status->value, ServiceStatus::cases())],
+                    'vehicle_id' => $vehicleId,
+                    'search' => ['type' => 'string', 'description' => 'Text to look for in the job title or description.'],
+                    'from' => ['type' => 'string', 'description' => 'Only jobs on or after this date, YYYY-MM-DD.'],
+                    'to' => ['type' => 'string', 'description' => 'Only jobs on or before this date, YYYY-MM-DD.'],
+                    'limit' => ['type' => 'integer', 'description' => 'How many jobs to return, up to 50. Defaults to 20.'],
+                ])
+                : null,
+            $this->can('search_parts')
+                ? $this->tool('search_parts', 'Search the parts inventory: stock on hand, reorder point, cost, location, barcode and which vehicles each part fits. Leave search empty to list everything.', [
+                    'search' => ['type' => 'string', 'description' => 'Text to look for in the part name, part number, barcode, brand, supplier or location.'],
+                    'category' => ['type' => 'string', 'enum' => array_map(fn (PartCategory $category): string => $category->value, PartCategory::cases())],
+                    'low_stock_only' => ['type' => 'boolean', 'description' => 'Only parts at or below their reorder point.'],
+                ])
+                : null,
+            $this->can('list_issues')
+                ? $this->tool('list_issues', 'List checklist items that were flagged as needing attention and not yet fixed, with the vehicle, checklist and notes.', [
+                    'vehicle_id' => $vehicleId,
+                ])
+                : null,
+            $this->can('stock_history')
+                ? $this->tool('stock_history', 'List stock taken off or put back on the shelf, newest first, with the part, vehicle, job and note.', [
+                    'part_id' => ['type' => 'string', 'description' => 'The id of a part, as returned by search_parts.'],
+                    'vehicle_id' => $vehicleId,
+                    'limit' => ['type' => 'integer', 'description' => 'How many movements to return, up to 50. Defaults to 20.'],
+                ])
+                : null,
         ];
+
+        return array_values(array_filter($tools));
     }
 
     /**
-     * Run a tool and return what it found.
+     * Run a tool and return what it found, refusing one the user holds no
+     * permission for even if it was somehow still called.
      *
      * @param  array<string, mixed>  $arguments
      * @return array<mixed>
      */
     public function call(string $name, array $arguments): array
     {
+        if ($name !== 'shop_summary' && ! $this->can($name)) {
+            return ['error' => "You do not have permission to use the {$name} tool."];
+        }
+
         return match ($name) {
             'shop_summary' => $this->shopSummary(),
             'list_vehicles' => $this->listVehicles(),
@@ -92,30 +132,65 @@ class ShopTools
     }
 
     /**
+     * Determine whether the user holds the permission a named tool needs.
+     */
+    private function can(string $tool): bool
+    {
+        $permission = self::PERMISSIONS[$tool] ?? null;
+
+        return $permission !== null && $this->user->hasPermission($permission);
+    }
+
+    /**
+     * Determine whether the user holds any of the permissions shop_summary
+     * draws its numbers from, so it is worth offering at all.
+     */
+    private function hasAnySummaryPermission(): bool
+    {
+        return $this->user->hasPermission(Permission::Vehicles)
+            || $this->user->hasPermission(Permission::ServiceLog)
+            || $this->user->hasPermission(Permission::Inventory)
+            || $this->user->hasPermission(Permission::Inspections);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function shopSummary(): array
     {
-        $startOfMonth = now()->startOfMonth();
-        $thisMonth = ServiceRecord::query()->where('performed_on', '>=', $startOfMonth);
-        $items = InventoryItem::query()->get();
+        $summary = ['today' => now()->toDateString()];
 
-        return [
-            'today' => now()->toDateString(),
-            'vehicles' => Vehicle::query()->count(),
-            'jobs' => ServiceRecord::query()->count(),
-            'open_jobs' => ServiceRecord::query()
+        if ($this->user->hasPermission(Permission::Vehicles)) {
+            $summary['vehicles'] = Vehicle::query()->count();
+        }
+
+        if ($this->user->hasPermission(Permission::ServiceLog)) {
+            $startOfMonth = now()->startOfMonth();
+            $thisMonth = ServiceRecord::query()->where('performed_on', '>=', $startOfMonth);
+
+            $summary['jobs'] = ServiceRecord::query()->count();
+            $summary['open_jobs'] = ServiceRecord::query()
                 ->whereIn('status', [ServiceStatus::Planned, ServiceStatus::InProgress])
-                ->count(),
-            'jobs_this_month' => (clone $thisMonth)->count(),
-            'spend_total' => round((float) ServiceRecord::query()->sum('parts_cost') + (float) ServiceRecord::query()->sum('labour_cost'), 2),
-            'spend_this_month' => round((float) (clone $thisMonth)->sum('parts_cost') + (float) (clone $thisMonth)->sum('labour_cost'), 2),
-            'hours_total' => round((float) ServiceRecord::query()->sum('hours'), 2),
-            'parts_stocked' => $items->count(),
-            'parts_low_on_stock' => $items->filter(fn (InventoryItem $item): bool => $this->needsReordering($item))->count(),
-            'stock_value' => round($items->sum(fn (InventoryItem $item): float => $item->stock_value), 2),
-            'checklist_items_needing_attention' => $this->attentionItems()->count(),
-        ];
+                ->count();
+            $summary['jobs_this_month'] = (clone $thisMonth)->count();
+            $summary['spend_total'] = round((float) ServiceRecord::query()->sum('parts_cost') + (float) ServiceRecord::query()->sum('labour_cost'), 2);
+            $summary['spend_this_month'] = round((float) (clone $thisMonth)->sum('parts_cost') + (float) (clone $thisMonth)->sum('labour_cost'), 2);
+            $summary['hours_total'] = round((float) ServiceRecord::query()->sum('hours'), 2);
+        }
+
+        if ($this->user->hasPermission(Permission::Inventory)) {
+            $items = InventoryItem::query()->get();
+
+            $summary['parts_stocked'] = $items->count();
+            $summary['parts_low_on_stock'] = $items->filter(fn (InventoryItem $item): bool => $this->needsReordering($item))->count();
+            $summary['stock_value'] = round($items->sum(fn (InventoryItem $item): float => $item->stock_value), 2);
+        }
+
+        if ($this->user->hasPermission(Permission::Inspections)) {
+            $summary['checklist_items_needing_attention'] = $this->attentionItems()->count();
+        }
+
+        return $summary;
     }
 
     /**
@@ -151,13 +226,19 @@ class ShopTools
             return ['error' => 'No vehicle with that id. Use list_vehicles to find the right one.'];
         }
 
-        $records = $vehicle->serviceRecords()->with('parts')->latest('performed_on')->latest('id')->limit(self::MAX_ROWS)->get();
-
-        return [
+        $details = [
             ...$this->vehicle($vehicle),
             'notes' => $vehicle->notes,
-            'service_history' => $records->map(fn (ServiceRecord $record): array => $this->job($record, $vehicle))->all(),
-            'checklists' => $vehicle->inspections()
+        ];
+
+        if ($this->user->hasPermission(Permission::ServiceLog)) {
+            $records = $vehicle->serviceRecords()->with('parts')->latest('performed_on')->latest('id')->limit(self::MAX_ROWS)->get();
+
+            $details['service_history'] = $records->map(fn (ServiceRecord $record): array => $this->job($record, $vehicle))->all();
+        }
+
+        if ($this->user->hasPermission(Permission::Inspections)) {
+            $details['checklists'] = $vehicle->inspections()
                 ->withCheckTallies()
                 ->latest('performed_on')
                 ->limit(10)
@@ -172,9 +253,12 @@ class ShopTools
                     'needing_attention' => (int) $inspection->getAttribute('flagged_count'),
                     'fixed_on_the_day' => (int) $inspection->getAttribute('fixed_count'),
                 ])
-                ->all(),
-            'needs_attention' => $this->listIssues($vehicle->id),
-            'parts_that_fit' => $vehicle->fitments()
+                ->all();
+            $details['needs_attention'] = $this->listIssues($vehicle->id);
+        }
+
+        if ($this->user->hasPermission(Permission::Inventory)) {
+            $details['parts_that_fit'] = $vehicle->fitments()
                 ->with('inventoryItem')
                 ->get()
                 ->map(fn (Fitment $fitment): array => [
@@ -184,9 +268,11 @@ class ShopTools
                     'on_hand' => $fitment->inventoryItem->formattedQuantity(),
                     'notes' => $fitment->notes,
                 ])
-                ->all(),
-            'recent_stock_used' => $this->stockHistory(['vehicle_id' => $vehicle->id, 'limit' => 20]),
-        ];
+                ->all();
+            $details['recent_stock_used'] = $this->stockHistory(['vehicle_id' => $vehicle->id, 'limit' => 20]);
+        }
+
+        return $details;
     }
 
     /**

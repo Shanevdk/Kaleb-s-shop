@@ -248,6 +248,20 @@ test('the diagnosis says the models are slow when none answer in time', function
         ->assertJsonPath('error', 'The free AI models are slow right now. Try again in a minute.');
 });
 
+test('a user without the inventory permission is not told what is in stock', function () {
+    Http::fake([
+        'openrouter.ai/*' => Http::response(diagnosisReply(json_encode(misfireDiagnosis()))),
+        'api.nhtsa.gov/*' => Http::response(['results' => []]),
+    ]);
+    InventoryItem::factory()->create(['name' => 'Ignition coil pack', 'quantity' => 3]);
+    $diagnoserOnly = User::factory()->scheduler()->create(['permissions' => ['diagnose']]);
+
+    $this->actingAs($diagnoserOnly)
+        ->postJson(route('diagnose.run'), problem())
+        ->assertOk()
+        ->assertJsonPath('diagnosis.causes.0.parts.0.in_stock', null);
+});
+
 test('without the ai the common problems matching the symptoms and the recalls still come back', function () {
     config(['services.openrouter.key' => null]);
     Http::fake([

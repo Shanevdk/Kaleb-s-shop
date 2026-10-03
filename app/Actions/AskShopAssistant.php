@@ -40,7 +40,7 @@ class AskShopAssistant
     {
         $this->openRouter->ensureConfigured();
 
-        $tools = new ShopTools;
+        $tools = new ShopTools($user);
         $definitions = $tools->definitions();
         $messages = [['role' => 'system', 'content' => $this->instructions($user)], ...$conversation];
 

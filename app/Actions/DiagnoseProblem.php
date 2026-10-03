@@ -5,8 +5,10 @@ namespace App\Actions;
 use App\Actions\Assistant\AssistantUnavailable;
 use App\Actions\Assistant\OpenRouter;
 use App\Enums\MachineKind;
+use App\Enums\Permission;
 use App\Models\InventoryItem;
 use App\Models\ServiceRecord;
+use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Str;
 
@@ -42,7 +44,7 @@ class DiagnoseProblem
      * @param  array{kind?: string|null, make?: string|null, model?: string|null, year?: int|null, engine?: string|null, odometer?: int|null, codes?: string|null, symptoms: string, conditions?: string|null}  $details
      * @return array<string, mixed>
      */
-    public function handle(array $details, ?Vehicle $vehicle = null): array
+    public function handle(array $details, ?Vehicle $vehicle, User $user): array
     {
         $machine = $this->describeMachine($details, $vehicle);
 
@@ -74,7 +76,7 @@ class DiagnoseProblem
         }
 
         $content = trim((string) ($message['content'] ?? ''));
-        $diagnosis = $this->parse($content);
+        $diagnosis = $this->parse($content, $user);
 
         return [
             ...$result,
@@ -207,7 +209,7 @@ class DiagnoseProblem
      *
      * @return array{summary: string, causes: array<int, array<string, mixed>>, first_steps: array<int, string>, safety: array<int, string>, questions: array<int, string>}|null
      */
-    private function parse(string $content): ?array
+    private function parse(string $content, User $user): ?array
     {
         $start = strpos($content, '{');
         $end = strrpos($content, '}');
@@ -233,7 +235,7 @@ class DiagnoseProblem
                 'fix' => $this->text($cause['fix'] ?? null),
                 'parts' => array_map(fn (string $part): array => [
                     'name' => $part,
-                    'in_stock' => $this->stockedPart($part),
+                    'in_stock' => $user->hasPermission(Permission::Inventory) ? $this->stockedPart($part) : null,
                 ], $this->list($cause['parts'] ?? null, 6)),
             ])
             ->values()

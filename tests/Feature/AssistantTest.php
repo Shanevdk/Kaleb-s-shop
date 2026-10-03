@@ -181,6 +181,44 @@ test('the assistant gives the model its own vehicle with its history', function 
         ->toHaveKeys(['service_history', 'checklists', 'needs_attention', 'parts_that_fit']);
 });
 
+test('the assistant only offers tools the user holds the matching permission for', function () {
+    $assistantOnly = User::factory()->shopper()->create(['permissions' => ['assistant']]);
+
+    Http::fake(['openrouter.ai/*' => Http::response(answer('Hi.'))]);
+
+    $this->actingAs($assistantOnly)
+        ->postJson(route('assistant.ask'), ['messages' => [['role' => 'user', 'content' => 'Hi']]])
+        ->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => ($request->data()['tools'] ?? []) === []);
+});
+
+test('a user without the matching page permission cannot use that tool even if asked to', function () {
+    $assistantOnly = User::factory()->shopper()->create(['permissions' => ['assistant']]);
+    $vehicle = Vehicle::factory()->create();
+
+    Http::fake(['openrouter.ai/*' => Http::sequence()
+        ->push(toolCall('get_vehicle', ['vehicle_id' => $vehicle->id]))
+        ->push(answer('Done.')),
+    ]);
+
+    $this->actingAs($assistantOnly)
+        ->postJson(route('assistant.ask'), ['messages' => [['role' => 'user', 'content' => 'Tell me about it']]])
+        ->assertOk();
+
+    expect(toolResultSent(Http::recorded()[1][0]))->toHaveKey('error');
+});
+
+test("shop summary only hands back the numbers the user's permissions cover", function () {
+    $user = User::factory()->scheduler()->create(['permissions' => ['assistant']]);
+    Vehicle::factory()->create();
+
+    $tools = new ShopTools($user);
+
+    expect($tools->call('shop_summary', []))
+        ->not->toHaveKeys(['vehicles', 'jobs', 'parts_stocked', 'checklist_items_needing_attention']);
+});
+
 test('every assistant tool reads the user records without failing', function () {
     $user = User::factory()->create();
     $vehicle = Vehicle::factory()->for($user)->create(['make' => 'Toyota', 'model' => 'Hilux']);
