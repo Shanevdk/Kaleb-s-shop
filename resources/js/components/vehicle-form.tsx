@@ -47,6 +47,7 @@ type Identity = {
     year: string;
     vin: string;
     kind: string;
+    category: string;
     cylinders: string;
     displacement_l: string;
     fuel: string;
@@ -59,10 +60,12 @@ export default function VehicleForm({
     vehicle,
     prefill,
     kinds,
+    categories,
 }: {
     vehicle?: Vehicle;
     prefill?: VehiclePrefill;
     kinds: SelectOption[];
+    categories: SelectOption[];
 }) {
     const action = vehicle
         ? VehicleController.update.form(vehicle.id)
@@ -74,6 +77,7 @@ export default function VehicleForm({
         year: asText(vehicle?.year ?? prefill?.year),
         vin: vehicle?.vin ?? asText(prefill?.vin),
         kind: vehicle?.kind ?? asText(prefill?.kind) ?? '',
+        category: vehicle?.category ?? 'normal',
         cylinders: asText(vehicle?.engine.cylinders ?? prefill?.cylinders),
         displacement_l: asText(
             vehicle?.engine.displacement_l ?? prefill?.displacement_l,
@@ -385,7 +389,7 @@ export default function VehicleForm({
                             Registration &amp; condition
                         </h2>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-4 sm:grid-cols-3">
                             <div className="grid gap-2">
                                 <Label htmlFor="registration">Plate</Label>
                                 <Input
@@ -410,6 +414,39 @@ export default function VehicleForm({
                                     placeholder="128000"
                                 />
                                 <InputError message={errors.odometer} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="category">Category</Label>
+                                <Select
+                                    name="category"
+                                    value={fields.category}
+                                    onValueChange={(value) =>
+                                        set('category', value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="category"
+                                        className="w-full"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {categories.map((option) => (
+                                            <SelectItem
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-muted-foreground text-xs">
+                                    Non-highway skips the annual
+                                    roadworthy-style inspection.
+                                </p>
+                                <InputError message={errors.category} />
                             </div>
                         </div>
 

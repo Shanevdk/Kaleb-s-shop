@@ -14,6 +14,8 @@ export type MachineKind =
     | 'trailer'
     | 'other';
 
+export type VehicleCategory = 'trailer' | 'non_highway' | 'normal';
+
 export type EngineSpecs = {
     cylinders: number | null;
     displacement_l: number | null;
@@ -219,6 +221,8 @@ export type Vehicle = {
     display_name: string;
     kind: MachineKind;
     kind_label: string;
+    category: VehicleCategory;
+    category_label: string;
     specs: MachineSpecs | null;
     engine: EngineSpecs;
     engine_summary: string | null;
@@ -485,6 +489,33 @@ export type ClosedDay = {
     reason: string;
     /** Set for a day someone marked closed; null for a statutory holiday. */
     id: string | null;
+};
+
+export type EquipmentScheduleEntryKind = 'job' | 'checklist';
+
+export type EquipmentScheduleEntry = {
+    id: string;
+    kind: EquipmentScheduleEntryKind;
+    title: string;
+    type_label: string | null;
+    date: string;
+    status: ScheduledCheckStatus;
+    equipment: {
+        id: string;
+        name: string;
+        location: string | null;
+    } | null;
+    checklist_id: string | null;
+    can_move: boolean;
+    can_remove: boolean;
+    window: null;
+};
+
+export type EquipmentScheduleStats = {
+    jobs: number;
+    jobs_done: number;
+    behind: number;
+    checklists: number;
 };
 
 export type ScheduleStats = {

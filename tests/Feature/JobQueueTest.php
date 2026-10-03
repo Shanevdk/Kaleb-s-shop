@@ -44,6 +44,45 @@ test('the job queue shows jobs not yet done, and what was finished recently', fu
     expect($longDone)->not->toBeNull();
 });
 
+test('a mechanic can quick add a job straight to the queue with just a vehicle and a title', function () {
+    $vehicle = Vehicle::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('job-queue.store'), [
+            'vehicle_id' => $vehicle->id,
+            'title' => 'Front brake pads',
+        ])
+        ->assertRedirect();
+
+    $job = ServiceRecord::query()->where('title', 'Front brake pads')->firstOrFail();
+
+    expect($job->vehicle_id)->toBe($vehicle->id)
+        ->and($job->status)->toBe(ServiceStatus::Planned)
+        ->and($job->performed_on->toDateString())->toBe('2026-09-15')
+        ->and($job->type->value)->toBe('other');
+});
+
+test('quick adding a job requires a vehicle and a title', function () {
+    $this->actingAs(User::factory()->create())
+        ->post(route('job-queue.store'), [])
+        ->assertSessionHasErrors(['vehicle_id', 'title']);
+
+    expect(ServiceRecord::query()->count())->toBe(0);
+});
+
+test('a shopper cannot quick add a job', function () {
+    $vehicle = Vehicle::factory()->create();
+
+    $this->actingAs(User::factory()->shopper()->create())
+        ->post(route('job-queue.store'), [
+            'vehicle_id' => $vehicle->id,
+            'title' => 'Front brake pads',
+        ])
+        ->assertForbidden();
+
+    expect(ServiceRecord::query()->count())->toBe(0);
+});
+
 test('the queue shows what a job still needs off the shelf, and the shortfall if the shelf comes up short', function () {
     $user = User::factory()->create();
     $covered = ServiceRecord::factory()->for($user)->planned()->create();

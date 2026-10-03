@@ -68,7 +68,7 @@ class ServiceRecordController extends Controller
                 'prev_page_url' => $records->previousPageUrl(),
                 'next_page_url' => $records->nextPageUrl(),
             ],
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'statuses' => ServiceStatus::options(),
             'filters' => [
                 'search' => $search,
@@ -84,7 +84,7 @@ class ServiceRecordController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('service-records/create', [
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'types' => ServiceType::options(),
             'statuses' => ServiceStatus::options(),
             'units' => UnitOfMeasure::catalog(),
@@ -141,7 +141,7 @@ class ServiceRecordController extends Controller
 
         return Inertia::render('service-records/edit', [
             'record' => ServiceRecordResource::make($serviceRecord->load('parts.inventoryItem'))->resolve(),
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'types' => ServiceType::options(),
             'statuses' => ServiceStatus::options(),
             'units' => UnitOfMeasure::catalog(),
@@ -180,10 +180,17 @@ class ServiceRecordController extends Controller
 
     /**
      * Remove the given job.
+     *
+     * Redirects to the service log instead of back when the request came
+     * from the job's own page: going back there would send the browser to
+     * a record that no longer exists. Deleting from the log itself goes
+     * back to preserve its search, status, vehicle and page filters.
      */
     public function destroy(Request $request, ServiceRecord $serviceRecord): RedirectResponse
     {
         Gate::authorize('delete', $serviceRecord);
+
+        $cameFromOwnPage = $request->headers->get('referer') === route('service-records.show', $serviceRecord);
 
         DB::transaction(function () use ($request, $serviceRecord): void {
             $this->syncServiceRecordStock->release($serviceRecord, $serviceRecord->parts()->get(), $request->user());
@@ -193,7 +200,7 @@ class ServiceRecordController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Job removed. Anything it took is back on the shelf.')]);
 
-        return back();
+        return $cameFromOwnPage ? to_route('service-records.index') : back();
     }
 
     /**
@@ -303,23 +310,5 @@ class ServiceRecordController extends Controller
                 ->map(fn (ServiceRecordPart $part): array => [$part->name, $part->quantity, $part->unit->value, $part->inventory_item_id])
                 ->all(),
         ));
-    }
-
-    /**
-     * Get the vehicles owned by the current user as select options.
-     *
-     * @return array<int, array{value: string, label: string}>
-     */
-    private function vehicleOptions(Request $request): array
-    {
-        return Vehicle::query()
-            ->orderBy('make')
-            ->orderBy('model')
-            ->get()
-            ->map(fn ($vehicle): array => [
-                'value' => (string) $vehicle->id,
-                'label' => $vehicle->display_name,
-            ])
-            ->all();
     }
 }

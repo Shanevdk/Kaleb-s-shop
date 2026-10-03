@@ -32,6 +32,8 @@ class VehicleResource extends JsonResource
             'display_name' => $this->display_name,
             'kind' => $this->machineKind()->value,
             'kind_label' => $this->machineKind()->label(),
+            'category' => $this->category->value,
+            'category_label' => $this->category->label(),
             'specs' => $this->specs,
             'engine' => $this->engine(),
             'engine_summary' => $this->engine_summary,

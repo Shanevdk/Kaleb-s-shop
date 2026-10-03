@@ -60,6 +60,35 @@ test('opening the schedule books every vehicle in on an open day from today on',
     });
 });
 
+test('non-highway vehicles are booked a monthly check but never an annual inspection', function () {
+    $normal = Vehicle::factory()->create(['created_at' => '2026-01-10', 'category' => 'normal']);
+    $trailer = Vehicle::factory()->create(['created_at' => '2026-01-10', 'category' => 'trailer']);
+    $nonHighway = Vehicle::factory()->create(['created_at' => '2026-01-10', 'category' => 'non_highway']);
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'))->assertOk();
+
+    expect(PlannedInspection::where('vehicle_id', $normal->id)->where('template', ChecklistTemplate::AnnualInspection)->exists())->toBeTrue()
+        ->and(PlannedInspection::where('vehicle_id', $trailer->id)->where('template', ChecklistTemplate::AnnualInspection)->exists())->toBeTrue()
+        ->and(PlannedInspection::where('vehicle_id', $nonHighway->id)->where('template', ChecklistTemplate::AnnualInspection)->exists())->toBeFalse()
+        ->and(PlannedInspection::where('vehicle_id', $nonHighway->id)->where('template', ChecklistTemplate::MonthlyCheck)->where('period', '2026-09')->exists())->toBeTrue();
+});
+
+test('recategorising a vehicle as non-highway retracts an annual inspection already booked', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10', 'category' => 'normal']);
+    $scheduler = User::factory()->scheduler()->create();
+
+    $this->actingAs($scheduler)->get(route('schedule.index'))->assertOk();
+
+    expect(PlannedInspection::where('vehicle_id', $vehicle->id)->where('template', ChecklistTemplate::AnnualInspection)->exists())->toBeTrue();
+
+    $vehicle->update(['category' => 'non_highway']);
+
+    $this->actingAs($scheduler)->get(route('schedule.index', ['month' => '2026-10']))->assertOk();
+
+    expect(PlannedInspection::where('vehicle_id', $vehicle->id)->where('template', ChecklistTemplate::AnnualInspection)->exists())->toBeFalse()
+        ->and(PlannedInspection::where('vehicle_id', $vehicle->id)->where('template', ChecklistTemplate::MonthlyCheck)->where('period', '2026-10')->exists())->toBeTrue();
+});
+
 test('the months after the one on screen are booked in ahead', function () {
     $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
 

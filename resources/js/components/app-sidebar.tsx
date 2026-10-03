@@ -29,6 +29,7 @@ import {
 import { useWorkspace } from '@/hooks/use-workspace';
 import { assistant, dashboard, diagnose, lookup } from '@/routes';
 import { index as equipment } from '@/routes/equipment';
+import { index as equipmentSchedule } from '@/routes/equipment-schedule';
 import { index as equipmentServiceLog } from '@/routes/equipment-service-records';
 import { index as jobQueue } from '@/routes/job-queue';
 import {
@@ -95,10 +96,10 @@ const mechanicsNavItems: NavSection[] = [
 
 /**
  * VDK-Equipment: picked from the brand switcher, in place of Kaleb's Shop
- * above. It carries its own copies of the job queue, checklists and
- * schedule, since equipment jobs are booked and worked the same way vehicle
- * jobs are. The parts catalogue stays out: equipment jobs don't draw from
- * shelf stock.
+ * above. It carries its own copies of the job queue and checklists, since
+ * equipment jobs are worked the same way vehicle jobs are, and its own
+ * maintenance schedule, kept apart from the mechanics' vehicle schedule.
+ * The parts catalogue stays out: equipment jobs don't draw from shelf stock.
  */
 const equipmentNavItems: NavSection[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid, permission: 'mechanicsShop' },
@@ -108,6 +109,7 @@ const equipmentNavItems: NavSection[] = [
         items: [
             { title: 'Equipment', href: equipment(), permission: 'equipment' },
             { title: 'Service log', href: equipmentServiceLog(), permission: 'equipment' },
+            { title: 'Maintenance schedule', href: equipmentSchedule(), permission: 'equipment' },
         ],
     },
     {
@@ -123,7 +125,6 @@ const equipmentNavItems: NavSection[] = [
         icon: ClipboardCheck,
         items: [
             { title: 'Checklists', href: inspections(), permission: 'inspections' },
-            { title: 'Schedule', href: schedule(), permission: 'schedule' },
         ],
     },
     { title: 'Assistant', href: assistant(), icon: Bot, permission: 'assistant' },

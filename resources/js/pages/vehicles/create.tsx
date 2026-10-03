@@ -7,9 +7,11 @@ import type { SelectOption } from '@/types';
 export default function VehicleCreate({
     prefill,
     kinds,
+    categories,
 }: {
     prefill: VehiclePrefill;
     kinds: SelectOption[];
+    categories: SelectOption[];
 }) {
     return (
         <>
@@ -22,7 +24,11 @@ export default function VehicleCreate({
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <VehicleForm prefill={prefill} kinds={kinds} />
+                    <VehicleForm
+                        prefill={prefill}
+                        kinds={kinds}
+                        categories={categories}
+                    />
                 </div>
             </div>
         </>

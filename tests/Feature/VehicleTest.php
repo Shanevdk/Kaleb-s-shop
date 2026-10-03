@@ -2,6 +2,7 @@
 
 use App\Enums\CheckStatus;
 use App\Enums\MachineKind;
+use App\Enums\VehicleCategory;
 use App\Models\Inspection;
 use App\Models\InspectionItem;
 use App\Models\ServiceRecord;
@@ -70,6 +71,56 @@ test('a vehicle can be added', function () {
     $response->assertRedirect(route('vehicles.show', $vehicle));
     expect($vehicle->user_id)->toBe($user->id)
         ->and($vehicle->display_name)->toBe('Work ute');
+});
+
+test('a vehicle defaults to the normal category and can be added as a trailer or non-highway', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Toyota',
+        'model' => 'Hilux',
+        'year' => 2018,
+    ]);
+
+    expect(Vehicle::sole()->category)->toBe(VehicleCategory::Normal);
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Big Tex',
+        'model' => '14ET',
+        'year' => 2021,
+        'category' => 'trailer',
+    ]);
+
+    expect(Vehicle::where('make', 'Big Tex')->sole()->category)->toBe(VehicleCategory::Trailer);
+});
+
+test('a vehicle category can be changed', function () {
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create(['category' => 'normal']);
+
+    $this->actingAs($user)->put(route('vehicles.update', $vehicle), [
+        'make' => $vehicle->make,
+        'model' => $vehicle->model,
+        'year' => $vehicle->year,
+        'category' => 'non_highway',
+    ]);
+
+    expect($vehicle->refresh()->category)->toBe(VehicleCategory::NonHighway);
+});
+
+test('a vehicle category cannot be explicitly cleared', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('vehicles.store'), [
+            'make' => 'Toyota',
+            'model' => 'Hilux',
+            'year' => 2018,
+            'category' => null,
+        ])
+        ->assertSessionHasErrors(['category']);
+
+    expect(Vehicle::count())->toBe(0);
 });
 
 test('adding a vehicle requires a make, model and valid year', function () {

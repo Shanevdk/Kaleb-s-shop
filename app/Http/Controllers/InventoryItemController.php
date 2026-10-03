@@ -66,7 +66,7 @@ class InventoryItemController extends Controller
         return Inertia::render('inventory/index', [
             'items' => InventoryItemResource::collection($items)->resolve(),
             'categories' => PartCategory::options(),
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'filters' => [
                 'search' => $search,
                 'category' => $category,
@@ -221,24 +221,6 @@ class InventoryItemController extends Controller
         ]);
 
         return back();
-    }
-
-    /**
-     * Get the vehicles owned by the current user as select options.
-     *
-     * @return array<int, array{value: string, label: string}>
-     */
-    private function vehicleOptions(Request $request): array
-    {
-        return Vehicle::query()
-            ->orderBy('make')
-            ->orderBy('model')
-            ->get()
-            ->map(fn (Vehicle $vehicle): array => [
-                'value' => (string) $vehicle->id,
-                'label' => $vehicle->display_name,
-            ])
-            ->all();
     }
 
     /**

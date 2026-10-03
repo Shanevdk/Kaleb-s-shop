@@ -13,8 +13,7 @@ export default function VerifyEmail({ status }: { status?: string }) {
 
             {status === 'verification-link-sent' && (
                 <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    A new verification link has been sent to the email address
-                    you provided during registration.
+                    A verification link is on its way to your email address.
                 </div>
             )}
 
@@ -42,5 +41,5 @@ export default function VerifyEmail({ status }: { status?: string }) {
 VerifyEmail.layout = {
     title: 'Email verification',
     description:
-        'Please verify your email address by clicking on the link we just emailed to you.',
+        'Your email address has not been confirmed yet. Send yourself a verification link, or ask the shop owner to let you in.',
 };

@@ -8,6 +8,8 @@ use App\Http\Controllers\DiagnosisController;
 use App\Http\Controllers\EquipmentChecklistController;
 use App\Http\Controllers\EquipmentChecklistItemController;
 use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\EquipmentScheduleController;
+use App\Http\Controllers\EquipmentScheduleJobController;
 use App\Http\Controllers\EquipmentServiceRecordController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
@@ -164,6 +166,7 @@ Route::middleware(['auth', 'verified', 'can:service-log'])->group(function () {
 
 Route::middleware(['auth', 'verified', 'can:job-queue'])->group(function () {
     Route::get('job-queue', [JobQueueController::class, 'index'])->name('job-queue.index');
+    Route::post('job-queue', [JobQueueController::class, 'store'])->name('job-queue.store');
     Route::patch('job-queue/{serviceRecord}', [JobQueueController::class, 'update'])->name('job-queue.update');
 });
 
@@ -233,6 +236,13 @@ Route::middleware(['auth', 'verified', 'can:equipment'])->group(function () {
         ->name('equipment-service-records.update');
     Route::delete('equipment-service-records/{equipmentServiceRecord}', [EquipmentServiceRecordController::class, 'destroy'])
         ->name('equipment-service-records.destroy');
+    Route::get('equipment-schedule', [EquipmentScheduleController::class, 'index'])->name('equipment-schedule.index');
+    Route::post('equipment-schedule/jobs', [EquipmentScheduleJobController::class, 'store'])
+        ->name('equipment-schedule.jobs.store');
+    Route::patch('equipment-schedule/jobs/{equipmentServiceRecord}', [EquipmentScheduleJobController::class, 'update'])
+        ->name('equipment-schedule.jobs.update');
+    Route::delete('equipment-schedule/jobs/{equipmentServiceRecord}', [EquipmentScheduleJobController::class, 'destroy'])
+        ->name('equipment-schedule.jobs.destroy');
 });
 
 require __DIR__.'/settings.php';

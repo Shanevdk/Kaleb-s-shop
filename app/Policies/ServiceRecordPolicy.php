@@ -17,6 +17,14 @@ class ServiceRecordPolicy
     }
 
     /**
+     * Determine whether the user can create service records.
+     */
+    public function create(User $user): bool
+    {
+        return $user->hasPermission(Permission::ServiceLog);
+    }
+
+    /**
      * Determine whether the user can update the service record.
      */
     public function update(User $user, ServiceRecord $serviceRecord): bool

@@ -1,11 +1,13 @@
-import { Head, router } from '@inertiajs/react';
-import { CheckCircle2, Circle, ListTodo } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { CheckCircle2, Circle, ListTodo, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { DragEvent, KeyboardEvent, SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 import EmptyState from '@/components/empty-state';
 import JobEstimate, { useEstimatePolling } from '@/components/job-estimate';
 import PageHeader from '@/components/page-header';
+import QuickJobDialog from '@/components/quick-job-dialog';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -18,7 +20,12 @@ import { formatDate, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { index, update } from '@/routes/job-queue';
 import { show as showJob } from '@/routes/service-records';
-import type { ServiceRecord, ServiceRecordPart, ServiceStatus } from '@/types';
+import type {
+    SelectOption,
+    ServiceRecord,
+    ServiceRecordPart,
+    ServiceStatus,
+} from '@/types';
 
 const columns: { status: ServiceStatus; title: string; icon: typeof Circle }[] = [
     { status: 'planned', title: 'Not started', icon: Circle },
@@ -55,7 +62,17 @@ const moveJob = (job: ServiceRecord, status: ServiceStatus) => {
     );
 };
 
-export default function JobQueue({ jobs }: { jobs: ServiceRecord[] }) {
+export default function JobQueue({
+    jobs,
+    vehicles,
+}: {
+    jobs: ServiceRecord[];
+    vehicles: SelectOption[];
+}) {
+    // Moving or filling in a job needs the service log, so only those who
+    // can do that may add one.
+    const canAddJobs = usePage().props.auth.can.serviceLog;
+
     useEstimatePolling(
         jobs.map((job) => job.estimate),
         ['jobs'],
@@ -113,6 +130,19 @@ export default function JobQueue({ jobs }: { jobs: ServiceRecord[] }) {
                 <PageHeader
                     title="Job queue"
                     description="Drag a job between columns as it moves from not started, to in progress, to complete."
+                    actions={
+                        canAddJobs && (
+                            <QuickJobDialog
+                                vehicles={vehicles}
+                                trigger={
+                                    <Button size="sm">
+                                        <Plus />
+                                        Quick add
+                                    </Button>
+                                }
+                            />
+                        )
+                    }
                 />
 
                 <div className="grid flex-1 gap-4 md:grid-cols-3">

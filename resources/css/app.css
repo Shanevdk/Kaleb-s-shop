@@ -77,6 +77,20 @@
             top: 100%;
         }
     }
+
+    /* The robot working its wrench loose on the 404 page. */
+    --animate-wrench: wrench 1.4s ease-in-out infinite;
+
+    @keyframes wrench {
+        0%,
+        100% {
+            transform: rotate(-18deg);
+        }
+
+        50% {
+            transform: rotate(14deg);
+        }
+    }
 }
 
 :root {

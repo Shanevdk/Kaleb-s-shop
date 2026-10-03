@@ -10,6 +10,23 @@ beforeEach(function () {
     $this->skipUnlessFortifyHas(Features::emailVerification());
 });
 
+test('an unverified account is held at the verification screen instead of the app', function () {
+    $this->actingAs(User::factory()->unverified()->create())
+        ->get(route('dashboard'))
+        ->assertRedirect(route('verification.notice'));
+});
+
+test('switching verification on vouches for administrators and leaves everyone else to be let in', function () {
+    $migration = require database_path('migrations/2026_10_02_150734_verify_existing_administrators.php');
+    $admin = User::factory()->admin()->unverified()->create();
+    $mechanic = User::factory()->unverified()->create();
+
+    $migration->up();
+
+    expect($admin->fresh()->hasVerifiedEmail())->toBeTrue()
+        ->and($mechanic->fresh()->hasVerifiedEmail())->toBeFalse();
+});
+
 test('email verification screen can be rendered', function () {
     $user = User::factory()->unverified()->create();
 

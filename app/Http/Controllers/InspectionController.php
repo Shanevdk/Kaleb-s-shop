@@ -40,7 +40,7 @@ class InspectionController extends Controller
 
         return Inertia::render('inspections/index', [
             'inspections' => InspectionResource::collection($inspections)->resolve(),
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'filters' => ['vehicle' => $vehicleId],
         ]);
     }
@@ -51,7 +51,7 @@ class InspectionController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('inspections/create', [
-            'vehicles' => $this->vehicleOptions($request),
+            'vehicles' => Vehicle::options(),
             'templates' => ChecklistTemplate::catalog(),
             'selectedVehicle' => (string) $request->string('vehicle'),
             'selectedTemplate' => ChecklistTemplate::tryFrom((string) $request->string('template'))?->value,
@@ -153,24 +153,6 @@ class InspectionController extends Controller
                     ChecklistTemplate::from($template),
                 ))
                 ->all())
-            ->all();
-    }
-
-    /**
-     * Get the vehicles owned by the current user as select options.
-     *
-     * @return array<int, array{value: string, label: string}>
-     */
-    private function vehicleOptions(Request $request): array
-    {
-        return Vehicle::query()
-            ->orderBy('make')
-            ->orderBy('model')
-            ->get()
-            ->map(fn ($vehicle): array => [
-                'value' => (string) $vehicle->id,
-                'label' => $vehicle->display_name,
-            ])
             ->all();
     }
 }

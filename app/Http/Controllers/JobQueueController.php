@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\SyncServiceRecordStock;
 use App\Enums\ServiceStatus;
+use App\Enums\ServiceType;
 use App\Http\Resources\ServiceRecordResource;
 use App\Models\ServiceRecord;
+use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +43,38 @@ class JobQueueController extends Controller
 
         return Inertia::render('job-queue/index', [
             'jobs' => ServiceRecordResource::collection($jobs)->resolve(),
+            'vehicles' => Vehicle::options(),
         ]);
+    }
+
+    /**
+     * Quickly add a job straight to the queue with just the basics. It
+     * lands as planned work, the same as one logged in full, so it can be
+     * filled in with parts, hours and cost later from the service log.
+     *
+     * Needs the service log permission as well as the queue's, since moving
+     * the job afterwards and filling it in both need it too.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        Gate::authorize('create', ServiceRecord::class);
+
+        $validated = $request->validate([
+            'vehicle_id' => ['required', 'string', Rule::exists('vehicles', 'id')],
+            'title' => ['required', 'string', 'max:120'],
+            'type' => ['nullable', Rule::enum(ServiceType::class)],
+        ]);
+
+        $request->user()->serviceRecords()->create([
+            ...$validated,
+            'type' => $validated['type'] ?? ServiceType::Other,
+            'status' => ServiceStatus::Planned,
+            'performed_on' => today(),
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Job added to the queue.')]);
+
+        return back();
     }
 
     /**

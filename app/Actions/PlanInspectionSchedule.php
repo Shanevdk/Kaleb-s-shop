@@ -117,8 +117,18 @@ class PlanInspectionSchedule
             ->all();
 
         foreach ($vehicles as $vehicle) {
-            $annual = $booked->get("{$vehicle->id}|".ChecklistTemplate::AnnualInspection->value)
-                ?? $this->bookAnnual($vehicle, $startOfMonth, $today);
+            $bookedAnnual = $booked->get("{$vehicle->id}|".ChecklistTemplate::AnnualInspection->value);
+
+            // Non-highway vehicles never see a public road, so they are
+            // exempt from the roadworthy-style annual inspection. Retract
+            // one booked before the vehicle became exempt.
+            if ($vehicle->category->isExemptFromAnnualInspection()) {
+                $this->retractAnnual($bookedAnnual);
+
+                $annual = null;
+            } else {
+                $annual = $bookedAnnual ?? $this->bookAnnual($vehicle, $startOfMonth, $today);
+            }
 
             $monthly = $booked->get("{$vehicle->id}|".ChecklistTemplate::MonthlyCheck->value);
 
@@ -162,6 +172,31 @@ class PlanInspectionSchedule
 
                 $planned->update(['due_on' => $day->toDateString()]);
             });
+    }
+
+    /**
+     * Delete a booked annual inspection that is no longer needed, freeing
+     * up the load and per-month tally it took up.
+     */
+    private function retractAnnual(?PlannedInspection $annual): void
+    {
+        if ($annual === null) {
+            return;
+        }
+
+        $dueOn = $annual->due_on->toDateString();
+
+        if (isset($this->load[$dueOn])) {
+            $this->load[$dueOn] -= $this->weightOf(ChecklistTemplate::AnnualInspection);
+        }
+
+        $month = $annual->due_on->month;
+
+        if (isset($this->annualsPerMonth[$month])) {
+            $this->annualsPerMonth[$month]--;
+        }
+
+        $annual->delete();
     }
 
     /**

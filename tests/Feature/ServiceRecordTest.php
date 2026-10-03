@@ -165,6 +165,28 @@ test('a job can be deleted by its owner', function () {
     expect(ServiceRecord::count())->toBe(0);
 });
 
+test('deleting a job from its own page does not redirect back into it', function () {
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->for($user)->for(Vehicle::factory()->for($user))->create();
+
+    $this->actingAs($user)
+        ->from(route('service-records.show', $record))
+        ->delete(route('service-records.destroy', $record))
+        ->assertRedirect(route('service-records.index'));
+});
+
+test('deleting a job from the filtered log returns to the same filters', function () {
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->for($user)->for(Vehicle::factory()->for($user))->create();
+
+    $filteredIndex = route('service-records.index', ['status' => ServiceStatus::Completed->value]);
+
+    $this->actingAs($user)
+        ->from($filteredIndex)
+        ->delete(route('service-records.destroy', $record))
+        ->assertRedirect($filteredIndex);
+});
+
 test('a shopper cannot edit, update or delete a job', function () {
     $user = User::factory()->shopper()->create();
     $record = ServiceRecord::factory()->create(['title' => 'Not yours']);

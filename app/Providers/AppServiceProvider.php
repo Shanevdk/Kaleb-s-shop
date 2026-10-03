@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\ExceptionResponse;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureAbilities();
+        $this->configureErrorPages();
     }
 
     /**
@@ -40,6 +43,20 @@ class AppServiceProvider extends ServiceProvider
         foreach (Permission::cases() as $permission) {
             Gate::define($permission->value, fn (User $user): bool => $user->hasPermission($permission));
         }
+    }
+
+    /**
+     * Render a page-not-found route with the app's own 404 page instead of
+     * Laravel's default error view. Left alone for requests that want JSON,
+     * such as the standalone XHR client, so they keep getting a plain body.
+     */
+    protected function configureErrorPages(): void
+    {
+        Inertia::handleExceptionsUsing(function (ExceptionResponse $response) {
+            if ($response->statusCode() === 404 && ! $response->request->wantsJson()) {
+                return $response->render('errors/404');
+            }
+        });
     }
 
     /**

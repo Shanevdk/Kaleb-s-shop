@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\MachineKind;
 use App\Enums\PhotoAngle;
+use App\Enums\VehicleCategory;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -29,13 +30,14 @@ use Illuminate\Support\Facades\Storage;
  * @property int|null $odometer
  * @property string|null $notes
  * @property MachineKind|null $kind
+ * @property VehicleCategory $category
  * @property array<string, mixed>|null $specs
  * @property array<string, string>|null $photos
  * @property array<string, mixed>|null $look
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'specs', 'photos', 'look'])]
+#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'category', 'specs', 'photos', 'look'])]
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
@@ -148,6 +150,24 @@ class Vehicle extends Model
     }
 
     /**
+     * Get every vehicle as a select option, ordered by make and model.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public static function options(): array
+    {
+        return static::query()
+            ->orderBy('make')
+            ->orderBy('model')
+            ->get()
+            ->map(fn (self $vehicle): array => [
+                'value' => (string) $vehicle->id,
+                'label' => $vehicle->display_name,
+            ])
+            ->all();
+    }
+
+    /**
      * Get the display name for the vehicle.
      *
      * @return Attribute<non-falsy-string, never>
@@ -219,6 +239,7 @@ class Vehicle extends Model
             'year' => 'integer',
             'odometer' => 'integer',
             'kind' => MachineKind::class,
+            'category' => VehicleCategory::class,
             'specs' => 'array',
             'photos' => 'array',
             'look' => 'array',

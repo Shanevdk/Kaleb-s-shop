@@ -81,7 +81,8 @@ if (!redirectingToLastPath) {
             switch (true) {
                 case name === 'welcome' ||
                     name === 'phone-scanner' ||
-                    name === 'work-order':
+                    name === 'work-order' ||
+                    name.startsWith('errors/'):
                     return null;
                 case name.startsWith('auth/'):
                     return AuthLayout;

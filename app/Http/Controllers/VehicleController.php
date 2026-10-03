@@ -6,6 +6,7 @@ use App\Actions\DecodeVin;
 use App\Actions\FetchRecalls;
 use App\Enums\MachineKind;
 use App\Enums\PhotoAngle;
+use App\Enums\VehicleCategory;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\InspectionResource;
 use App\Http\Resources\InventoryItemResource;
@@ -64,6 +65,7 @@ class VehicleController extends Controller
         return Inertia::render('vehicles/create', [
             'prefill' => $request->only(['vin', 'make', 'model', 'year', 'kind', 'cylinders', 'displacement_l', 'fuel']),
             'kinds' => MachineKind::options(),
+            'categories' => VehicleCategory::options(),
         ]);
     }
 
@@ -193,6 +195,7 @@ class VehicleController extends Controller
         return Inertia::render('vehicles/edit', [
             'vehicle' => VehicleResource::make($vehicle)->resolve(),
             'kinds' => MachineKind::options(),
+            'categories' => VehicleCategory::options(),
         ]);
     }
 

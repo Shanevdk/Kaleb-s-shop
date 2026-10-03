@@ -7,9 +7,11 @@ import type { SelectOption, Vehicle } from '@/types';
 export default function VehicleEdit({
     vehicle,
     kinds,
+    categories,
 }: {
     vehicle: Vehicle;
     kinds: SelectOption[];
+    categories: SelectOption[];
 }) {
     setLayoutProps({
         breadcrumbs: [
@@ -30,7 +32,11 @@ export default function VehicleEdit({
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <VehicleForm vehicle={vehicle} kinds={kinds} />
+                    <VehicleForm
+                        vehicle={vehicle}
+                        kinds={kinds}
+                        categories={categories}
+                    />
                 </div>
             </div>
         </>
