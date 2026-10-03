@@ -22,3 +22,11 @@ test('an account with only the equipment permission lands on the equipment list'
         ->get(route('dashboard'))
         ->assertRedirect(route('equipment.index'));
 });
+
+test('an account with only the VDK Equipment USA permission lands on its equipment list', function () {
+    $user = User::factory()->shopper()->create(['permissions' => ['equipment-usa']]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('usa.equipment.index'));
+});

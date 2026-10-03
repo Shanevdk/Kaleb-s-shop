@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, setLayoutProps, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     CalendarCheck,
@@ -24,16 +24,17 @@ import ScheduleCalendar, {
 import type { CalendarKind } from '@/components/schedule-calendar';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
+import { divisionRoutes } from '@/lib/equipment-divisions';
 import { cn } from '@/lib/utils';
 import { show as showEquipment } from '@/routes/equipment';
 import { show as showChecklist } from '@/routes/equipment-checklists';
-import { index } from '@/routes/equipment-schedule';
 import {
     destroy as removeJob,
     update as updateJob,
 } from '@/routes/equipment-schedule/jobs';
 import type {
     ClosedDay,
+    EquipmentDivision,
     EquipmentScheduleEntry,
     EquipmentScheduleEntryKind,
     EquipmentScheduleStats,
@@ -70,6 +71,7 @@ const moveEntry = (entry: EquipmentScheduleEntry, date: string) =>
     );
 
 export default function EquipmentSchedule({
+    division,
     month,
     today,
     entries,
@@ -78,6 +80,7 @@ export default function EquipmentSchedule({
     types,
     closedDays,
 }: {
+    division: EquipmentDivision;
     month: string;
     today: string;
     entries: EquipmentScheduleEntry[];
@@ -87,10 +90,17 @@ export default function EquipmentSchedule({
     closedDays: ClosedDay[];
 }) {
     const { auth } = usePage().props;
+    const { schedule } = divisionRoutes[division];
     const [selected, setSelected] = useState(() =>
         firstDayToShow(month, today, entries),
     );
     const selectedEntries = entries.filter((entry) => entry.date === selected);
+
+    setLayoutProps({
+        breadcrumbs: [
+            { title: 'Equipment maintenance schedule', href: schedule() },
+        ],
+    });
 
     return (
         <>
@@ -106,7 +116,7 @@ export default function EquipmentSchedule({
                                 month={month}
                                 today={today}
                                 href={(target) =>
-                                    index.url(
+                                    schedule.url(
                                         target
                                             ? { query: { month: target } }
                                             : undefined,
@@ -293,7 +303,3 @@ function EquipmentScheduleEntryRow({
         </li>
     );
 }
-
-EquipmentSchedule.layout = {
-    breadcrumbs: [{ title: 'Equipment maintenance schedule', href: index() }],
-};

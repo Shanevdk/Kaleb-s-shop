@@ -2,18 +2,28 @@
 
 namespace App\Policies;
 
-use App\Enums\Permission;
+use App\Enums\EquipmentDivision;
 use App\Models\Equipment;
 use App\Models\User;
 
 class EquipmentPolicy
 {
     /**
-     * Determine whether the user can view the equipment record.
+     * Determine whether the user can open the equipment of any division.
+     */
+    public function viewAny(User $user): bool
+    {
+        return collect(EquipmentDivision::cases())
+            ->contains(fn (EquipmentDivision $division): bool => $user->hasPermission($division->permission()));
+    }
+
+    /**
+     * Determine whether the user can view the equipment record, which takes
+     * the permission for the division it belongs to.
      */
     public function view(User $user, Equipment $equipment): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipment->division->permission());
     }
 
     /**
@@ -21,7 +31,7 @@ class EquipmentPolicy
      */
     public function update(User $user, Equipment $equipment): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipment->division->permission());
     }
 
     /**
@@ -29,6 +39,6 @@ class EquipmentPolicy
      */
     public function delete(User $user, Equipment $equipment): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipment->division->permission());
     }
 }

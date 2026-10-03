@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentStatus;
 use Database\Factories\EquipmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +18,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property string $user_id
+ * @property EquipmentDivision $division
  * @property string $name
  * @property string|null $category
  * @property string|null $serial_number
@@ -25,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'category', 'serial_number', 'location', 'status', 'purchased_on', 'notes'])]
+#[Fillable(['division', 'name', 'category', 'serial_number', 'location', 'status', 'purchased_on', 'notes'])]
 class Equipment extends Model
 {
     /** @use HasFactory<EquipmentFactory> */
@@ -62,6 +66,36 @@ class Equipment extends Model
     }
 
     /**
+     * Keep to the equipment belonging to one division.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    #[Scope]
+    protected function inDivision(Builder $query, EquipmentDivision $division): void
+    {
+        $query->where('division', $division);
+    }
+
+    /**
+     * Get every piece of the division's equipment as a select option,
+     * ordered by name.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public static function options(EquipmentDivision $division): array
+    {
+        return static::query()
+            ->inDivision($division)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (self $equipment): array => [
+                'value' => $equipment->id,
+                'label' => $equipment->name,
+            ])
+            ->all();
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -69,8 +103,21 @@ class Equipment extends Model
     protected function casts(): array
     {
         return [
+            'division' => EquipmentDivision::class,
             'status' => EquipmentStatus::class,
             'purchased_on' => 'date',
         ];
     }
+
+    /**
+     * Get the default attribute values.
+     *
+     * Mirrors the column default, so equipment created without a division
+     * is VDK-Equipment's without being reloaded.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'division' => 'main',
+    ];
 }

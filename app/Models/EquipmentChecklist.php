@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CheckStatus;
+use App\Enums\EquipmentDivision;
 use Database\Factories\EquipmentChecklistFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -60,6 +61,17 @@ class EquipmentChecklist extends Model
     public function items(): HasMany
     {
         return $this->hasMany(EquipmentChecklistItem::class)->orderBy('position');
+    }
+
+    /**
+     * Keep to the checklists run against one division's equipment.
+     *
+     * @param  Builder<EquipmentChecklist>  $query
+     */
+    #[Scope]
+    protected function inDivision(Builder $query, EquipmentDivision $division): void
+    {
+        $query->whereHas('equipment', fn (Builder $equipment) => $equipment->inDivision($division));
     }
 
     /**

@@ -134,8 +134,7 @@ export default function Receiving({
                         <ScanBarcode className="text-muted-foreground mt-0.5 size-5 shrink-0" />
                         <div className="min-w-0 flex-1 space-y-1">
                             <p className="font-medium">
-                                {lastScan.description ??
-                                    'Code not recognised'}
+                                {lastScan.description ?? 'Code not recognised'}
                             </p>
                             <p className="text-muted-foreground font-mono text-xs">
                                 {lastScan.barcode}
@@ -192,9 +191,7 @@ export default function Receiving({
                                         Still to come
                                     </TableHead>
                                     <TableHead className="text-right">
-                                        <span className="sr-only">
-                                            Receive
-                                        </span>
+                                        <span className="sr-only">Receive</span>
                                     </TableHead>
                                 </TableRow>
                             </TableHeader>

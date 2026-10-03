@@ -1,4 +1,4 @@
-import { Form, Head, Link, router } from '@inertiajs/react';
+import { Form, Head, Link, router, setLayoutProps } from '@inertiajs/react';
 import { Pencil, Search, Trash2, Wrench } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
@@ -22,10 +22,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { divisionRoutes } from '@/lib/equipment-divisions';
 import { formatCurrency, formatDate, formatHours } from '@/lib/format';
 import { show as showEquipment } from '@/routes/equipment';
-import { destroy, index } from '@/routes/equipment-service-records';
-import type { EquipmentServiceRecord, SelectOption } from '@/types';
+import { destroy } from '@/routes/equipment-service-records';
+import type {
+    EquipmentDivision,
+    EquipmentServiceRecord,
+    SelectOption,
+} from '@/types';
 
 type Pagination = {
     current_page: number;
@@ -36,6 +41,7 @@ type Pagination = {
 };
 
 export default function EquipmentServiceRecordsIndex({
+    division,
     records,
     pagination,
     equipment,
@@ -43,6 +49,7 @@ export default function EquipmentServiceRecordsIndex({
     statuses,
     filters,
 }: {
+    division: EquipmentDivision;
     records: EquipmentServiceRecord[];
     pagination: Pagination;
     equipment: SelectOption[];
@@ -50,9 +57,14 @@ export default function EquipmentServiceRecordsIndex({
     statuses: SelectOption[];
     filters: { search: string; status: string; equipment: string };
 }) {
+    const { serviceLog } = divisionRoutes[division];
     const hasFilters = Boolean(
         filters.search || filters.status || filters.equipment,
     );
+
+    setLayoutProps({
+        breadcrumbs: [{ title: 'Equipment service log', href: serviceLog() }],
+    });
 
     return (
         <>
@@ -65,7 +77,7 @@ export default function EquipmentServiceRecordsIndex({
                 />
 
                 <Form
-                    action={index.url()}
+                    action={serviceLog.url()}
                     method="get"
                     options={{ preserveState: true, replace: true }}
                     className="flex flex-wrap items-center gap-3"
@@ -98,7 +110,10 @@ export default function EquipmentServiceRecordsIndex({
                         </SelectContent>
                     </Select>
 
-                    <Select name="status" defaultValue={filters.status || 'all'}>
+                    <Select
+                        name="status"
+                        defaultValue={filters.status || 'all'}
+                    >
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Any status" />
                         </SelectTrigger>
@@ -121,7 +136,7 @@ export default function EquipmentServiceRecordsIndex({
 
                     {hasFilters && (
                         <Button variant="ghost" asChild>
-                            <Link href={index()}>Clear</Link>
+                            <Link href={serviceLog()}>Clear</Link>
                         </Button>
                     )}
                 </Form>
@@ -142,7 +157,9 @@ export default function EquipmentServiceRecordsIndex({
                         action={
                             hasFilters && (
                                 <Button variant="outline" asChild>
-                                    <Link href={index()}>Clear filters</Link>
+                                    <Link href={serviceLog()}>
+                                        Clear filters
+                                    </Link>
                                 </Button>
                             )
                         }
@@ -295,7 +312,3 @@ export default function EquipmentServiceRecordsIndex({
         </>
     );
 }
-
-EquipmentServiceRecordsIndex.layout = {
-    breadcrumbs: [{ title: 'Equipment service log', href: index() }],
-};

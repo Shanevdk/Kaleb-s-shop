@@ -2,18 +2,18 @@
 
 namespace App\Policies;
 
-use App\Enums\Permission;
 use App\Models\EquipmentServiceRecord;
 use App\Models\User;
 
 class EquipmentServiceRecordPolicy
 {
     /**
-     * Determine whether the user can view the service record.
+     * Determine whether the user can view the service record, which takes
+     * the permission for the division its equipment belongs to.
      */
     public function view(User $user, EquipmentServiceRecord $equipmentServiceRecord): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentServiceRecord->equipment->division->permission());
     }
 
     /**
@@ -21,7 +21,7 @@ class EquipmentServiceRecordPolicy
      */
     public function update(User $user, EquipmentServiceRecord $equipmentServiceRecord): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentServiceRecord->equipment->division->permission());
     }
 
     /**
@@ -29,6 +29,6 @@ class EquipmentServiceRecordPolicy
      */
     public function delete(User $user, EquipmentServiceRecord $equipmentServiceRecord): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentServiceRecord->equipment->division->permission());
     }
 }

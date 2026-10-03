@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentStatus;
 use App\Models\Equipment;
 use App\Models\User;
@@ -21,6 +22,7 @@ class EquipmentFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            'division' => EquipmentDivision::Main,
             'name' => fake()->randomElement(['Air compressor', 'Hydraulic lift', 'Tyre balancer', 'Welder', 'Generator', 'Pressure washer']),
             'category' => fake()->randomElement(['Shop tool', 'Lift', 'Power tool']),
             'serial_number' => strtoupper(fake()->bothify('??-####')),
@@ -29,5 +31,15 @@ class EquipmentFactory extends Factory
             'purchased_on' => fake()->dateTimeBetween('-5 years', '-1 month')->format('Y-m-d'),
             'notes' => null,
         ];
+    }
+
+    /**
+     * Indicate that the equipment belongs to VDK Equipment USA.
+     */
+    public function usa(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'division' => EquipmentDivision::Usa,
+        ]);
     }
 }

@@ -1,5 +1,4 @@
 import { Form, Link } from '@inertiajs/react';
-import EquipmentController from '@/actions/App/Http/Controllers/EquipmentController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,19 +11,21 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { index } from '@/routes/equipment';
-import type { Equipment, SelectOption } from '@/types';
+import { divisionRoutes } from '@/lib/equipment-divisions';
+import { update } from '@/routes/equipment';
+import type { Equipment, EquipmentDivision, SelectOption } from '@/types';
 
 export default function EquipmentForm({
+    division,
     equipment,
     statuses,
 }: {
+    division: EquipmentDivision;
     equipment?: Equipment;
     statuses: SelectOption[];
 }) {
-    const action = equipment
-        ? EquipmentController.update.form(equipment.id)
-        : EquipmentController.store.form();
+    const { index, store } = divisionRoutes[division];
+    const action = equipment ? update.form(equipment.id) : store.form();
 
     return (
         <Form {...action} className="space-y-8">

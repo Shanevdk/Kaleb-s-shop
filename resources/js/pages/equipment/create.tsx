@@ -1,14 +1,25 @@
-import { Head } from '@inertiajs/react';
+import { Head, setLayoutProps } from '@inertiajs/react';
 import EquipmentForm from '@/components/equipment-form';
 import PageHeader from '@/components/page-header';
-import { create, index } from '@/routes/equipment';
-import type { SelectOption } from '@/types';
+import { divisionRoutes } from '@/lib/equipment-divisions';
+import type { EquipmentDivision, SelectOption } from '@/types';
 
 export default function EquipmentCreate({
+    division,
     statuses,
 }: {
+    division: EquipmentDivision;
     statuses: SelectOption[];
 }) {
+    const { create, index } = divisionRoutes[division];
+
+    setLayoutProps({
+        breadcrumbs: [
+            { title: 'Equipment', href: index() },
+            { title: 'Add equipment', href: create() },
+        ],
+    });
+
     return (
         <>
             <Head title="Add equipment" />
@@ -20,16 +31,9 @@ export default function EquipmentCreate({
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <EquipmentForm statuses={statuses} />
+                    <EquipmentForm division={division} statuses={statuses} />
                 </div>
             </div>
         </>
     );
 }
-
-EquipmentCreate.layout = {
-    breadcrumbs: [
-        { title: 'Equipment', href: index() },
-        { title: 'Add equipment', href: create() },
-    ],
-};

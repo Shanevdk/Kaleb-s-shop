@@ -7,6 +7,7 @@ use App\Http\Requests\EquipmentScheduleJobRequest;
 use App\Models\EquipmentServiceRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -33,6 +34,8 @@ class EquipmentScheduleJobController extends Controller
      */
     public function update(Request $request, EquipmentServiceRecord $equipmentServiceRecord): RedirectResponse
     {
+        Gate::authorize('update', $equipmentServiceRecord);
+
         if ($equipmentServiceRecord->status === ServiceStatus::Completed) {
             throw ValidationException::withMessages([
                 'performed_on' => __('Finished maintenance stays on the day it was done.'),
@@ -57,6 +60,8 @@ class EquipmentScheduleJobController extends Controller
      */
     public function destroy(EquipmentServiceRecord $equipmentServiceRecord): RedirectResponse
     {
+        Gate::authorize('delete', $equipmentServiceRecord);
+
         if ($equipmentServiceRecord->status !== ServiceStatus::Planned) {
             throw ValidationException::withMessages([
                 'job' => __('Only maintenance nobody has started can come off the schedule.'),

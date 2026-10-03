@@ -1,7 +1,8 @@
 import { Head, setLayoutProps } from '@inertiajs/react';
 import EquipmentForm from '@/components/equipment-form';
 import PageHeader from '@/components/page-header';
-import { edit, index, show } from '@/routes/equipment';
+import { divisionRoutes } from '@/lib/equipment-divisions';
+import { edit, show } from '@/routes/equipment';
 import type { Equipment, SelectOption } from '@/types';
 
 export default function EquipmentEdit({
@@ -11,6 +12,8 @@ export default function EquipmentEdit({
     equipment: Equipment;
     statuses: SelectOption[];
 }) {
+    const { index } = divisionRoutes[equipment.division];
+
     setLayoutProps({
         breadcrumbs: [
             { title: 'Equipment', href: index() },
@@ -30,7 +33,11 @@ export default function EquipmentEdit({
                 />
 
                 <div className="bg-card max-w-4xl rounded-xl border p-6">
-                    <EquipmentForm equipment={equipment} statuses={statuses} />
+                    <EquipmentForm
+                        division={equipment.division}
+                        equipment={equipment}
+                        statuses={statuses}
+                    />
                 </div>
             </div>
         </>

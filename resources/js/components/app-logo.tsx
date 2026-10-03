@@ -1,5 +1,5 @@
-import AppLogoIcon from "@/components/app-logo-icon";
-import AppWordmark from "@/components/app-wordmark";
+import AppLogoIcon from '@/components/app-logo-icon';
+import AppWordmark from '@/components/app-wordmark';
 
 export default function AppLogo() {
     return (

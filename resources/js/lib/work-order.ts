@@ -4,10 +4,26 @@ import type { WorkOrder } from '@/types';
 type Figure = { value: string; hint: string | null };
 
 /**
- * The sheet's estimated cost in words: the parts added up, saying how many
- * have no price yet and whether the AI is still working on them.
+ * What to call the sheet's cost: a price the shop set by hand, or the
+ * estimate worked out from the parts.
+ */
+export function costLabel(sheet: WorkOrder): string {
+    return sheet.quoted_price === null ? 'Estimated cost' : 'Price';
+}
+
+/**
+ * The sheet's cost in words: the price the shop set by hand, otherwise the
+ * parts added up, saying how many have no price yet and whether the AI is
+ * still working on them.
  */
 export function describeCost(sheet: WorkOrder): Figure {
+    if (sheet.quoted_price !== null) {
+        return {
+            value: formatCurrency(sheet.quoted_price),
+            hint: 'Set by the shop',
+        };
+    }
+
     const { total, unpriced } = sheet.cost;
     const partCount = sheet.parts.length;
     const pending = sheet.estimating ? 'Being worked out' : 'To be confirmed';

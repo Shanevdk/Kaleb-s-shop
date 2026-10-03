@@ -369,7 +369,10 @@ export default function InspectionShow({
                                                         )}
                                                     </p>
                                                     <NoteInput
-                                                        url={updateItem(item.id).url}
+                                                        url={
+                                                            updateItem(item.id)
+                                                                .url
+                                                        }
                                                         notes={item.notes}
                                                         label={item.label}
                                                     />

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\EquipmentServiceType;
+use App\Models\Equipment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,11 +11,17 @@ use Illuminate\Validation\Rule;
 class EquipmentScheduleJobRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine if the user is authorized to make this request. Maintenance
+     * lands on the schedule of the division its equipment belongs to, which
+     * takes that division's permission; equipment that does not exist is
+     * left for validation to turn down.
      */
     public function authorize(): bool
     {
-        return true;
+        $equipmentId = $this->input('equipment_id');
+        $equipment = is_string($equipmentId) ? Equipment::query()->find($equipmentId) : null;
+
+        return $equipment === null || $this->user()->can('update', $equipment);
     }
 
     /**

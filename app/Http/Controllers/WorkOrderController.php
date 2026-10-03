@@ -41,7 +41,8 @@ class WorkOrderController extends Controller
     }
 
     /**
-     * Save what is wrong, and email the sheet when given an address. A sheet
+     * Save what is wrong and the price, if one is set by hand in place of the
+     * worked-out cost, and email the sheet when given an address. A sheet
      * still missing its time or a part's price has the AI work them out
      * again, for a job saved before it priced parts or one it failed on.
      */
@@ -55,7 +56,7 @@ class WorkOrderController extends Controller
             return back();
         }
 
-        $serviceRecord->update($request->safe()->only(['issue_reason']));
+        $serviceRecord->update($request->safe()->only(['issue_reason', 'quoted_price']));
 
         $serviceRecord->load('vehicle', 'parts.inventoryItem', 'inspectionItem');
 

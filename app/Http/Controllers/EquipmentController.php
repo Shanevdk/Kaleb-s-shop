@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\EquipmentStatus;
 use App\Enums\ServiceStatus;
@@ -21,13 +22,14 @@ use Inertia\Response;
 class EquipmentController extends Controller
 {
     /**
-     * Display every piece of equipment in the shop.
+     * Display every piece of equipment in the division.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, EquipmentDivision $division): Response
     {
         $search = trim((string) $request->string('search'));
 
         $equipment = Equipment::query()
+            ->inDivision($division)
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->whereLike('name', "%{$search}%")
@@ -43,27 +45,32 @@ class EquipmentController extends Controller
             ->get();
 
         return Inertia::render('equipment/index', [
+            'division' => $division->value,
             'equipment' => EquipmentResource::collection($equipment)->resolve(),
             'filters' => ['search' => $search],
         ]);
     }
 
     /**
-     * Show the form for adding a piece of equipment.
+     * Show the form for adding a piece of equipment to the division.
      */
-    public function create(): Response
+    public function create(EquipmentDivision $division): Response
     {
         return Inertia::render('equipment/create', [
+            'division' => $division->value,
             'statuses' => EquipmentStatus::options(),
         ]);
     }
 
     /**
-     * Store a newly added piece of equipment.
+     * Store a piece of equipment newly added to the division.
      */
-    public function store(EquipmentRequest $request): RedirectResponse
+    public function store(EquipmentRequest $request, EquipmentDivision $division): RedirectResponse
     {
-        $equipment = $request->user()->equipment()->create($request->validated());
+        $equipment = $request->user()->equipment()->create([
+            ...$request->validated(),
+            'division' => $division,
+        ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Equipment added.')]);
 
@@ -141,6 +148,6 @@ class EquipmentController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Equipment removed.')]);
 
-        return to_route('equipment.index');
+        return to_route($equipment->division->routeName('equipment.index'));
     }
 }

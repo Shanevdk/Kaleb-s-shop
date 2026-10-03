@@ -25,6 +25,7 @@ class WorkOrderRequest extends FormRequest
         return [
             'reset_link' => ['sometimes', 'boolean'],
             'issue_reason' => ['exclude_if:reset_link,true', 'required', 'string', 'max:5000'],
+            'quoted_price' => ['exclude_if:reset_link,true', 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'email' => ['nullable', 'email', 'max:255'],
             'message' => ['nullable', 'string', 'max:2000'],
         ];
@@ -39,6 +40,7 @@ class WorkOrderRequest extends FormRequest
     {
         return [
             'issue_reason' => 'what is wrong',
+            'quoted_price' => 'price',
         ];
     }
 }

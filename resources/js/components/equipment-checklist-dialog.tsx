@@ -14,21 +14,36 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { todayString } from '@/lib/format';
 import { store } from '@/routes/equipment-checklists';
+import type { SelectOption } from '@/types';
 
 /**
  * Start a checklist against a piece of equipment. Items are added once it
  * opens, the same way an ad hoc check is added to a vehicle's checklist.
+ * Opened from the equipment's own page the equipment is already known;
+ * opened from a division's checklists, it is picked from that division's
+ * equipment.
  */
 export default function EquipmentChecklistDialog({
     trigger,
     equipmentId,
+    equipment = [],
 }: {
     trigger: ReactNode;
-    equipmentId: string;
+    equipmentId?: string;
+    equipment?: SelectOption[];
 }) {
     const [open, setOpen] = useState(false);
+    const [pickedId, setPickedId] = useState('');
+    const targetId = equipmentId ?? pickedId;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -40,12 +55,41 @@ export default function EquipmentChecklistDialog({
                 </DialogDescription>
 
                 <Form
-                    {...store.form(equipmentId)}
+                    {...store.form(targetId)}
                     options={{ preserveScroll: true }}
                     className="space-y-4"
                 >
                     {({ processing, errors }) => (
                         <>
+                            {equipmentId === undefined && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="checklist_equipment">
+                                        Equipment
+                                    </Label>
+                                    <Select
+                                        value={pickedId}
+                                        onValueChange={setPickedId}
+                                    >
+                                        <SelectTrigger
+                                            id="checklist_equipment"
+                                            className="w-full"
+                                        >
+                                            <SelectValue placeholder="Pick a piece of equipment" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {equipment.map((item) => (
+                                                <SelectItem
+                                                    key={item.value}
+                                                    value={item.value}
+                                                >
+                                                    {item.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <div className="grid gap-2">
                                 <Label htmlFor="checklist_title">Title</Label>
                                 <Input
@@ -78,7 +122,10 @@ export default function EquipmentChecklistDialog({
                                         Cancel
                                     </Button>
                                 </DialogClose>
-                                <Button type="submit" disabled={processing}>
+                                <Button
+                                    type="submit"
+                                    disabled={processing || targetId === ''}
+                                >
                                     Start checklist
                                 </Button>
                             </DialogFooter>

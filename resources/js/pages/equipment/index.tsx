@@ -1,20 +1,29 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, setLayoutProps } from '@inertiajs/react';
 import { Plus, Search, Wrench } from 'lucide-react';
 import EmptyState from '@/components/empty-state';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { divisionRoutes } from '@/lib/equipment-divisions';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { create, index, show } from '@/routes/equipment';
-import type { Equipment } from '@/types';
+import { show } from '@/routes/equipment';
+import type { Equipment, EquipmentDivision } from '@/types';
 
 export default function EquipmentIndex({
+    division,
     equipment,
     filters,
 }: {
+    division: EquipmentDivision;
     equipment: Equipment[];
     filters: { search: string };
 }) {
+    const { create, index } = divisionRoutes[division];
+
+    setLayoutProps({
+        breadcrumbs: [{ title: 'Equipment', href: index() }],
+    });
+
     return (
         <>
             <Head title="Equipment" />
@@ -119,9 +128,7 @@ export default function EquipmentIndex({
                                             Last job
                                         </dt>
                                         <dd className="font-medium">
-                                            {formatDate(
-                                                item.last_serviced_on,
-                                            )}
+                                            {formatDate(item.last_serviced_on)}
                                         </dd>
                                     </div>
                                 </dl>
@@ -133,7 +140,3 @@ export default function EquipmentIndex({
         </>
     );
 }
-
-EquipmentIndex.layout = {
-    breadcrumbs: [{ title: 'Equipment', href: index() }],
-};

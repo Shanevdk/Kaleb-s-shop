@@ -10,7 +10,10 @@ import AppWordmark from '@/components/app-wordmark';
  */
 function RobotMascot() {
     return (
-        <div className="relative h-[220px] w-[240px] shrink-0" aria-hidden="true">
+        <div
+            className="relative h-[220px] w-[240px] shrink-0"
+            aria-hidden="true"
+        >
             <svg
                 viewBox="0 0 200 180"
                 className="absolute inset-0 h-full w-full"
@@ -25,7 +28,12 @@ function RobotMascot() {
                     strokeWidth="3"
                     strokeLinecap="round"
                 />
-                <circle cx="100" cy="4" r="4" className="fill-brand-orange animate-pulse" />
+                <circle
+                    cx="100"
+                    cy="4"
+                    r="4"
+                    className="fill-brand-orange animate-pulse"
+                />
                 <rect
                     x="58"
                     y="96"
@@ -36,7 +44,14 @@ function RobotMascot() {
                     strokeOpacity="0.4"
                     strokeWidth="2"
                 />
-                <rect x="82" y="112" width="36" height="24" rx="6" className="fill-brand-orange" />
+                <rect
+                    x="82"
+                    y="112"
+                    width="36"
+                    height="24"
+                    rx="6"
+                    className="fill-brand-orange"
+                />
                 <rect
                     x="46"
                     y="104"
@@ -65,7 +80,11 @@ function RobotMascot() {
 
             <Wrench
                 className="animate-wrench text-brand-orange absolute size-14"
-                style={{ left: '136px', top: '58px', transformOrigin: '30% 70%' }}
+                style={{
+                    left: '136px',
+                    top: '58px',
+                    transformOrigin: '30% 70%',
+                }}
                 strokeWidth={1.75}
             />
         </div>

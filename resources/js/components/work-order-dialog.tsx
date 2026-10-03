@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useClipboard } from '@/hooks/use-clipboard';
-import { describeCost, describeTime } from '@/lib/work-order';
+import { costLabel, describeCost, describeTime } from '@/lib/work-order';
 import { update } from '@/routes/service-records/work-order';
 import type { WorkOrder } from '@/types';
 
@@ -35,7 +35,8 @@ import type { WorkOrder } from '@/types';
  * Write up what is wrong with a job, then email the work order, copy its
  * link or open it to print. The cost and time are worked out automatically:
  * the parts at stock prices, or the AI's estimate for parts not on the
- * shelf, and the AI's estimate of the repair time. The link needs no login
+ * shelf, and the AI's estimate of the repair time, unless a price is set by
+ * hand, which then shows in place of the worked-out cost. The link needs no login
  * and always shows the job as it is now.
  */
 export default function WorkOrderDialog({
@@ -55,6 +56,7 @@ export default function WorkOrderDialog({
     const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
     const cost = describeCost(sheet);
     const time = describeTime(sheet);
+    const estimatedCost = describeCost({ ...sheet, quoted_price: null }).value;
 
     const share = () => {
         navigator
@@ -69,13 +71,14 @@ export default function WorkOrderDialog({
                 <DialogTitle>Work order</DialogTitle>
                 <DialogDescription>
                     Say what is wrong. The cost and repair time are worked out
-                    automatically from the parts and the AI estimate.
+                    automatically from the parts and the AI estimate, or set the
+                    price yourself.
                 </DialogDescription>
 
                 <div className="grid grid-cols-2 gap-3">
                     <Figure
                         icon={Banknote}
-                        label="Estimated cost"
+                        label={costLabel(sheet)}
                         value={cost.value}
                         hint={cost.hint}
                     />
@@ -111,6 +114,27 @@ export default function WorkOrderDialog({
                                     required
                                 />
                                 <InputError message={errors.issue_reason} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="quoted_price">
+                                    Price (optional)
+                                </Label>
+                                <Input
+                                    id="quoted_price"
+                                    name="quoted_price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    step="0.01"
+                                    min={0}
+                                    defaultValue={sheet.quoted_price ?? ''}
+                                    placeholder={estimatedCost}
+                                />
+                                <p className="text-muted-foreground text-xs">
+                                    Leave blank to use the cost worked out from
+                                    the parts.
+                                </p>
+                                <InputError message={errors.quoted_price} />
                             </div>
 
                             <div className="grid gap-2 border-t pt-4">
@@ -234,9 +258,7 @@ function Figure({
                 {label}
             </p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-            {hint && (
-                <p className="text-muted-foreground text-xs">{hint}</p>
-            )}
+            {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
         </div>
     );
 }

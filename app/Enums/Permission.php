@@ -17,6 +17,7 @@ enum Permission: string
     case ShoppingList = 'shopping-list';
     case Receiving = 'receiving';
     case Equipment = 'equipment';
+    case EquipmentUsa = 'equipment-usa';
     case Assistant = 'assistant';
 
     /**
@@ -39,6 +40,7 @@ enum Permission: string
             self::ShoppingList => 'Shopping list',
             self::Receiving => 'Receive parts',
             self::Equipment => 'Equipment',
+            self::EquipmentUsa => 'VDK Equipment USA',
             self::Assistant => 'Assistant',
         };
     }
@@ -51,7 +53,7 @@ enum Permission: string
     {
         return match ($this) {
             self::ManageTeam => 'Team',
-            self::MechanicsShop, self::Equipment => 'Workspace',
+            self::MechanicsShop, self::Equipment, self::EquipmentUsa => 'Workspace',
             self::Vehicles, self::Lookup => 'Fleet',
             self::Diagnose, self::JobQueue, self::ServiceLog => 'Service',
             self::Inspections, self::Schedule => 'Inspections',

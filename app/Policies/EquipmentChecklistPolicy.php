@@ -2,18 +2,18 @@
 
 namespace App\Policies;
 
-use App\Enums\Permission;
 use App\Models\EquipmentChecklist;
 use App\Models\User;
 
 class EquipmentChecklistPolicy
 {
     /**
-     * Determine whether the user can view the checklist.
+     * Determine whether the user can view the checklist, which takes the
+     * permission for the division its equipment belongs to.
      */
     public function view(User $user, EquipmentChecklist $equipmentChecklist): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentChecklist->equipment->division->permission());
     }
 
     /**
@@ -21,7 +21,7 @@ class EquipmentChecklistPolicy
      */
     public function update(User $user, EquipmentChecklist $equipmentChecklist): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentChecklist->equipment->division->permission());
     }
 
     /**
@@ -29,6 +29,6 @@ class EquipmentChecklistPolicy
      */
     public function delete(User $user, EquipmentChecklist $equipmentChecklist): bool
     {
-        return $user->hasPermission(Permission::Equipment);
+        return $user->hasPermission($equipmentChecklist->equipment->division->permission());
     }
 }

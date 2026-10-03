@@ -112,7 +112,10 @@ export default function EquipmentChecklistShow({
 
     setLayoutProps({
         breadcrumbs: [
-            { title: equipmentName, href: showEquipment(checklist.equipment_id) },
+            {
+                title: equipmentName,
+                href: showEquipment(checklist.equipment_id),
+            },
             { title: checklist.title, href: show(checklist.id) },
         ],
     });
@@ -137,9 +140,7 @@ export default function EquipmentChecklistShow({
                         <>
                             <Button variant="outline" asChild>
                                 <Link
-                                    href={showEquipment(
-                                        checklist.equipment_id,
-                                    )}
+                                    href={showEquipment(checklist.equipment_id)}
                                 >
                                     View equipment
                                 </Link>
@@ -221,9 +222,7 @@ export default function EquipmentChecklistShow({
                                         <div className="flex items-center gap-1">
                                             <EquipmentCheckStatusButtons
                                                 item={item}
-                                                disabled={
-                                                    checklist.is_complete
-                                                }
+                                                disabled={checklist.is_complete}
                                             />
                                             {canEdit && (
                                                 <RemoveCheck item={item} />
@@ -260,9 +259,7 @@ export default function EquipmentChecklistShow({
                                         <Textarea
                                             id="notes"
                                             name="notes"
-                                            defaultValue={
-                                                checklist.notes ?? ''
-                                            }
+                                            defaultValue={checklist.notes ?? ''}
                                             placeholder="Anything worth knowing."
                                         />
                                     </div>

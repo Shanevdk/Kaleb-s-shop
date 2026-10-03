@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
 use Database\Factories\EquipmentServiceRecordFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -52,6 +55,17 @@ class EquipmentServiceRecord extends Model
     public function equipment(): BelongsTo
     {
         return $this->belongsTo(Equipment::class);
+    }
+
+    /**
+     * Keep to the work done on one division's equipment.
+     *
+     * @param  Builder<EquipmentServiceRecord>  $query
+     */
+    #[Scope]
+    protected function inDivision(Builder $query, EquipmentDivision $division): void
+    {
+        $query->whereHas('equipment', fn (Builder $equipment) => $equipment->inDivision($division));
     }
 
     /**

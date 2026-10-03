@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\EquipmentDivision;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\ClosedDayController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VehicleLookController;
 use App\Http\Controllers\VehiclePhotoController;
 use App\Http\Controllers\WorkOrderController;
+use App\Models\Equipment;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -212,8 +214,45 @@ Route::middleware(['auth', 'verified', 'can:receiving'])->group(function () {
     Route::post('receiving/{partOrder}', [ReceivingController::class, 'store'])->name('receiving.store');
 });
 
-Route::middleware(['auth', 'verified', 'can:equipment'])->group(function () {
-    Route::resource('equipment', EquipmentController::class);
+/**
+ * Each equipment division keeps its own lists, unlocked by its own
+ * permission: VDK-Equipment's at the top level and VDK Equipment USA's under
+ * usa/. The division is handed to each controller as a route default.
+ */
+$equipmentLists = function (EquipmentDivision $division): void {
+    Route::get('equipment', [EquipmentController::class, 'index'])
+        ->name('equipment.index')
+        ->defaults('division', $division->value);
+    Route::get('equipment/create', [EquipmentController::class, 'create'])
+        ->name('equipment.create')
+        ->defaults('division', $division->value);
+    Route::post('equipment', [EquipmentController::class, 'store'])
+        ->name('equipment.store')
+        ->defaults('division', $division->value);
+    Route::get('equipment-checklists', [EquipmentChecklistController::class, 'index'])
+        ->name('equipment-checklists.index')
+        ->defaults('division', $division->value);
+    Route::get('equipment-service-records', [EquipmentServiceRecordController::class, 'index'])
+        ->name('equipment-service-records.index')
+        ->defaults('division', $division->value);
+    Route::get('equipment-schedule', [EquipmentScheduleController::class, 'index'])
+        ->name('equipment-schedule.index')
+        ->defaults('division', $division->value);
+};
+
+Route::middleware(['auth', 'verified', 'can:equipment'])
+    ->group(fn () => $equipmentLists(EquipmentDivision::Main));
+
+Route::middleware(['auth', 'verified', 'can:equipment-usa'])
+    ->prefix('usa')
+    ->name('usa.')
+    ->group(fn () => $equipmentLists(EquipmentDivision::Usa));
+
+// A piece of equipment, and everything logged against it, opens at the same
+// address whichever division it belongs to. Each action checks the
+// permission for that division.
+Route::middleware(['auth', 'verified', 'can:viewAny,'.Equipment::class])->group(function () {
+    Route::resource('equipment', EquipmentController::class)->only(['show', 'edit', 'update', 'destroy']);
     Route::post('equipment/{equipment}/checklists', [EquipmentChecklistController::class, 'store'])
         ->name('equipment-checklists.store');
     Route::get('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'show'])
@@ -228,15 +267,12 @@ Route::middleware(['auth', 'verified', 'can:equipment'])->group(function () {
         ->name('equipment-checklist-items.update');
     Route::delete('equipment-checklist-items/{equipmentChecklistItem}', [EquipmentChecklistItemController::class, 'destroy'])
         ->name('equipment-checklist-items.destroy');
-    Route::get('equipment-service-records', [EquipmentServiceRecordController::class, 'index'])
-        ->name('equipment-service-records.index');
     Route::post('equipment/{equipment}/service-records', [EquipmentServiceRecordController::class, 'store'])
         ->name('equipment-service-records.store');
     Route::patch('equipment-service-records/{equipmentServiceRecord}', [EquipmentServiceRecordController::class, 'update'])
         ->name('equipment-service-records.update');
     Route::delete('equipment-service-records/{equipmentServiceRecord}', [EquipmentServiceRecordController::class, 'destroy'])
         ->name('equipment-service-records.destroy');
-    Route::get('equipment-schedule', [EquipmentScheduleController::class, 'index'])->name('equipment-schedule.index');
     Route::post('equipment-schedule/jobs', [EquipmentScheduleJobController::class, 'store'])
         ->name('equipment-schedule.jobs.store');
     Route::patch('equipment-schedule/jobs/{equipmentServiceRecord}', [EquipmentScheduleJobController::class, 'update'])

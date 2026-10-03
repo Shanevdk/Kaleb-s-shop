@@ -11,7 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A job as it goes on its work order: what is wrong, the parts it takes,
  * and what it should cost and how long it should take, both worked out
- * automatically. Nothing from the job's own notes goes on it.
+ * automatically, unless the shop has set the price by hand. Nothing from
+ * the job's own notes goes on it.
  *
  * @mixin ServiceRecord
  */
@@ -20,7 +21,7 @@ class WorkOrderResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * @return array{title: string, type_label: string, status_label: string, reason: string, updated_on: string|null, estimating: bool, vehicle: array{name: string, registration: string|null, vin: string|null, odometer: int|null}|null, parts: array<int, array{name: string, quantity: float, unit_abbreviation: string, price_each: float|null, line_total: float|null, priced_by: string|null}>, cost: array{total: float, unpriced: int}, time: array{hours: float, low: float|null, high: float|null}|null}
+     * @return array{title: string, type_label: string, status_label: string, reason: string, updated_on: string|null, estimating: bool, vehicle: array{name: string, registration: string|null, vin: string|null, odometer: int|null}|null, parts: array<int, array{name: string, quantity: float, unit_abbreviation: string, price_each: float|null, line_total: float|null, priced_by: string|null}>, cost: array{total: float, unpriced: int}, quoted_price: float|null, time: array{hours: float, low: float|null, high: float|null}|null}
      */
     public function toArray(Request $request): array
     {
@@ -59,6 +60,7 @@ class WorkOrderResource extends JsonResource
                 ->values()
                 ->all(),
             'cost' => $this->partsEstimate(),
+            'quoted_price' => $this->quoted_price === null ? null : (float) $this->quoted_price,
             'time' => $this->currentEstimateStatus() === EstimateStatus::Failed || $this->estimated_hours === null ? null : [
                 'hours' => (float) $this->estimated_hours,
                 'low' => $this->estimated_hours_low === null ? null : (float) $this->estimated_hours_low,

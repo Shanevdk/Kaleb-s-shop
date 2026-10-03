@@ -43,9 +43,7 @@ export default function EquipmentServiceRecordDialog({
     record?: EquipmentServiceRecord;
 }) {
     const [open, setOpen] = useState(false);
-    const action = record
-        ? update.form(record.id)
-        : store.form(equipmentId);
+    const action = record ? update.form(record.id) : store.form(equipmentId);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -161,9 +159,7 @@ export default function EquipmentServiceRecordDialog({
                                         }
                                         required
                                     />
-                                    <InputError
-                                        message={errors.performed_on}
-                                    />
+                                    <InputError message={errors.performed_on} />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -192,14 +188,10 @@ export default function EquipmentServiceRecordDialog({
                                         type="number"
                                         step="0.01"
                                         min={0}
-                                        defaultValue={
-                                            record?.parts_cost ?? ''
-                                        }
+                                        defaultValue={record?.parts_cost ?? ''}
                                         placeholder="0.00"
                                     />
-                                    <InputError
-                                        message={errors.parts_cost}
-                                    />
+                                    <InputError message={errors.parts_cost} />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -212,14 +204,10 @@ export default function EquipmentServiceRecordDialog({
                                         type="number"
                                         step="0.01"
                                         min={0}
-                                        defaultValue={
-                                            record?.labour_cost ?? ''
-                                        }
+                                        defaultValue={record?.labour_cost ?? ''}
                                         placeholder="0.00"
                                     />
-                                    <InputError
-                                        message={errors.labour_cost}
-                                    />
+                                    <InputError message={errors.labour_cost} />
                                 </div>
                             </div>
 

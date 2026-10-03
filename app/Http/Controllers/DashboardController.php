@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\ServiceStatus;
 use App\Http\Resources\ServiceRecordResource;
 use App\Models\ServiceRecord;
@@ -18,14 +19,16 @@ class DashboardController extends Controller
      * Display the workshop overview.
      *
      * Only Kaleb's Shop has this overview as its home page. Equipment-only
-     * accounts land on the equipment list, schedulers on the schedule, and
-     * everyone else on the shopping list.
+     * accounts land on their division's equipment list, schedulers on the
+     * schedule, and everyone else on the shopping list.
      */
     public function index(Request $request): Response|RedirectResponse
     {
         if (Gate::denies('mechanics-shop')) {
-            if (Gate::allows('equipment')) {
-                return to_route('equipment.index');
+            foreach (EquipmentDivision::cases() as $division) {
+                if (Gate::allows($division->permission()->value)) {
+                    return to_route($division->routeName('equipment.index'));
+                }
             }
 
             return Gate::allows('schedule')

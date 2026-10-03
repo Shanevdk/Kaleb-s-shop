@@ -296,7 +296,9 @@ export default function VehiclePhotosPanel({
                                             </span>
                                             <span className="text-muted-foreground">
                                                 {' '}
-                                                · {DAMAGE_LABELS[mark.kind]},{' '}
+                                                · {
+                                                    DAMAGE_LABELS[mark.kind]
+                                                },{' '}
                                                 {mark.severity}
                                             </span>
                                             {mark.note && (

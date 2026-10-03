@@ -27,11 +27,12 @@ import type {
     ServiceStatus,
 } from '@/types';
 
-const columns: { status: ServiceStatus; title: string; icon: typeof Circle }[] = [
-    { status: 'planned', title: 'Not started', icon: Circle },
-    { status: 'in_progress', title: 'In progress', icon: ListTodo },
-    { status: 'completed', title: 'Complete', icon: CheckCircle2 },
-];
+const columns: { status: ServiceStatus; title: string; icon: typeof Circle }[] =
+    [
+        { status: 'planned', title: 'Not started', icon: Circle },
+        { status: 'in_progress', title: 'In progress', icon: ListTodo },
+        { status: 'completed', title: 'Complete', icon: CheckCircle2 },
+    ];
 
 /**
  * Get the parts a job is still waiting on, the ones not yet fully taken off
@@ -57,7 +58,9 @@ const moveJob = (job: ServiceRecord, status: ServiceStatus) => {
         {
             preserveScroll: true,
             onError: (errors) =>
-                toast.error(Object.values(errors)[0] ?? 'That could not be moved.'),
+                toast.error(
+                    Object.values(errors)[0] ?? 'That could not be moved.',
+                ),
         },
     );
 };
@@ -149,7 +152,8 @@ export default function JobQueue({
                     {columns.map((column) => {
                         const columnJobs = byStatus[column.status];
                         const droppable =
-                            dragging !== null && dragging.status !== column.status;
+                            dragging !== null &&
+                            dragging.status !== column.status;
 
                         return (
                             <section
@@ -162,7 +166,9 @@ export default function JobQueue({
                                 }}
                                 onDragLeave={() =>
                                     setDropTarget((target) =>
-                                        target === column.status ? null : target,
+                                        target === column.status
+                                            ? null
+                                            : target,
                                     )
                                 }
                                 onDrop={(event) => dropOn(event, column.status)}
@@ -218,7 +224,8 @@ export default function JobQueue({
                                                     <PartsStatus job={job} />
                                                 </div>
                                                 <p className="text-muted-foreground truncate text-xs">
-                                                    {job.vehicle?.display_name ??
+                                                    {job.vehicle
+                                                        ?.display_name ??
                                                         'No vehicle'}
                                                 </p>
                                                 <div className="text-muted-foreground flex items-center gap-2 text-[11px]">
@@ -336,7 +343,9 @@ function PartsStatus({ job }: { job: ServiceRecord }) {
                                                 : 'text-muted-foreground',
                                         )}
                                     >
-                                        {formatNumber(part.quantity_outstanding)}{' '}
+                                        {formatNumber(
+                                            part.quantity_outstanding,
+                                        )}{' '}
                                         {part.unit_abbreviation} needed
                                     </span>
                                 </li>

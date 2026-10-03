@@ -339,7 +339,9 @@ export default function Diagnose({
                                     label="Fault codes"
                                     placeholder="P0300, P0171"
                                     value={data.codes}
-                                    onChange={(value) => setData('codes', value)}
+                                    onChange={(value) =>
+                                        setData('codes', value)
+                                    }
                                     error={errors.codes}
                                     mono
                                 />
@@ -497,7 +499,9 @@ function DiagnosisResult({ result }: { result: Result }) {
                 )}
             </section>
 
-            {result.error && <Notice icon={AlertTriangle}>{result.error}</Notice>}
+            {result.error && (
+                <Notice icon={AlertTriangle}>{result.error}</Notice>
+            )}
 
             {diagnosis && diagnosis.safety.length > 0 && (
                 <section className="rounded-xl border border-red-500/40 bg-red-500/10 p-5">

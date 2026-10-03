@@ -26,6 +26,7 @@ export type Permission =
     | 'shopping-list'
     | 'receiving'
     | 'equipment'
+    | 'equipment-usa'
     | 'assistant';
 
 export type RoleOption = {
@@ -57,6 +58,7 @@ export type Auth = {
         shoppingList: boolean;
         receiving: boolean;
         equipment: boolean;
+        equipmentUsa: boolean;
         assistant: boolean;
     };
 };

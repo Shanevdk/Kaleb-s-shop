@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Concerns\ClampsRequestedMonth;
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ScheduledCheckStatus;
 use App\Enums\ServiceStatus;
@@ -20,11 +21,11 @@ class EquipmentScheduleController extends Controller
     use ClampsRequestedMonth;
 
     /**
-     * Display a month of the equipment maintenance calendar: the maintenance
-     * planned in or done, and the checklists run, kept apart from the
-     * mechanics' vehicle schedule.
+     * Display a month of the division's equipment maintenance calendar: the
+     * maintenance planned in or done, and the checklists run, kept apart from
+     * the mechanics' vehicle schedule and the other division's.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, EquipmentDivision $division): Response
     {
         $today = today();
         $month = $this->requestedMonth($request, $today);
@@ -33,12 +34,14 @@ class EquipmentScheduleController extends Controller
         $between = [$startOfMonth->toDateString(), $endOfMonth->toDateString()];
 
         $jobs = EquipmentServiceRecord::query()
+            ->inDivision($division)
             ->with('equipment')
             ->whereBetween('performed_on', $between)
             ->get()
             ->map(fn (EquipmentServiceRecord $job): array => $this->jobEntry($job, $today));
 
         $checklists = EquipmentChecklist::query()
+            ->inDivision($division)
             ->with('equipment')
             ->whereBetween('performed_on', $between)
             ->get()
@@ -49,6 +52,7 @@ class EquipmentScheduleController extends Controller
             ->values();
 
         return Inertia::render('equipment-schedule/index', [
+            'division' => $division->value,
             'month' => $startOfMonth->format('Y-m'),
             'today' => $today->toDateString(),
             'entries' => $entries->all(),
@@ -58,11 +62,7 @@ class EquipmentScheduleController extends Controller
                 'behind' => $jobs->where('status', ScheduledCheckStatus::Overdue->value)->count(),
                 'checklists' => $checklists->count(),
             ],
-            'equipment' => Equipment::query()
-                ->orderBy('name')
-                ->get()
-                ->map(fn (Equipment $equipment): array => ['value' => $equipment->id, 'label' => $equipment->name])
-                ->all(),
+            'equipment' => Equipment::options($division),
             'types' => EquipmentServiceType::options(),
             'closedDays' => collect(ClosedDay::between($startOfMonth, $endOfMonth))
                 ->map(fn (array $closed, string $date): array => [

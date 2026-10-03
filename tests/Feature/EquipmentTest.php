@@ -165,6 +165,54 @@ test('a check can be added to a checklist, checked off with a note, and removed'
     expect(EquipmentChecklistItem::find($item->id))->toBeNull();
 });
 
+test('guests cannot see the equipment checklists', function () {
+    $this->get(route('equipment-checklists.index'))->assertRedirect(route('login'));
+});
+
+test('the equipment checklists list every checklist run against the equipment, newest first, with its tallies', function () {
+    $user = User::factory()->create();
+    $older = EquipmentChecklist::factory()->for($user)->create(['performed_on' => '2026-09-10']);
+    EquipmentChecklistItem::factory()->for($older)->create(['label' => 'Check for leaks', 'status' => CheckStatus::Attention]);
+    EquipmentChecklistItem::factory()->for($older)->create(['label' => 'Test emergency stop']);
+    $newer = EquipmentChecklist::factory()->for($user)->create(['performed_on' => '2026-09-12']);
+
+    $this->actingAs($user)
+        ->get(route('equipment-checklists.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('equipment-checklists/index')
+            ->where('division', 'main')
+            ->has('checklists', 2)
+            ->where('checklists.0.id', $newer->id)
+            ->where('checklists.1.id', $older->id)
+            ->where('checklists.1.equipment.name', $older->equipment->name)
+            ->where('checklists.1.items_count', 2)
+            ->where('checklists.1.checked_count', 1)
+            ->where('checklists.1.flagged_count', 1)
+        );
+});
+
+test('the equipment checklists can be filtered to one piece of equipment', function () {
+    $user = User::factory()->create();
+    $match = EquipmentChecklist::factory()->for($user)->create();
+    EquipmentChecklist::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->get(route('equipment-checklists.index', ['equipment' => $match->equipment_id]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.equipment', $match->equipment_id)
+            ->has('checklists', 1)
+            ->where('checklists.0.id', $match->id)
+        );
+});
+
+test('a shopper cannot view the equipment checklists', function () {
+    $this->actingAs(User::factory()->shopper()->create())
+        ->get(route('equipment-checklists.index'))
+        ->assertForbidden();
+});
+
 test('a shopper cannot change an equipment checklist item', function () {
     $item = EquipmentChecklistItem::factory()->for(EquipmentChecklist::factory())->create();
 

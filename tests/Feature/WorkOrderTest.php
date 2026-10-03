@@ -189,6 +189,83 @@ test('saving the work order stores the reason without sending anything', functio
     Mail::assertNothingSent();
 });
 
+test('a price set by hand goes on the work order in place of the worked-out cost', function () {
+    $record = brakeJob();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Pads worn.',
+            'quoted_price' => '385.50',
+        ])
+        ->assertRedirect();
+
+    expect($record->fresh()->quoted_price)->toBe('385.50');
+
+    $this->get($record->fresh()->workOrderUrl())
+        ->assertInertia(fn ($page) => $page
+            ->where('sheet.quoted_price', 385.5)
+            ->where('sheet.cost', ['total' => 210, 'unpriced' => 1])
+        );
+});
+
+test('clearing the price goes back to the worked-out cost', function () {
+    $record = brakeJob();
+    $record->update(['quoted_price' => 385.50]);
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Pads worn.',
+            'quoted_price' => '',
+        ])
+        ->assertRedirect();
+
+    expect($record->fresh()->quoted_price)->toBeNull();
+});
+
+test('a price set by hand must be a positive amount in dollars and cents', function (mixed $price) {
+    $record = brakeJob();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Pads worn.',
+            'quoted_price' => $price,
+        ])
+        ->assertSessionHasErrors('quoted_price');
+
+    expect($record->fresh()->quoted_price)->toBeNull();
+})->with(['-5', 'lots', '12.345']);
+
+test('resetting the link leaves the price alone', function () {
+    $record = brakeJob();
+    $record->update(['quoted_price' => 385.50]);
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), ['reset_link' => true])
+        ->assertRedirect();
+
+    expect($record->fresh()->quoted_price)->toBe('385.50');
+});
+
+test('an emailed work order shows the price set by hand', function () {
+    Mail::fake();
+    $record = brakeJob();
+
+    $this->actingAs(User::factory()->create())
+        ->put(route('service-records.work-order.update', $record), [
+            'issue_reason' => 'Pads worn.',
+            'quoted_price' => '385.50',
+            'email' => 'manager@example.com',
+        ])
+        ->assertRedirect();
+
+    Mail::assertSent(WorkOrderMail::class, function (WorkOrderMail $mail): bool {
+        $mail->assertSeeInHtml('$385.50')
+            ->assertDontSeeInHtml('$210.00 + 1 unpriced');
+
+        return true;
+    });
+});
+
 test('saving a sheet with a part still unpriced has the AI work the estimate out again', function () {
     Queue::fake();
     $record = brakeJob();

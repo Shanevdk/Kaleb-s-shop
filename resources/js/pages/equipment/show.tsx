@@ -26,8 +26,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { divisionRoutes } from '@/lib/equipment-divisions';
 import { formatCurrency, formatDate, formatHours } from '@/lib/format';
-import { destroy, edit, index, show } from '@/routes/equipment';
+import { destroy, edit, show } from '@/routes/equipment';
 import { show as showChecklist } from '@/routes/equipment-checklists';
 import { destroy as destroyRecord } from '@/routes/equipment-service-records';
 import type {
@@ -60,6 +61,8 @@ export default function EquipmentShow({
     statuses: SelectOption[];
     stats: Stats;
 }) {
+    const { index } = divisionRoutes[equipment.division];
+
     setLayoutProps({
         breadcrumbs: [
             { title: 'Equipment', href: index() },
@@ -288,9 +291,7 @@ export default function EquipmentShow({
                                                                 equipment.id
                                                             }
                                                             types={types}
-                                                            statuses={
-                                                                statuses
-                                                            }
+                                                            statuses={statuses}
                                                             record={record}
                                                         />
                                                         <DeleteConfirm

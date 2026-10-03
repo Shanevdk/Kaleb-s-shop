@@ -69,9 +69,7 @@ export default function JobEstimate({
                     'text-muted-foreground inline-flex items-center gap-1 text-xs tabular-nums',
                     className,
                 )}
-                title={
-                    estimate.reasoning ?? 'Estimated time for the whole job'
-                }
+                title={estimate.reasoning ?? 'Estimated time for the whole job'}
             >
                 {isPending ? (
                     <Loader2 className="size-3 animate-spin" />
@@ -124,8 +122,8 @@ export default function JobEstimate({
                     </p>
                 ) : (
                     <p className="text-muted-foreground">
-                        The AI could not estimate this job. It tries again
-                        next time the notes change.
+                        The AI could not estimate this job. It tries again next
+                        time the notes change.
                     </p>
                 )}
 

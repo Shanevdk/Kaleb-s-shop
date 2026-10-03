@@ -277,6 +277,7 @@ export type WorkOrder = {
     } | null;
     parts: WorkOrderPart[];
     cost: { total: number; unpriced: number };
+    quoted_price: number | null;
     time: { hours: number; low: number | null; high: number | null } | null;
 };
 
@@ -312,8 +313,14 @@ export type SelectOption = {
 
 export type EquipmentStatus = 'active' | 'out_of_service' | 'retired';
 
+/**
+ * VDK-Equipment (main) or VDK Equipment USA, each keeping its own equipment.
+ */
+export type EquipmentDivision = 'main' | 'usa';
+
 export type Equipment = {
     id: string;
+    division: EquipmentDivision;
     name: string;
     category: string | null;
     serial_number: string | null;

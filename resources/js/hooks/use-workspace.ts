@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Which set of nav links the sidebar shows. Picked from the brand switcher
- * under "Kaleb's Shop", and remembered on this device so it holds across
- * page loads until it is switched again.
+ * Which set of nav links the sidebar shows: Kaleb's Shop, VDK-Equipment or
+ * VDK Equipment USA. Picked from the brand switcher under "Kaleb's Shop",
+ * and remembered on this device so it holds across page loads until it is
+ * switched again.
  */
-export type Workspace = 'mechanics' | 'equipment';
+export type Workspace = 'mechanics' | 'equipment' | 'equipment-usa';
 
 const storageKey = 'workspace';
 const listeners = new Set<() => void>();
@@ -13,7 +14,7 @@ const listeners = new Set<() => void>();
 let cached: Workspace | null = null;
 
 const isWorkspace = (value: unknown): value is Workspace =>
-    value === 'mechanics' || value === 'equipment';
+    value === 'mechanics' || value === 'equipment' || value === 'equipment-usa';
 
 const read = (): Workspace => {
     if (cached !== null) {

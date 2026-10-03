@@ -38,7 +38,12 @@ import {
 import { formatDate } from '@/lib/format';
 import { create, destroy, index, update, verify } from '@/routes/admin/users';
 import { update as updatePermissions } from '@/routes/admin/users/permissions';
-import type { Permission, PermissionOption, RoleOption, TeamMember } from '@/types';
+import type {
+    Permission,
+    PermissionOption,
+    RoleOption,
+    TeamMember,
+} from '@/types';
 
 export default function AdminUsersIndex({
     users,
@@ -184,9 +189,8 @@ export default function AdminUsersIndex({
                                     <TableCell>
                                         {(() => {
                                             const permissions =
-                                                pendingPermissions[
-                                                    user.id
-                                                ] ?? user.permissions;
+                                                pendingPermissions[user.id] ??
+                                                user.permissions;
                                             const defaultPermissions =
                                                 roles.find(
                                                     (role) =>

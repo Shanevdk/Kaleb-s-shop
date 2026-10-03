@@ -27,7 +27,7 @@
 <x-mail::table>
 | | |
 | :-- | --: |
-| **Estimated cost** | **@if ($sheet['parts'] === []) No parts needed @elseif ($cost['unpriced'] === count($sheet['parts'])) {{ $sheet['estimating'] ? 'Being worked out' : 'To be confirmed' }} @else {{ $money($cost['total']) }}{{ $cost['unpriced'] > 0 ? ' + '.$cost['unpriced'].' unpriced' : '' }} @endif** |
+| **{{ $sheet['quoted_price'] !== null ? 'Price' : 'Estimated cost' }}** | **@if ($sheet['quoted_price'] !== null) {{ $money($sheet['quoted_price']) }} @elseif ($sheet['parts'] === []) No parts needed @elseif ($cost['unpriced'] === count($sheet['parts'])) {{ $sheet['estimating'] ? 'Being worked out' : 'To be confirmed' }} @else {{ $money($cost['total']) }}{{ $cost['unpriced'] > 0 ? ' + '.$cost['unpriced'].' unpriced' : '' }} @endif** |
 | **Estimated repair time** | **@if ($time){{ $time['low'] !== null && $time['high'] !== null && $time['low'] !== $time['high'] ? $hours($time['low']).'–'.$hours($time['high']) : 'About '.$hours($time['hours']) }}@else {{ $sheet['estimating'] ? 'Being worked out' : 'To be confirmed' }} @endif** |
 </x-mail::table>
 
@@ -49,7 +49,11 @@ View the full work order
 
 If the button does not work, open this link: [{{ $url }}]({{ $url }})
 
+@if ($sheet['quoted_price'] !== null)
+The price is set by the shop. Part costs come from stock prices, with ≈ marking a part priced by an AI estimate. The time is an AI estimate of how long the repair takes and may change once the work starts.
+@else
 Costs come from stock prices, with ≈ marking a part priced by an AI estimate. The time is an AI estimate of how long the repair takes. Both may change once the work starts.
+@endif
 
 Reply to this email with any questions.
 

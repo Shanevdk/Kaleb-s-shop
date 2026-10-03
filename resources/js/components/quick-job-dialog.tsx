@@ -44,9 +44,8 @@ export default function QuickJobDialog({
             <DialogContent>
                 <DialogTitle>Quick add a job</DialogTitle>
                 <DialogDescription>
-                    Just the basics — it goes straight on the queue as
-                    planned for today. Add the rest later from the service
-                    log.
+                    Just the basics — it goes straight on the queue as planned
+                    for today. Add the rest later from the service log.
                 </DialogDescription>
 
                 <Form

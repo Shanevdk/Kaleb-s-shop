@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
 use App\Http\Resources\EquipmentServiceRecordResource;
@@ -17,15 +18,16 @@ use Inertia\Response;
 class EquipmentServiceRecordController extends Controller
 {
     /**
-     * Display every service record logged against any piece of equipment.
+     * Display every service record logged against any piece of the
+     * division's equipment.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, EquipmentDivision $division): Response
     {
         $search = trim((string) $request->string('search'));
         $status = (string) $request->string('status');
         $equipmentId = (string) $request->string('equipment');
 
-        if ($equipmentId !== '' && ! Equipment::query()->whereKey($equipmentId)->exists()) {
+        if ($equipmentId !== '' && ! Equipment::query()->inDivision($division)->whereKey($equipmentId)->exists()) {
             $equipmentId = '';
         }
 
@@ -34,6 +36,7 @@ class EquipmentServiceRecordController extends Controller
         }
 
         $records = EquipmentServiceRecord::query()
+            ->inDivision($division)
             ->with('equipment')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -49,6 +52,7 @@ class EquipmentServiceRecordController extends Controller
             ->withQueryString();
 
         return Inertia::render('equipment-service-records/index', [
+            'division' => $division->value,
             'records' => EquipmentServiceRecordResource::collection($records->getCollection())->resolve(),
             'pagination' => [
                 'current_page' => $records->currentPage(),
@@ -57,7 +61,7 @@ class EquipmentServiceRecordController extends Controller
                 'prev_page_url' => $records->previousPageUrl(),
                 'next_page_url' => $records->nextPageUrl(),
             ],
-            'equipment' => $this->equipmentOptions(),
+            'equipment' => Equipment::options($division),
             'types' => EquipmentServiceType::options(),
             'statuses' => ServiceStatus::options(),
             'filters' => [
@@ -138,22 +142,5 @@ class EquipmentServiceRecordController extends Controller
             'labour_cost' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'description' => ['nullable', 'string', 'max:5000'],
         ]);
-    }
-
-    /**
-     * Get every piece of equipment as a select option.
-     *
-     * @return array<int, array{value: string, label: string}>
-     */
-    private function equipmentOptions(): array
-    {
-        return Equipment::query()
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Equipment $equipment): array => [
-                'value' => $equipment->id,
-                'label' => $equipment->name,
-            ])
-            ->all();
     }
 }

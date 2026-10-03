@@ -10,7 +10,7 @@ import {
     formatOdometer,
     formatQuantity,
 } from '@/lib/format';
-import { describeCost, describeTime } from '@/lib/work-order';
+import { costLabel, describeCost, describeTime } from '@/lib/work-order';
 import type { WorkOrder as Sheet } from '@/types';
 
 /**
@@ -89,9 +89,7 @@ export default function WorkOrder({
                                 )}
                                 {sheet.vehicle.odometer !== null && (
                                     <Detail label="Odometer">
-                                        {formatOdometer(
-                                            sheet.vehicle.odometer,
-                                        )}
+                                        {formatOdometer(sheet.vehicle.odometer)}
                                     </Detail>
                                 )}
                             </dl>
@@ -107,7 +105,7 @@ export default function WorkOrder({
                     <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
                         <Figure
                             icon={Banknote}
-                            label="Estimated cost"
+                            label={costLabel(sheet)}
                             value={cost.value}
                             hint={cost.hint}
                         />
@@ -177,10 +175,10 @@ export default function WorkOrder({
                     )}
 
                     <p className="px-1 text-xs leading-relaxed text-zinc-500">
-                        Costs come from stock prices, with ≈ marking a part
-                        priced by an AI estimate. The repair time is an AI
-                        estimate of how long the work takes. Both may change
-                        once the work starts. Prepared by {companyName}.
+                        {sheet.quoted_price === null
+                            ? 'Costs come from stock prices, with ≈ marking a part priced by an AI estimate. The repair time is an AI estimate of how long the work takes. Both may change once the work starts.'
+                            : 'The price is set by the shop. Part costs come from stock prices, with ≈ marking a part priced by an AI estimate. The repair time is an AI estimate of how long the work takes and may change once the work starts.'}{' '}
+                        Prepared by {companyName}.
                     </p>
                 </main>
             </div>
@@ -190,7 +188,7 @@ export default function WorkOrder({
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
     return (
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 break-inside-avoid">
+        <section className="break-inside-avoid rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-3 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
                 {title}
             </h2>

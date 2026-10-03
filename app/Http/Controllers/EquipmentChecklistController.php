@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CheckStatus;
+use App\Enums\EquipmentDivision;
 use App\Http\Resources\EquipmentChecklistResource;
 use App\Models\Equipment;
 use App\Models\EquipmentChecklist;
@@ -14,6 +15,34 @@ use Inertia\Response;
 
 class EquipmentChecklistController extends Controller
 {
+    /**
+     * Display every checklist run against the division's equipment.
+     */
+    public function index(Request $request, EquipmentDivision $division): Response
+    {
+        $equipmentId = (string) $request->string('equipment');
+
+        if ($equipmentId !== '' && ! Equipment::query()->inDivision($division)->whereKey($equipmentId)->exists()) {
+            $equipmentId = '';
+        }
+
+        $checklists = EquipmentChecklist::query()
+            ->inDivision($division)
+            ->with('equipment')
+            ->withCheckTallies()
+            ->when($equipmentId !== '', fn ($query) => $query->where('equipment_id', $equipmentId))
+            ->latest('performed_on')
+            ->latest('id')
+            ->get();
+
+        return Inertia::render('equipment-checklists/index', [
+            'division' => $division->value,
+            'checklists' => EquipmentChecklistResource::collection($checklists)->resolve(),
+            'equipment' => Equipment::options($division),
+            'filters' => ['equipment' => $equipmentId],
+        ]);
+    }
+
     /**
      * Start a checklist against a piece of equipment.
      */

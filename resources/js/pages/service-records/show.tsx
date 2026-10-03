@@ -73,9 +73,7 @@ export default function ServiceRecordShow({
                             </Button>
                             {record.vehicle && (
                                 <Button variant="outline" asChild>
-                                    <Link
-                                        href={showVehicle(record.vehicle.id)}
-                                    >
+                                    <Link href={showVehicle(record.vehicle.id)}>
                                         View vehicle
                                     </Link>
                                 </Button>

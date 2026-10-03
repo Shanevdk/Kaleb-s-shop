@@ -29,7 +29,10 @@ import { index as receiving } from '@/routes/receiving';
 import { create as addPart, edit as editPart } from '@/routes/inventory';
 import { edit as editRecord } from '@/routes/service-records';
 import { index } from '@/routes/shopping-list';
-import { destroy as cancelOrder, store as placeOrder } from '@/routes/shopping-list/orders';
+import {
+    destroy as cancelOrder,
+    store as placeOrder,
+} from '@/routes/shopping-list/orders';
 import type { ShoppingListLine } from '@/types';
 
 type Stats = {

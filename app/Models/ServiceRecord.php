@@ -34,6 +34,7 @@ use Illuminate\Support\Str;
  * @property string $labour_cost
  * @property string|null $description
  * @property string|null $issue_reason
+ * @property string|null $quoted_price
  * @property string|null $work_order_key
  * @property EstimateStatus|null $estimate_status
  * @property Carbon|null $estimate_requested_at
@@ -45,7 +46,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['vehicle_id', 'inspection_item_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description', 'issue_reason'])]
+#[Fillable(['vehicle_id', 'inspection_item_id', 'title', 'type', 'status', 'performed_on', 'odometer', 'hours', 'parts_cost', 'labour_cost', 'description', 'issue_reason', 'quoted_price'])]
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */
@@ -320,6 +321,7 @@ class ServiceRecord extends Model
             'hours' => 'decimal:2',
             'parts_cost' => 'decimal:2',
             'labour_cost' => 'decimal:2',
+            'quoted_price' => 'decimal:2',
             'estimate_status' => EstimateStatus::class,
             'estimate_requested_at' => 'datetime',
             'estimated_hours' => 'decimal:2',
