@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { cn } from '@/lib/utils';
-import { dashboard, login } from '@/routes';
+import { dashboard, login, register } from '@/routes';
 
 const features = [
     {
@@ -304,9 +304,12 @@ function IntroHero({
                             {isSignedIn ? 'Open the workshop' : 'Log in'}
                         </Link>
                         {!isSignedIn && (
-                            <span className="text-sm text-white/60">
-                                Accounts are set up by the shop owner.
-                            </span>
+                            <Link
+                                href={register()}
+                                className="text-sm text-white/60 underline-offset-4 transition hover:text-white hover:underline"
+                            >
+                                Request an account
+                            </Link>
                         )}
                     </div>
                 </div>

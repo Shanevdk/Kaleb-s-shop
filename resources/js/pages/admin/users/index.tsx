@@ -1,12 +1,14 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
+    Clock,
     MailWarning,
     Plus,
     ShieldCheck,
     SlidersHorizontal,
     Trash2,
     UserRound,
+    XCircle,
 } from 'lucide-react';
 import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
@@ -36,7 +38,15 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
-import { create, destroy, index, update, verify } from '@/routes/admin/users';
+import {
+    approve,
+    create,
+    decline,
+    destroy,
+    index,
+    update,
+    verify,
+} from '@/routes/admin/users';
 import { update as updatePermissions } from '@/routes/admin/users/permissions';
 import type { Permission, PermissionOption, RoleOption, TeamMember } from '@/types';
 
@@ -87,6 +97,14 @@ export default function AdminUsersIndex({
         router.post(verify(user.id).url, {}, { preserveScroll: true });
     };
 
+    const approveUser = (user: TeamMember) => {
+        router.post(approve(user.id).url, {}, { preserveScroll: true });
+    };
+
+    const declineUser = (user: TeamMember) => {
+        router.post(decline(user.id).url, {}, { preserveScroll: true });
+    };
+
     return (
         <>
             <Head title="Team" />
@@ -94,7 +112,7 @@ export default function AdminUsersIndex({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="Team"
-                    description="Everyone who can sign in. There is no public sign-up — you add people here."
+                    description="Everyone who can sign in. People who request an account get nothing until you accept them here."
                     actions={
                         <Button asChild>
                             <Link href={create()}>
@@ -173,12 +191,28 @@ export default function AdminUsersIndex({
                                                     </SelectContent>
                                                 </Select>
                                             )}
-                                            {!user.is_verified && (
+                                            {user.status === 'pending' && (
                                                 <Badge className="gap-1 border-transparent bg-amber-500 text-amber-950">
-                                                    <MailWarning className="size-3" />
-                                                    Cannot sign in
+                                                    <Clock className="size-3" />
+                                                    {user.status_label}
                                                 </Badge>
                                             )}
+                                            {user.status === 'declined' && (
+                                                <Badge
+                                                    variant="destructive"
+                                                    className="gap-1"
+                                                >
+                                                    <XCircle className="size-3" />
+                                                    {user.status_label}
+                                                </Badge>
+                                            )}
+                                            {user.status === 'approved' &&
+                                                !user.is_verified && (
+                                                    <Badge className="gap-1 border-transparent bg-amber-500 text-amber-950">
+                                                        <MailWarning className="size-3" />
+                                                        Cannot sign in
+                                                    </Badge>
+                                                )}
                                         </span>
                                     </TableCell>
                                     <TableCell>
@@ -282,16 +316,38 @@ export default function AdminUsersIndex({
                                     <TableCell className="text-right">
                                         {!user.is_current_user && (
                                             <span className="flex items-center justify-end gap-2">
-                                                {!user.is_verified && (
+                                                {user.status !== 'approved' && (
                                                     <Button
                                                         size="sm"
                                                         onClick={() =>
-                                                            verifyUser(user)
+                                                            approveUser(user)
                                                         }
                                                     >
-                                                        Let them in
+                                                        Accept
                                                     </Button>
                                                 )}
+                                                {user.status === 'pending' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            declineUser(user)
+                                                        }
+                                                    >
+                                                        Decline
+                                                    </Button>
+                                                )}
+                                                {user.status === 'approved' &&
+                                                    !user.is_verified && (
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                verifyUser(user)
+                                                            }
+                                                        >
+                                                            Let them in
+                                                        </Button>
+                                                    )}
                                                 <DeleteConfirm
                                                     trigger={
                                                         <Button

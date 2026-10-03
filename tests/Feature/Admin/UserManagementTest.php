@@ -14,20 +14,6 @@ function admin(): User
     return User::factory()->admin()->create(['email_verified_at' => now()]);
 }
 
-test('public registration is switched off', function () {
-    expect(Route::has('register'))->toBeFalse()
-        ->and(Route::has('register.store'))->toBeFalse();
-
-    $this->post('/register', [
-        'name' => 'Walk In',
-        'email' => 'walkin@example.com',
-        'password' => 'Password123!',
-        'password_confirmation' => 'Password123!',
-    ])->assertNotFound();
-
-    expect(User::where('email', 'walkin@example.com')->exists())->toBeFalse();
-});
-
 test('guests cannot reach the team page', function () {
     $this->get(route('admin.users.index'))->assertRedirect(route('login'));
 });
@@ -73,6 +59,7 @@ test('an admin can add someone who can sign in immediately', function () {
 
     expect($created->name)->toBe('Kaleb Van De Krol')
         ->and($created->role)->toBe(UserRole::Mechanic)
+        ->and($created->isApproved())->toBeTrue()
         ->and($created->email_verified_at)->not->toBeNull();
 
     $this->post(route('logout'));

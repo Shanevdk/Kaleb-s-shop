@@ -18,6 +18,7 @@ use App\Http\Controllers\InventoryScanController;
 use App\Http\Controllers\JobQueueController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\PartOrderController;
+use App\Http\Controllers\PendingAccountController;
 use App\Http\Controllers\PhoneScannerController;
 use App\Http\Controllers\PlannedInspectionController;
 use App\Http\Controllers\ReceivingController;
@@ -80,9 +81,23 @@ Route::get('work-orders/{serviceRecord}', [WorkOrderController::class, 'show'])
     ->middleware('signed')
     ->name('work-orders.show');
 
+/**
+ * Where someone who signed themselves up waits for an administrator to
+ * accept or decline them. Every other page sends them back here.
+ */
+Route::get('account/pending', [PendingAccountController::class, 'show'])
+    ->middleware('auth')
+    ->name('account.pending');
+
 Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
     Route::post('admin/users/{user}/verify', [UserController::class, 'verify'])
         ->name('admin.users.verify');
+
+    Route::post('admin/users/{user}/approve', [UserController::class, 'approve'])
+        ->name('admin.users.approve');
+
+    Route::post('admin/users/{user}/decline', [UserController::class, 'decline'])
+        ->name('admin.users.decline');
 
     Route::patch('admin/users/{user}/permissions', [UserController::class, 'updatePermissions'])
         ->name('admin.users.permissions.update');

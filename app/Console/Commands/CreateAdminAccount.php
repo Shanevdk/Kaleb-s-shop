@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -47,6 +48,7 @@ class CreateAdminAccount extends Command
             'name' => $this->option('name') ?? ($isNew ? config('app.admin.name') : $user->name),
             'password' => $password,
             'role' => UserRole::Admin,
+            'status' => AccountStatus::Approved,
             'email_verified_at' => $user->email_verified_at ?? now(),
         ])->save();
 

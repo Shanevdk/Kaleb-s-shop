@@ -160,7 +160,7 @@ function visibleSections(sections: NavSection[], can: Auth['can']): NavEntry[] {
 }
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
+    const { auth, pendingAccountCount } = usePage().props;
     const workspace = useWorkspace();
 
     // Kaleb's Shop and VDK-Equipment are each unlocked by their own
@@ -183,8 +183,15 @@ export function AppSidebar() {
         roleNavItems = shopperNavItems;
     }
 
+    // The Team link counts the sign-ups waiting to be accepted or declined.
     const items = visibleSections(
-        [...roleNavItems, ...adminNavItems],
+        [
+            ...roleNavItems,
+            ...adminNavItems.map((item) => ({
+                ...item,
+                badge: pendingAccountCount,
+            })),
+        ],
         auth.can,
     );
 

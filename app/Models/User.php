@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountStatus;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
@@ -25,6 +26,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property UserRole $role
+ * @property AccountStatus $status
  * @property array<int, string>|null $permissions
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
@@ -131,12 +133,36 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Determine whether an administrator has let the user in. Someone who
+     * signed themselves up gets nothing until they have.
+     */
+    public function isApproved(): bool
+    {
+        return $this->status === AccountStatus::Approved;
+    }
+
+    /**
+     * Send the email verification link, except to someone still waiting to
+     * be accepted: accepting them vouches for their address instead.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        if ($this->isApproved()) {
+            parent::sendEmailVerificationNotification();
+        }
+    }
+
+    /**
      * Determine whether the user holds the given permission, either because
      * their role grants it by default or because it was added to their
-     * account individually.
+     * account individually. An account nobody has approved holds none.
      */
     public function hasPermission(Permission $permission): bool
     {
+        if (! $this->isApproved()) {
+            return false;
+        }
+
         return in_array($permission->value, $this->role->defaultPermissions(), true)
             || in_array($permission->value, $this->permissions ?? [], true);
     }
@@ -152,6 +178,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'status' => AccountStatus::class,
             'permissions' => 'array',
             'two_factor_confirmed_at' => 'datetime',
         ];
@@ -160,12 +187,13 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     /**
      * Get the default attribute values.
      *
-     * Mirrors the column default, so a freshly created user is a mechanic
-     * without being reloaded.
+     * Mirrors the column defaults, so a freshly created user is an approved
+     * mechanic without being reloaded.
      *
      * @var array<string, mixed>
      */
     protected $attributes = [
         'role' => 'mechanic',
+        'status' => 'approved',
     ];
 }

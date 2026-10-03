@@ -24,6 +24,7 @@ const UNRESUMABLE_PATH_PREFIXES = [
     '/confirm-password',
     '/two-factor-challenge',
     '/email/verify',
+    '/account/pending',
     '/phone-scanner',
     '/work-orders',
 ];

@@ -15,6 +15,7 @@ import {
 import {
     SidebarGroup,
     SidebarMenu,
+    SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarMenuSub,
@@ -44,6 +45,11 @@ function NavLink({ item }: { item: NavItem }) {
                     <span>{item.title}</span>
                 </Link>
             </SidebarMenuButton>
+            {!!item.badge && (
+                <SidebarMenuBadge className="bg-amber-500 text-amber-950">
+                    {item.badge}
+                </SidebarMenuBadge>
+            )}
         </SidebarMenuItem>
     );
 }

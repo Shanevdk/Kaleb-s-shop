@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -39,6 +40,13 @@ class MakeUserAdmin extends Command
 
         $isAdmin = ! $this->option('revoke');
         $attributes = ['role' => $isAdmin ? UserRole::Admin : UserRole::Mechanic];
+
+        // An administrator nobody has accepted would be held at the waiting
+        // page, away from the Team page where they could accept themselves.
+        if ($isAdmin && ! $user->isApproved()) {
+            $attributes['status'] = AccountStatus::Approved;
+            $this->line("Approved {$email}.");
+        }
 
         // No mail is configured, so an unverified account could never get past
         // the `verified` middleware to use the access being granted.

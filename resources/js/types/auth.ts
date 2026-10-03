@@ -12,6 +12,8 @@ export type User = {
 
 export type UserRole = 'admin' | 'mechanic' | 'scheduler' | 'shopper';
 
+export type AccountStatus = 'pending' | 'approved' | 'declined';
+
 export type Permission =
     | 'manage-team'
     | 'mechanics-shop'
@@ -68,6 +70,8 @@ export type TeamMember = {
     role: UserRole;
     role_label: string;
     permissions: Permission[];
+    status: AccountStatus;
+    status_label: string;
     is_verified: boolean;
     created_at: string | null;
     is_current_user: boolean;

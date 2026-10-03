@@ -11,6 +11,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            pendingAccountCount: number;
             sidebarOpen: boolean;
             scandit: { license_key: string; library_location: string } | null;
             [key: string]: unknown;

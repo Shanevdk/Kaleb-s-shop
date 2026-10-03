@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -64,6 +65,29 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::Shopper,
+        ]);
+    }
+
+    /**
+     * Indicate that the user signed themselves up and is waiting for an
+     * administrator to accept them.
+     */
+    public function pending(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AccountStatus::Pending,
+            'email_verified_at' => null,
+        ]);
+    }
+
+    /**
+     * Indicate that an administrator turned the user's sign-up down.
+     */
+    public function declined(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AccountStatus::Declined,
+            'email_verified_at' => null,
         ]);
     }
 

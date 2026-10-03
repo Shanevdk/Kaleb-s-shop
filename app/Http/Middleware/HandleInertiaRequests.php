@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AccountStatus;
 use App\Enums\Permission;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -49,6 +51,9 @@ class HandleInertiaRequests extends Middleware
                     ])
                     ->all(),
             ],
+            'pendingAccountCount' => fn (): int => $request->user()?->can(Permission::ManageTeam->value)
+                ? User::where('status', AccountStatus::Pending)->count()
+                : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'scandit' => fn (): ?array => $request->user() === null ? null : [
                 'license_key' => (string) config('services.scandit.license_key'),

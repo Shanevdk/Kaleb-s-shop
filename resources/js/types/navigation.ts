@@ -11,6 +11,8 @@ export type NavItem = {
     href: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon | null;
     isActive?: boolean;
+    /** A count shown beside the link, such as how many things wait on it. */
+    badge?: number;
 };
 
 /** A collapsible sidebar heading that holds related links. */
