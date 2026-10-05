@@ -237,7 +237,7 @@ export type ServiceStatus = 'planned' | 'in_progress' | 'completed';
 
 export type ServiceRecord = {
     id: string;
-    vehicle_id: string;
+    vehicle_id: string | null;
     title: string;
     type: string;
     type_label: string;
@@ -256,7 +256,7 @@ export type ServiceRecord = {
         id: string;
         display_name: string;
         registration: string | null;
-    };
+    } | null;
 };
 
 /**

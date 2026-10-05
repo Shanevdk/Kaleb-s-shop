@@ -430,13 +430,13 @@ class ShopTools
     /**
      * @return array<string, mixed>
      */
-    private function job(ServiceRecord $record, Vehicle $vehicle): array
+    private function job(ServiceRecord $record, ?Vehicle $vehicle): array
     {
         return [
             'id' => $record->id,
             'title' => $record->title,
-            'vehicle_id' => $vehicle->id,
-            'vehicle' => $vehicle->display_name,
+            'vehicle_id' => $vehicle?->id,
+            'vehicle' => $vehicle?->display_name ?? 'No vehicle yet',
             'type' => $record->type->label(),
             'status' => $record->status->label(),
             'performed_on' => $record->performed_on->toDateString(),

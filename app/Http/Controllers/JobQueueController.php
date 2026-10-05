@@ -50,7 +50,8 @@ class JobQueueController extends Controller
     /**
      * Quickly add a job straight to the queue with just the basics. It
      * lands as planned work, the same as one logged in full, so it can be
-     * filled in with parts, hours and cost later from the service log.
+     * filled in with parts, hours and cost later from the service log. The
+     * vehicle can be left for later too.
      *
      * Needs the service log permission as well as the queue's, since moving
      * the job afterwards and filling it in both need it too.
@@ -60,7 +61,7 @@ class JobQueueController extends Controller
         Gate::authorize('create', ServiceRecord::class);
 
         $validated = $request->validate([
-            'vehicle_id' => ['required', 'string', Rule::exists('vehicles', 'id')],
+            'vehicle_id' => ['nullable', 'string', Rule::exists('vehicles', 'id')],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['nullable', Rule::enum(ServiceType::class)],
         ]);

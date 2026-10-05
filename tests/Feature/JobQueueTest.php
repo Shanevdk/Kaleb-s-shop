@@ -62,9 +62,32 @@ test('a mechanic can quick add a job straight to the queue with just a vehicle a
         ->and($job->type->value)->toBe('other');
 });
 
-test('quick adding a job requires a vehicle and a title', function () {
+test('a quick added job can leave the vehicle for later and still shows on the queue', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('job-queue.store'), [
+            'vehicle_id' => null,
+            'title' => 'Sort out the parts shelf',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $job = ServiceRecord::sole();
+    expect($job->vehicle_id)->toBeNull();
+
+    $this->actingAs($user)
+        ->get(route('job-queue.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('jobs.0.id', $job->id)
+            ->where('jobs.0.vehicle', null)
+        );
+
+    $this->actingAs($user)->get(route('service-records.show', $job))->assertOk();
+});
+
+test('quick adding a job requires a title, and a vehicle that exists if one is picked', function () {
     $this->actingAs(User::factory()->create())
-        ->post(route('job-queue.store'), [])
+        ->post(route('job-queue.store'), ['vehicle_id' => 'not-a-vehicle'])
         ->assertSessionHasErrors(['vehicle_id', 'title']);
 
     expect(ServiceRecord::query()->count())->toBe(0);

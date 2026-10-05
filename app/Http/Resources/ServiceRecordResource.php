@@ -45,7 +45,7 @@ class ServiceRecordResource extends JsonResource
                 'parts',
                 fn (): array => ServiceRecordPartResource::collection($this->parts)->resolve(),
             ),
-            'vehicle' => $this->whenLoaded('vehicle', fn (): array => [
+            'vehicle' => $this->whenLoaded('vehicle', fn (): ?array => $this->vehicle === null ? null : [
                 'id' => $this->vehicle->id,
                 'display_name' => $this->vehicle->display_name,
                 'registration' => $this->vehicle->registration,

@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
 /**
  * @property string $id
  * @property string $user_id
- * @property string $vehicle_id
+ * @property string|null $vehicle_id
  * @property string|null $inspection_item_id
  * @property string $title
  * @property ServiceType $type

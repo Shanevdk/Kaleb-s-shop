@@ -25,9 +25,16 @@ import { store } from '@/routes/job-queue';
 import type { SelectOption } from '@/types';
 
 /**
- * Drop a job straight on the queue with just the vehicle and what needs
- * doing. It lands as planned work today, the same as one logged in full,
- * so the rest of the detail can be filled in later from the service log.
+ * What the vehicle picker holds when the job has no vehicle yet; a select
+ * item cannot have an empty value.
+ */
+const NO_VEHICLE = 'none';
+
+/**
+ * Drop a job straight on the queue with just what needs doing, and the
+ * vehicle if it is known. It lands as planned work today, the same as one
+ * logged in full, so the rest of the detail can be filled in later from
+ * the service log.
  */
 export default function QuickJobDialog({
     trigger,
@@ -51,6 +58,13 @@ export default function QuickJobDialog({
                 <Form
                     {...store.form()}
                     options={{ preserveScroll: true }}
+                    transform={(data) => ({
+                        ...data,
+                        vehicle_id:
+                            data.vehicle_id === NO_VEHICLE
+                                ? null
+                                : data.vehicle_id,
+                    })}
                     onSuccess={() => setOpen(false)}
                     className="space-y-4"
                 >
@@ -60,14 +74,20 @@ export default function QuickJobDialog({
                                 <Label htmlFor="quick_job_vehicle_id">
                                     Vehicle
                                 </Label>
-                                <Select name="vehicle_id" required>
+                                <Select
+                                    name="vehicle_id"
+                                    defaultValue={NO_VEHICLE}
+                                >
                                     <SelectTrigger
                                         id="quick_job_vehicle_id"
                                         className="w-full"
                                     >
-                                        <SelectValue placeholder="Pick a vehicle" />
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value={NO_VEHICLE}>
+                                            No vehicle yet
+                                        </SelectItem>
                                         {vehicles.map((vehicle) => (
                                             <SelectItem
                                                 key={vehicle.value}
