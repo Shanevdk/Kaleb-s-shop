@@ -1,5 +1,12 @@
 import { router } from '@inertiajs/react';
-import { Camera, Check, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import {
+    Camera,
+    Check,
+    ChevronUp,
+    Loader2,
+    RefreshCw,
+    Trash2,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -9,15 +16,20 @@ import type { PhotoAngle, PhotoAngleOption, VehiclePhotos } from '@/types';
 /**
  * A guided walk-around: one tile per angle, each opening the camera on a
  * phone (or a file picker on a desktop) and uploading straight away.
+ * Closed, it shrinks to just its header.
  */
 export default function PhotoCapture({
     vehicleId,
     angles,
     photos,
+    open,
+    onOpenChange,
 }: {
     vehicleId: string;
     angles: PhotoAngleOption[];
     photos: VehiclePhotos;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
 }) {
     const [busy, setBusy] = useState<PhotoAngle | null>(null);
     const [preview, setPreview] = useState<Partial<Record<PhotoAngle, string>>>(
@@ -157,7 +169,12 @@ export default function PhotoCapture({
 
     return (
         <section className="bg-card rounded-xl border">
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+            <header
+                className={cn(
+                    'flex flex-wrap items-center justify-between gap-3 px-6 py-4',
+                    open && 'border-b',
+                )}
+            >
                 <div>
                     <h2 className="font-semibold">Photograph it</h2>
                     <p className="text-muted-foreground text-sm">
@@ -166,12 +183,24 @@ export default function PhotoCapture({
                         onto the 3D model.
                     </p>
                 </div>
-                <span className="text-muted-foreground text-sm tabular-nums">
-                    {taken} of {angles.length} taken
-                </span>
+                <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground text-sm tabular-nums">
+                        {taken} of {angles.length} taken
+                    </span>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onOpenChange(!open)}
+                        aria-expanded={open}
+                    >
+                        {open ? <ChevronUp /> : <Camera />}
+                        {open ? 'Done' : 'Take photos'}
+                    </Button>
+                </div>
             </header>
 
-            <div className="space-y-6 p-6">
+            <div className={cn('space-y-6 p-6', !open && 'hidden')}>
                 <div className="space-y-3">
                     <h3 className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                         Walk-around

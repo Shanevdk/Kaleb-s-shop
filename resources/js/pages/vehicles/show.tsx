@@ -12,6 +12,7 @@ import {
     Trash2,
     Wrench,
 } from 'lucide-react';
+import { useState } from 'react';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
 import MachineSpecsList from '@/components/machine-specs';
@@ -89,6 +90,8 @@ export default function VehicleShow({
     stats: Stats;
 }) {
     const short = parts.filter((part) => part.shortfall > 0);
+    const hasPhotos = Object.values(vehicle.photos).some(Boolean);
+    const [capturing, setCapturing] = useState(false);
     setLayoutProps({
         breadcrumbs: [
             { title: 'Vehicles', href: index() },
@@ -246,18 +249,29 @@ export default function VehicleShow({
                     </aside>
 
                     <div className="space-y-6">
-                        <VehiclePhotosPanel
-                            vehicleId={vehicle.id}
-                            photos={vehicle.photos}
-                            photoAngles={photoAngles}
-                            look={vehicle.look}
-                        />
+                        {/* Photos stay off phones; once there are some, the capture tiles only open from the photos panel. */}
+                        <div className="hidden space-y-6 md:block">
+                            <VehiclePhotosPanel
+                                vehicleId={vehicle.id}
+                                photos={vehicle.photos}
+                                photoAngles={photoAngles}
+                                look={vehicle.look}
+                                capturing={capturing}
+                                onToggleCapture={() =>
+                                    setCapturing((open) => !open)
+                                }
+                            />
 
-                        <PhotoCapture
-                            vehicleId={vehicle.id}
-                            angles={photoAngles}
-                            photos={vehicle.photos}
-                        />
+                            {(!hasPhotos || capturing) && (
+                                <PhotoCapture
+                                    vehicleId={vehicle.id}
+                                    angles={photoAngles}
+                                    photos={vehicle.photos}
+                                    open={capturing}
+                                    onOpenChange={setCapturing}
+                                />
+                            )}
+                        </div>
 
                         <section className="bg-card rounded-xl border">
                             <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">

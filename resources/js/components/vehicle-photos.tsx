@@ -1,5 +1,12 @@
 import { router, useHttp } from '@inertiajs/react';
-import { Loader2, RefreshCw, Sparkles, Undo2 } from 'lucide-react';
+import {
+    Camera,
+    ChevronUp,
+    Loader2,
+    RefreshCw,
+    Sparkles,
+    Undo2,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import PhotoSpin from '@/components/photo-spin';
 import { Button } from '@/components/ui/button';
@@ -57,18 +64,23 @@ function Seen({ children }: { children: ReactNode }) {
 /**
  * The vehicle's walk-around photos as a spin-around, with what an AI read
  * from them: paint, body, wheels, accessories, and any marks or damage.
- * Nothing shows until there are photos; the capture panel asks for them.
+ * Nothing shows until there are photos; the capture panel asks for them,
+ * and once there are some it opens from here.
  */
 export default function VehiclePhotosPanel({
     vehicleId,
     photos,
     photoAngles,
     look,
+    capturing,
+    onToggleCapture,
 }: {
     vehicleId: string;
     photos: VehiclePhotos;
     photoAngles: PhotoAngleOption[];
     look: VehicleLook | null;
+    capturing: boolean;
+    onToggleCapture: () => void;
 }) {
     const [fresh, setFresh] = useState<VehicleLook | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -161,22 +173,36 @@ export default function VehiclePhotosPanel({
                     </p>
                 </div>
 
-                {!current && outside.length > 0 && (
-                    <Button
-                        size="sm"
-                        onClick={readPhotos}
-                        disabled={study.processing}
-                    >
-                        {study.processing ? (
-                            <Loader2 className="animate-spin" />
-                        ) : (
-                            <Sparkles />
-                        )}
-                        {study.processing
-                            ? STUDY_STEPS[step]
-                            : 'Check the photos for damage'}
-                    </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                    {photoCount > 0 && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={onToggleCapture}
+                            aria-expanded={capturing}
+                        >
+                            {capturing ? <ChevronUp /> : <Camera />}
+                            {capturing ? 'Done' : 'Retake photos'}
+                        </Button>
+                    )}
+
+                    {!current && outside.length > 0 && (
+                        <Button
+                            size="sm"
+                            onClick={readPhotos}
+                            disabled={study.processing}
+                        >
+                            {study.processing ? (
+                                <Loader2 className="animate-spin" />
+                            ) : (
+                                <Sparkles />
+                            )}
+                            {study.processing
+                                ? STUDY_STEPS[step]
+                                : 'Check the photos for damage'}
+                        </Button>
+                    )}
+                </div>
             </header>
 
             {photoCount > 0 && (
