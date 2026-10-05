@@ -71,7 +71,7 @@ class EquipmentChecklist extends Model
     #[Scope]
     protected function inDivision(Builder $query, EquipmentDivision $division): void
     {
-        $query->whereHas('equipment', fn (Builder $equipment) => $equipment->inDivision($division));
+        $query->whereRelation('equipment', 'division', $division);
     }
 
     /**
