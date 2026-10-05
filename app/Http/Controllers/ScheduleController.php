@@ -62,11 +62,12 @@ class ScheduleController extends Controller
                     ->where('template', ChecklistTemplate::AnnualInspection)
                     ->where('period', PlannedInspection::periodFor(ChecklistTemplate::AnnualInspection, $month))))
             ->get()
-            ->map(fn (PlannedInspection $planned): array => $this->checkEntry(
+            ->map(fn (PlannedInspection $planned): ?array => $this->checkEntry(
                 $planned,
                 $inspections->get($planned->vehicle_id, collect()),
                 $today,
-            ));
+            ))
+            ->filter();
 
         $annualChecks = $checks->where('kind', ChecklistTemplate::AnnualInspection->value);
         $checks = $checks->filter(fn (array $entry): bool => str_starts_with($entry['date'], $startOfMonth->format('Y-m')));
@@ -115,20 +116,22 @@ class ScheduleController extends Controller
      * and on the day it is booked for if not.
      *
      * @param  Collection<int, Inspection>  $inspections  the vehicle's checks this year
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null null for a check taken off the schedule
      */
-    private function checkEntry(PlannedInspection $planned, Collection $inspections, CarbonImmutable $today): array
+    private function checkEntry(PlannedInspection $planned, Collection $inspections, CarbonImmutable $today): ?array
     {
         $windowStart = $planned->windowStart();
         $windowEnd = $planned->windowEnd();
 
-        $candidates = $inspections->filter(fn (Inspection $inspection): bool => $inspection->performed_on->betweenIncluded($windowStart, $windowEnd)
-            && ($planned->template === ChecklistTemplate::AnnualInspection
-                ? $inspection->template === ChecklistTemplate::AnnualInspection
-                : $inspection->template->coversMonthlyCheck()));
+        $candidates = $inspections->filter(fn (Inspection $inspection): bool => $planned->isCoveredBy($inspection));
 
         $inspection = $candidates->first(fn (Inspection $inspection): bool => $inspection->is_complete)
             ?? $candidates->first();
+
+        // Taken off the schedule, unless someone went and did it anyway.
+        if ($planned->skipped && $inspection === null) {
+            return null;
+        }
 
         $status = match (true) {
             $inspection?->is_complete === true => ScheduledCheckStatus::Done,
@@ -150,7 +153,7 @@ class ScheduleController extends Controller
             'inspection_id' => $inspection?->id,
             'service_record_id' => null,
             'can_move' => $inspection === null && $windowEnd->greaterThanOrEqualTo($today),
-            'can_remove' => false,
+            'can_remove' => $inspection === null,
             'window' => [
                 'from' => $windowStart->max($today)->toDateString(),
                 'to' => $windowEnd->toDateString(),

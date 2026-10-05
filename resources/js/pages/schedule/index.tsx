@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import {
     AlertTriangle,
     CalendarCheck,
@@ -7,55 +7,58 @@ import {
     Plus,
     Trash2,
     Wrench,
-} from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import DeleteConfirm from '@/components/delete-confirm';
-import PageHeader from '@/components/page-header';
-import RescheduleDialog from '@/components/reschedule-dialog';
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import DeleteConfirm from "@/components/delete-confirm";
+import PageHeader from "@/components/page-header";
+import RescheduleDialog from "@/components/reschedule-dialog";
 import ScheduleCalendar, {
     firstDayToShow,
     isBehind,
     ScheduleDayPanel,
     ScheduleMonthNav,
     statusLabels,
-} from '@/components/schedule-calendar';
-import type { CalendarKind } from '@/components/schedule-calendar';
-import ScheduleJobDialog from '@/components/schedule-job-dialog';
-import StatCard from '@/components/stat-card';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { create as startCheck, show as showCheck } from '@/routes/inspections';
-import { index } from '@/routes/schedule';
-import { update as updateCheck } from '@/routes/schedule/checks';
+} from "@/components/schedule-calendar";
+import type { CalendarKind } from "@/components/schedule-calendar";
+import ScheduleJobDialog from "@/components/schedule-job-dialog";
+import StatCard from "@/components/stat-card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { create as startCheck, show as showCheck } from "@/routes/inspections";
+import { index } from "@/routes/schedule";
+import {
+    destroy as removeCheck,
+    update as updateCheck,
+} from "@/routes/schedule/checks";
 import {
     destroy as removeJob,
     update as updateJob,
-} from '@/routes/schedule/jobs';
-import { edit as editJob } from '@/routes/service-records';
+} from "@/routes/schedule/jobs";
+import { edit as editJob } from "@/routes/service-records";
 import type {
     ClosedDay,
     ScheduleEntry,
     ScheduleEntryKind,
     ScheduleStats,
     SelectOption,
-} from '@/types';
+} from "@/types";
 
 const kinds: Record<ScheduleEntryKind, CalendarKind> = {
     monthly_check: {
-        label: 'Monthly check',
-        chip: 'border-sky-600/30 bg-sky-600/10 text-sky-800 dark:text-sky-300',
-        dot: 'bg-sky-600',
+        label: "Monthly check",
+        chip: "border-sky-600/30 bg-sky-600/10 text-sky-800 dark:text-sky-300",
+        dot: "bg-sky-600",
     },
     annual_inspection: {
-        label: 'Annual inspection',
-        chip: 'border-violet-600/30 bg-violet-600/10 text-violet-800 dark:text-violet-300',
-        dot: 'bg-violet-600',
+        label: "Annual inspection",
+        chip: "border-violet-600/30 bg-violet-600/10 text-violet-800 dark:text-violet-300",
+        dot: "bg-violet-600",
     },
     job: {
-        label: 'Job',
-        chip: 'border-foreground/20 bg-muted text-foreground',
-        dot: 'bg-foreground',
+        label: "Job",
+        chip: "border-foreground/20 bg-muted text-foreground",
+        dot: "bg-foreground",
     },
 };
 
@@ -63,7 +66,7 @@ const kinds: Record<ScheduleEntryKind, CalendarKind> = {
  * Move a check or a job to another day.
  */
 const moveEntry = (entry: ScheduleEntry, date: string) => {
-    const isJob = entry.kind === 'job';
+    const isJob = entry.kind === "job";
 
     router.patch(
         isJob ? updateJob.url(entry.id) : updateCheck.url(entry.id),
@@ -72,7 +75,7 @@ const moveEntry = (entry: ScheduleEntry, date: string) => {
             preserveScroll: true,
             onError: (errors) =>
                 toast.error(
-                    Object.values(errors)[0] ?? 'That could not be moved.',
+                    Object.values(errors)[0] ?? "That could not be moved.",
                 ),
         },
     );
@@ -177,7 +180,7 @@ export default function Schedule({
                         entry.vehicle?.display_name ?? entry.title
                     }
                     describe={(entry) =>
-                        entry.kind === 'job'
+                        entry.kind === "job"
                             ? entry.title
                             : `${entry.vehicle?.display_name}'s ${entry.title.toLowerCase()}`
                     }
@@ -230,7 +233,7 @@ function ScheduleEntryRow({
     canOpenInspections: boolean;
     canOpenJobs: boolean;
 }) {
-    const isCheck = entry.kind !== 'job';
+    const isCheck = entry.kind !== "job";
 
     // A check started today only counts if today falls inside its window.
     const canStart =
@@ -246,7 +249,7 @@ function ScheduleEntryRow({
                 <div className="flex flex-wrap items-center gap-2">
                     <span
                         className={cn(
-                            'rounded border px-1.5 py-0.5 text-[11px] font-medium',
+                            "rounded border px-1.5 py-0.5 text-[11px] font-medium",
                             kinds[entry.kind].chip,
                         )}
                     >
@@ -254,10 +257,10 @@ function ScheduleEntryRow({
                     </span>
                     <span
                         className={cn(
-                            'text-xs font-medium',
+                            "text-xs font-medium",
                             isBehind(entry.status)
-                                ? 'text-amber-600 dark:text-amber-500'
-                                : 'text-muted-foreground',
+                                ? "text-amber-600 dark:text-amber-500"
+                                : "text-muted-foreground",
                         )}
                     >
                         {statusLabels[entry.status]}
@@ -310,7 +313,7 @@ function ScheduleEntryRow({
                                 ? updateCheck.form(entry.id)
                                 : updateJob.form(entry.id)
                         }
-                        field={isCheck ? 'due_on' : 'performed_on'}
+                        field={isCheck ? "due_on" : "performed_on"}
                         defaultDate={entry.due_on}
                         between={entry.window}
                         trigger={
@@ -332,10 +335,24 @@ function ScheduleEntryRow({
                                 <Trash2 />
                             </Button>
                         }
-                        title="Take this job off the schedule?"
-                        description="Nobody has started it, so it is removed from the service log as well."
-                        confirmLabel="Remove job"
-                        form={removeJob.form(entry.id)}
+                        title={
+                            isCheck
+                                ? `Take this ${kinds[entry.kind].label.toLowerCase()} off the schedule?`
+                                : "Take this job off the schedule?"
+                        }
+                        description={
+                            isCheck
+                                ? entry.kind === "annual_inspection"
+                                    ? `${entry.vehicle?.display_name} will not be booked in for an annual inspection again this year.`
+                                    : `${entry.vehicle?.display_name} will not be booked in for a monthly check again this month.`
+                                : "Nobody has started it, so it is removed from the service log as well."
+                        }
+                        confirmLabel={isCheck ? "Remove check" : "Remove job"}
+                        form={
+                            isCheck
+                                ? removeCheck.form(entry.id)
+                                : removeJob.form(entry.id)
+                        }
                     />
                 )}
             </div>
@@ -344,5 +361,5 @@ function ScheduleEntryRow({
 }
 
 Schedule.layout = {
-    breadcrumbs: [{ title: 'Mechanic schedule', href: index() }],
+    breadcrumbs: [{ title: "Mechanic schedule", href: index() }],
 };

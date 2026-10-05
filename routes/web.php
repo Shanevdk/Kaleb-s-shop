@@ -114,6 +114,8 @@ Route::middleware(['auth', 'verified', 'can:schedule'])->group(function () {
     Route::get('schedule', [ScheduleController::class, 'index'])->name('schedule.index');
     Route::patch('schedule/checks/{plannedInspection}', [PlannedInspectionController::class, 'update'])
         ->name('schedule.checks.update');
+    Route::delete('schedule/checks/{plannedInspection}', [PlannedInspectionController::class, 'destroy'])
+        ->name('schedule.checks.destroy');
     Route::post('schedule/jobs', [ScheduleJobController::class, 'store'])->name('schedule.jobs.store');
     Route::patch('schedule/jobs/{serviceRecord}', [ScheduleJobController::class, 'update'])
         ->name('schedule.jobs.update');

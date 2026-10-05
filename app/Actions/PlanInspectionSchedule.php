@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Running it again only fills gaps, and moves the checks it booked itself off
  * any day that has since been marked closed. A check someone moved by hand
- * stays where they put it.
+ * stays where they put it, and one taken off the schedule is not booked back.
  */
 class PlanInspectionSchedule
 {
@@ -132,8 +132,9 @@ class PlanInspectionSchedule
 
             $monthly = $booked->get("{$vehicle->id}|".ChecklistTemplate::MonthlyCheck->value);
 
-            // The annual inspection covers the monthly check for its month.
-            if ($annual?->due_on->isSameMonth($startOfMonth)) {
+            // The annual inspection covers the monthly check for its month,
+            // unless it has been taken off the schedule.
+            if ($annual !== null && ! $annual->skipped && $annual->due_on->isSameMonth($startOfMonth)) {
                 $monthly?->delete();
 
                 continue;
@@ -156,6 +157,7 @@ class PlanInspectionSchedule
 
         PlannedInspection::query()
             ->where('pinned', false)
+            ->where('skipped', false)
             ->whereBetween('due_on', [$from->toDateString(), $until->toDateString()])
             ->get()
             ->reject(fn (PlannedInspection $planned): bool => ClosedDay::isOpenOn($planned->due_on, $this->closed))
@@ -289,6 +291,7 @@ class PlanInspectionSchedule
         $range = [$startOfMonth->toDateString(), $endOfMonth->toDateString()];
 
         PlannedInspection::query()
+            ->where('skipped', false)
             ->whereBetween('due_on', $range)
             ->get()
             ->each(function (PlannedInspection $planned): void {

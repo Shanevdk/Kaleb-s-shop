@@ -385,6 +385,46 @@ test('moving the annual inspection to another month hands the monthly check back
     expect($monthly)->toBe(['2026-09']);
 });
 
+test('a check taken off the schedule is not booked back in', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
+    PlannedInspection::factory()->annual()->for($vehicle)->create(['due_on' => '2026-11-10', 'period' => '2026']);
+    $monthly = PlannedInspection::factory()->for($vehicle)->create(['due_on' => '2026-09-16', 'period' => '2026-09']);
+    $scheduler = User::factory()->scheduler()->create();
+
+    $this->actingAs($scheduler)->delete(route('schedule.checks.destroy', $monthly))->assertRedirect();
+
+    $this->actingAs($scheduler)
+        ->get(route('schedule.index'))
+        ->assertInertia(fn ($page) => $page->has('entries', 0)->where('stats.checks', 0));
+
+    expect($monthly->fresh()->skipped)->toBeTrue()
+        ->and(PlannedInspection::where('template', ChecklistTemplate::MonthlyCheck)->where('period', '2026-09')->count())->toBe(1);
+});
+
+test('a check someone has started cannot be taken off the schedule', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
+    $monthly = PlannedInspection::factory()->for($vehicle)->create(['due_on' => '2026-09-16', 'period' => '2026-09']);
+    Inspection::factory()->for($vehicle)->create(['template' => ChecklistTemplate::MonthlyCheck, 'performed_on' => '2026-09-15']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->delete(route('schedule.checks.destroy', $monthly))
+        ->assertSessionHasErrors('check');
+
+    expect($monthly->fresh()->skipped)->toBeFalse();
+});
+
+test('taking the annual inspection off the schedule hands the monthly check back', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
+    $annual = PlannedInspection::factory()->annual()->for($vehicle)->create(['due_on' => '2026-09-17', 'period' => '2026']);
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->delete(route('schedule.checks.destroy', $annual))
+        ->assertRedirect();
+
+    expect($annual->fresh()->skipped)->toBeTrue()
+        ->and(PlannedInspection::where('template', ChecklistTemplate::MonthlyCheck)->where('period', '2026-09')->exists())->toBeTrue();
+});
+
 test('a job that is not finished can be moved', function () {
     $job = ServiceRecord::factory()->inProgress()->create(['performed_on' => '2026-09-16']);
 

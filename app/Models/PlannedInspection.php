@@ -20,10 +20,11 @@ use Illuminate\Support\Carbon;
  * @property string $period
  * @property CarbonImmutable $due_on
  * @property bool $pinned
+ * @property bool $skipped
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['vehicle_id', 'template', 'period', 'due_on', 'pinned'])]
+#[Fillable(['vehicle_id', 'template', 'period', 'due_on', 'pinned', 'skipped'])]
 class PlannedInspection extends Model
 {
     /** @use HasFactory<PlannedInspectionFactory> */
@@ -71,6 +72,31 @@ class PlannedInspection extends Model
     }
 
     /**
+     * Determine whether the inspection counts as this check: done on the
+     * booked vehicle, inside the window, with a checklist that covers it.
+     */
+    public function isCoveredBy(Inspection $inspection): bool
+    {
+        return $inspection->vehicle_id === $this->vehicle_id
+            && $inspection->performed_on->betweenIncluded($this->windowStart(), $this->windowEnd())
+            && ($this->template === ChecklistTemplate::AnnualInspection
+                ? $inspection->template === ChecklistTemplate::AnnualInspection
+                : $inspection->template->coversMonthlyCheck());
+    }
+
+    /**
+     * Determine whether anyone has started this check yet.
+     */
+    public function hasBeenStarted(): bool
+    {
+        return Inspection::query()
+            ->where('vehicle_id', $this->vehicle_id)
+            ->whereBetween('performed_on', [$this->windowStart()->toDateString(), $this->windowEnd()->toDateString()])
+            ->get()
+            ->contains(fn (Inspection $inspection): bool => $this->isCoveredBy($inspection));
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -81,6 +107,7 @@ class PlannedInspection extends Model
             'template' => ChecklistTemplate::class,
             'due_on' => 'immutable_date',
             'pinned' => 'boolean',
+            'skipped' => 'boolean',
         ];
     }
 }
