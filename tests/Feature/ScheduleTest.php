@@ -89,6 +89,33 @@ test('recategorising a vehicle as non-highway retracts an annual inspection alre
         ->and(PlannedInspection::where('vehicle_id', $vehicle->id)->where('template', ChecklistTemplate::MonthlyCheck)->where('period', '2026-10')->exists())->toBeTrue();
 });
 
+test('only vehicles kept at Norwich are booked onto the schedule automatically', function (string $location) {
+    $norwich = Vehicle::factory()->create(['created_at' => '2026-01-10', 'location' => 'norwich']);
+    $elsewhere = Vehicle::factory()->create(['created_at' => '2026-01-10', 'location' => $location]);
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'))->assertOk();
+
+    expect(PlannedInspection::where('vehicle_id', $norwich->id)->exists())->toBeTrue()
+        ->and(PlannedInspection::where('vehicle_id', $elsewhere->id)->exists())->toBeFalse();
+})->with(['kentwood', 'both']);
+
+test('moving a vehicle to Kentwood takes its checks off the schedule, apart from one already started', function () {
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10', 'location' => 'norwich']);
+    $started = PlannedInspection::factory()->for($vehicle)->create(['due_on' => '2026-09-14', 'period' => '2026-09']);
+    Inspection::factory()->for($vehicle)->create(['template' => ChecklistTemplate::MonthlyCheck, 'performed_on' => '2026-09-14']);
+    $october = PlannedInspection::factory()->for($vehicle)->create(['due_on' => '2026-10-14', 'period' => '2026-10']);
+    $annual = PlannedInspection::factory()->annual()->for($vehicle)->create(['due_on' => '2026-11-10', 'period' => '2026']);
+
+    $vehicle->update(['location' => 'kentwood']);
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'))->assertOk();
+
+    expect(PlannedInspection::find($started->id))->not->toBeNull()
+        ->and(PlannedInspection::find($october->id))->toBeNull()
+        ->and(PlannedInspection::find($annual->id))->toBeNull()
+        ->and(PlannedInspection::where('vehicle_id', $vehicle->id)->count())->toBe(1);
+});
+
 test('the months after the one on screen are booked in ahead', function () {
     $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
 

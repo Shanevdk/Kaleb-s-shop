@@ -103,6 +103,7 @@ export default function VehicleShow({
     const details = [
         { label: 'Type', value: vehicle.kind_label },
         { label: 'Category', value: vehicle.category_label },
+        { label: 'Location', value: vehicle.location_label },
         { label: 'Make', value: vehicle.make },
         { label: 'Model', value: vehicle.model },
         { label: 'Year', value: String(vehicle.year) },

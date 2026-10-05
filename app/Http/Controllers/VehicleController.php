@@ -7,6 +7,7 @@ use App\Actions\FetchRecalls;
 use App\Enums\MachineKind;
 use App\Enums\PhotoAngle;
 use App\Enums\VehicleCategory;
+use App\Enums\VehicleLocation;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\InspectionResource;
 use App\Http\Resources\InventoryItemResource;
@@ -65,6 +66,7 @@ class VehicleController extends Controller
             'prefill' => $request->only(['vin', 'make', 'model', 'year', 'kind', 'cylinders', 'displacement_l', 'fuel']),
             'kinds' => MachineKind::options(),
             'categories' => VehicleCategory::options(),
+            'locations' => VehicleLocation::options(),
         ]);
     }
 
@@ -195,6 +197,7 @@ class VehicleController extends Controller
             'vehicle' => VehicleResource::make($vehicle)->resolve(),
             'kinds' => MachineKind::options(),
             'categories' => VehicleCategory::options(),
+            'locations' => VehicleLocation::options(),
         ]);
     }
 

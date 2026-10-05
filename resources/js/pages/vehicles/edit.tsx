@@ -8,10 +8,12 @@ export default function VehicleEdit({
     vehicle,
     kinds,
     categories,
+    locations,
 }: {
     vehicle: Vehicle;
     kinds: SelectOption[];
     categories: SelectOption[];
+    locations: SelectOption[];
 }) {
     setLayoutProps({
         breadcrumbs: [
@@ -36,6 +38,7 @@ export default function VehicleEdit({
                         vehicle={vehicle}
                         kinds={kinds}
                         categories={categories}
+                        locations={locations}
                     />
                 </div>
             </div>

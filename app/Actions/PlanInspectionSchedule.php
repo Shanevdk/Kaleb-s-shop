@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Books every vehicle in for its monthly check and its annual inspection,
+ * Books every Norwich vehicle in for its monthly check and annual inspection,
  * spreading the work over the days the shop is open so no one day gets
  * swamped. Nothing is ever booked onto a Sunday, an Ontario statutory
  * holiday or a day marked closed; weekdays are filled before Saturdays.
@@ -118,19 +118,34 @@ class PlanInspectionSchedule
 
         foreach ($vehicles as $vehicle) {
             $bookedAnnual = $booked->get("{$vehicle->id}|".ChecklistTemplate::AnnualInspection->value);
+            $bookedMonthly = $booked->get("{$vehicle->id}|".ChecklistTemplate::MonthlyCheck->value);
+
+            // Vehicles kept at Kentwood are looked after off the schedule.
+            // Take off the checks booked before it moved there, unless
+            // someone has already started them.
+            if (! $vehicle->location->isBookedAutomatically()) {
+                collect([$bookedAnnual, $bookedMonthly])
+                    ->filter()
+                    ->reject(fn (PlannedInspection $planned): bool => $planned->hasBeenStarted())
+                    ->each(fn (PlannedInspection $planned) => $this->retract($planned));
+
+                continue;
+            }
 
             // Non-highway vehicles never see a public road, so they are
             // exempt from the roadworthy-style annual inspection. Retract
             // one booked before the vehicle became exempt.
             if ($vehicle->category->isExemptFromAnnualInspection()) {
-                $this->retractAnnual($bookedAnnual);
+                if ($bookedAnnual !== null) {
+                    $this->retract($bookedAnnual);
+                }
 
                 $annual = null;
             } else {
                 $annual = $bookedAnnual ?? $this->bookAnnual($vehicle, $startOfMonth, $today);
             }
 
-            $monthly = $booked->get("{$vehicle->id}|".ChecklistTemplate::MonthlyCheck->value);
+            $monthly = $bookedMonthly;
 
             // The annual inspection covers the monthly check for its month,
             // unless it has been taken off the schedule.
@@ -177,28 +192,24 @@ class PlanInspectionSchedule
     }
 
     /**
-     * Delete a booked annual inspection that is no longer needed, freeing
-     * up the load and per-month tally it took up.
+     * Delete a booked check that is no longer needed, freeing up the load
+     * it took up, and an annual inspection's place in its month's tally.
      */
-    private function retractAnnual(?PlannedInspection $annual): void
+    private function retract(PlannedInspection $planned): void
     {
-        if ($annual === null) {
-            return;
+        $dueOn = $planned->due_on->toDateString();
+
+        if (isset($this->load[$dueOn]) && ! $planned->skipped) {
+            $this->load[$dueOn] -= $this->weightOf($planned->template);
         }
 
-        $dueOn = $annual->due_on->toDateString();
+        $month = $planned->due_on->month;
 
-        if (isset($this->load[$dueOn])) {
-            $this->load[$dueOn] -= $this->weightOf(ChecklistTemplate::AnnualInspection);
-        }
-
-        $month = $annual->due_on->month;
-
-        if (isset($this->annualsPerMonth[$month])) {
+        if ($planned->template === ChecklistTemplate::AnnualInspection && isset($this->annualsPerMonth[$month])) {
             $this->annualsPerMonth[$month]--;
         }
 
-        $annual->delete();
+        $planned->delete();
     }
 
     /**

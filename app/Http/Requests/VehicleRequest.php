@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Actions\DecodeVin;
 use App\Enums\MachineKind;
 use App\Enums\VehicleCategory;
+use App\Enums\VehicleLocation;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -51,6 +52,7 @@ class VehicleRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:5000'],
             'kind' => ['nullable', Rule::enum(MachineKind::class)],
             'category' => ['sometimes', Rule::enum(VehicleCategory::class)],
+            'location' => ['sometimes', Rule::enum(VehicleLocation::class)],
             'cylinders' => ['nullable', 'integer', 'min:1', 'max:16'],
             'displacement_l' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             'fuel' => ['nullable', 'string', 'max:40'],

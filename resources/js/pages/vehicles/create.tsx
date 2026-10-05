@@ -8,10 +8,12 @@ export default function VehicleCreate({
     prefill,
     kinds,
     categories,
+    locations,
 }: {
     prefill: VehiclePrefill;
     kinds: SelectOption[];
     categories: SelectOption[];
+    locations: SelectOption[];
 }) {
     return (
         <>
@@ -28,6 +30,7 @@ export default function VehicleCreate({
                         prefill={prefill}
                         kinds={kinds}
                         categories={categories}
+                        locations={locations}
                     />
                 </div>
             </div>

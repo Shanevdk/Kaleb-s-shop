@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\MachineKind;
 use App\Enums\PhotoAngle;
 use App\Enums\VehicleCategory;
+use App\Enums\VehicleLocation;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -33,13 +34,14 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $notes
  * @property MachineKind|null $kind
  * @property VehicleCategory $category
+ * @property VehicleLocation $location
  * @property array<string, mixed>|null $specs
  * @property array<string, string>|null $photos
  * @property array<string, mixed>|null $look
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'category', 'specs', 'photos', 'look'])]
+#[Fillable(['make', 'model', 'year', 'nickname', 'registration', 'vin', 'colour', 'odometer', 'notes', 'kind', 'category', 'location', 'specs', 'photos', 'look'])]
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
@@ -255,6 +257,7 @@ class Vehicle extends Model
             'odometer' => 'integer',
             'kind' => MachineKind::class,
             'category' => VehicleCategory::class,
+            'location' => VehicleLocation::class,
             'specs' => 'array',
             'photos' => 'array',
             'look' => 'array',

@@ -3,6 +3,7 @@
 use App\Enums\CheckStatus;
 use App\Enums\MachineKind;
 use App\Enums\VehicleCategory;
+use App\Enums\VehicleLocation;
 use App\Models\Inspection;
 use App\Models\InspectionItem;
 use App\Models\ServiceRecord;
@@ -106,6 +107,50 @@ test('a vehicle category can be changed', function () {
     ]);
 
     expect($vehicle->refresh()->category)->toBe(VehicleCategory::NonHighway);
+});
+
+test('a vehicle is kept at Norwich unless it is set to Kentwood or both', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Toyota',
+        'model' => 'Hilux',
+        'year' => 2018,
+    ]);
+
+    expect(Vehicle::sole()->location)->toBe(VehicleLocation::Norwich);
+
+    $this->actingAs($user)->post(route('vehicles.store'), [
+        'make' => 'Ford',
+        'model' => 'F-150',
+        'year' => 2020,
+        'location' => 'kentwood',
+    ]);
+
+    $ford = Vehicle::where('make', 'Ford')->sole();
+    expect($ford->location)->toBe(VehicleLocation::Kentwood);
+
+    $this->actingAs($user)->put(route('vehicles.update', $ford), [
+        'make' => $ford->make,
+        'model' => $ford->model,
+        'year' => $ford->year,
+        'location' => 'both',
+    ]);
+
+    expect($ford->refresh()->location)->toBe(VehicleLocation::Both);
+});
+
+test('a vehicle location has to be Norwich, Kentwood or both', function () {
+    $this->actingAs(User::factory()->create())
+        ->post(route('vehicles.store'), [
+            'make' => 'Toyota',
+            'model' => 'Hilux',
+            'year' => 2018,
+            'location' => 'toronto',
+        ])
+        ->assertSessionHasErrors('location');
+
+    expect(Vehicle::count())->toBe(0);
 });
 
 test('a vehicle category cannot be explicitly cleared', function () {

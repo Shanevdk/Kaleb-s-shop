@@ -16,6 +16,8 @@ export type MachineKind =
 
 export type VehicleCategory = 'trailer' | 'non_highway' | 'normal';
 
+export type VehicleLocation = 'norwich' | 'kentwood' | 'both';
+
 export type EngineSpecs = {
     cylinders: number | null;
     displacement_l: number | null;
@@ -223,6 +225,8 @@ export type Vehicle = {
     kind_label: string;
     category: VehicleCategory;
     category_label: string;
+    location: VehicleLocation;
+    location_label: string;
     specs: MachineSpecs | null;
     engine: EngineSpecs;
     engine_summary: string | null;

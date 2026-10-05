@@ -61,11 +61,13 @@ export default function VehicleForm({
     prefill,
     kinds,
     categories,
+    locations,
 }: {
     vehicle?: Vehicle;
     prefill?: VehiclePrefill;
     kinds: SelectOption[];
     categories: SelectOption[];
+    locations: SelectOption[];
 }) {
     const action = vehicle
         ? VehicleController.update.form(vehicle.id)
@@ -389,7 +391,7 @@ export default function VehicleForm({
                             Registration &amp; condition
                         </h2>
 
-                        <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="registration">Plate</Label>
                                 <Input
@@ -447,6 +449,38 @@ export default function VehicleForm({
                                     roadworthy-style inspection.
                                 </p>
                                 <InputError message={errors.category} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="location">Location</Label>
+                                <Select
+                                    name="location"
+                                    defaultValue={
+                                        vehicle?.location ?? 'norwich'
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="location"
+                                        className="w-full"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {locations.map((option) => (
+                                            <SelectItem
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-muted-foreground text-xs">
+                                    Only Norwich vehicles are booked onto the
+                                    schedule automatically.
+                                </p>
+                                <InputError message={errors.location} />
                             </div>
                         </div>
 
