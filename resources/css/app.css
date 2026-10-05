@@ -84,11 +84,26 @@
     @keyframes wrench {
         0%,
         100% {
-            transform: rotate(-18deg);
+            transform: rotate(-10deg);
         }
 
         50% {
-            transform: rotate(14deg);
+            transform: rotate(12deg);
+        }
+    }
+
+    /* ...and blinking every few seconds while it does. */
+    --animate-blink: blink 4s ease-in-out infinite;
+
+    @keyframes blink {
+        0%,
+        92%,
+        100% {
+            transform: scaleY(1);
+        }
+
+        96% {
+            transform: scaleY(0.1);
         }
     }
 }
