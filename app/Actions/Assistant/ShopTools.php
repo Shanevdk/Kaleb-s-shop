@@ -77,8 +77,8 @@ class ShopTools
                     'status' => ['type' => 'string', 'enum' => array_map(fn (ServiceStatus $status): string => $status->value, ServiceStatus::cases())],
                     'vehicle_id' => $vehicleId,
                     'search' => ['type' => 'string', 'description' => 'Text to look for in the job title or description.'],
-                    'from' => ['type' => 'string', 'description' => 'Only jobs on or after this date, YYYY-MM-DD.'],
-                    'to' => ['type' => 'string', 'description' => 'Only jobs on or before this date, YYYY-MM-DD.'],
+                    'from' => ['type' => 'string', 'description' => 'Only jobs booked on any day on or after this date, YYYY-MM-DD.'],
+                    'to' => ['type' => 'string', 'description' => 'Only jobs booked on any day on or before this date, YYYY-MM-DD.'],
                     'limit' => ['type' => 'integer', 'description' => 'How many jobs to return, up to 50. Defaults to 20.'],
                 ])
                 : null,
@@ -293,7 +293,7 @@ class ShopTools
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->whereLike('title', "%{$search}%")
                 ->orWhereLike('description', "%{$search}%")))
-            ->when($from, fn ($query, Carbon $from) => $query->where('performed_on', '>=', $from->toDateString()))
+            ->when($from, fn ($query, Carbon $from) => $query->bookedFrom($from->toDateString()))
             ->when($to, fn ($query, Carbon $to) => $query->where('performed_on', '<=', $to->toDateString()))
             ->latest('performed_on')
             ->latest('id')
@@ -440,6 +440,7 @@ class ShopTools
             'type' => $record->type->label(),
             'status' => $record->status->label(),
             'performed_on' => $record->performed_on->toDateString(),
+            'days' => $record->days(),
             'odometer' => $record->odometer,
             'hours' => (float) $record->hours,
             'parts_cost' => (float) $record->parts_cost,

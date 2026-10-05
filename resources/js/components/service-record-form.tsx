@@ -15,7 +15,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { todayString } from '@/lib/format';
+import { formatDate, todayString } from '@/lib/format';
 import { index } from '@/routes/service-records';
 import type {
     SelectOption,
@@ -46,7 +46,7 @@ export default function ServiceRecordForm({
         : ServiceRecordController.store.form();
 
     const defaultVehicle = record
-        ? String(record.vehicle_id)
+        ? (record.vehicle_id ?? '')
         : (selectedVehicle ?? '');
 
     const [vehicleId, setVehicleId] = useState(defaultVehicle);
@@ -202,6 +202,14 @@ export default function ServiceRecordForm({
                                     }
                                     required
                                 />
+                                {record && record.days.length > 1 && (
+                                    <p className="text-muted-foreground text-xs">
+                                        First of {record.days.length} days
+                                        booked, to{' '}
+                                        {formatDate(record.days.at(-1))}.
+                                        Changing it moves the other days too.
+                                    </p>
+                                )}
                                 <InputError message={errors.performed_on} />
                             </div>
 

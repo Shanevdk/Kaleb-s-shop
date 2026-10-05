@@ -320,7 +320,7 @@ test('a scheduler can put a job on the schedule', function () {
             'vehicle_id' => $vehicle->id,
             'title' => 'Replace front brake pads',
             'type' => 'brakes',
-            'performed_on' => '2026-09-21',
+            'days' => ['2026-09-21'],
             'description' => 'Customer says they squeal.',
         ])
         ->assertRedirect();
@@ -335,9 +335,137 @@ test('a scheduler can put a job on the schedule', function () {
 test('a job needs a vehicle, a title, a type and a day', function () {
     $this->actingAs(User::factory()->scheduler()->create())
         ->post(route('schedule.jobs.store'), ['type' => 'made_up'])
-        ->assertSessionHasErrors(['vehicle_id', 'title', 'type', 'performed_on']);
+        ->assertSessionHasErrors(['vehicle_id', 'title', 'type', 'days']);
 
     expect(ServiceRecord::count())->toBe(0);
+});
+
+test('a job can be booked over several days and shows on each of them', function () {
+    $scheduler = User::factory()->scheduler()->create();
+
+    $this->actingAs($scheduler)
+        ->post(route('schedule.jobs.store'), [
+            'vehicle_id' => Vehicle::factory()->create()->id,
+            'title' => 'Rebuild the engine',
+            'type' => 'engine',
+            'days' => ['2026-09-23', '2026-09-21', '2026-09-22'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $job = ServiceRecord::sole();
+    expect($job->performed_on->toDateString())->toBe('2026-09-21')
+        ->and($job->days())->toBe(['2026-09-21', '2026-09-22', '2026-09-23']);
+
+    $this->actingAs($scheduler)
+        ->get(route('schedule.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries', fn ($entries) => collect($entries)->where('kind', 'job')->pluck('date')->all() === ['2026-09-21', '2026-09-22', '2026-09-23'])
+            ->where('stats.jobs', 1)
+        );
+});
+
+test('a job over several days shows on the days of it that fall in the month on screen', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-30', '2026-10-01'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->get(route('schedule.index', ['month' => '2026-10']))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries', fn ($entries) => collect($entries)->where('kind', 'job')->pluck('date')->all() === ['2026-10-01'])
+        );
+});
+
+test('a job over several days that nobody has started is due on its days and behind once its first has gone', function (array $days, string $status, int $behind) {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn($days)->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->get(route('schedule.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries', fn ($entries) => collect($entries)->where('kind', 'job')->pluck('status')->unique()->all() === [$status])
+            ->where('stats.behind', $behind)
+        );
+})->with([
+    'on one of its days' => [['2026-09-14', '2026-09-15', '2026-09-16'], 'due', 0],
+    'between its days' => [['2026-09-14', '2026-09-16'], 'overdue', 1],
+    'before its first day' => [['2026-09-16', '2026-09-17'], 'upcoming', 0],
+]);
+
+test('a job over several days only counts in the month stats when one of its days is in the month', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-30', '2026-11-02'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->get(route('schedule.index', ['month' => '2026-10']))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries', fn ($entries) => collect($entries)->where('kind', 'job')->isEmpty())
+            ->where('stats.jobs', 0)
+            ->where('stats.behind', 0)
+        );
+});
+
+test('moving a job over several days moves all of its days', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-21', '2026-09-22', '2026-09-24'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->patch(route('schedule.jobs.update', $job), ['performed_on' => '2026-09-28'])
+        ->assertRedirect();
+
+    expect($job->fresh()->days())->toBe(['2026-09-28', '2026-09-29', '2026-10-01']);
+});
+
+test('moving a later day of a job over several days puts that day where it was moved to', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-21', '2026-09-22', '2026-09-23'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->patch(route('schedule.jobs.update', $job), ['performed_on' => '2026-09-25', 'day' => '2026-09-23'])
+        ->assertRedirect();
+
+    expect($job->fresh()->days())->toBe(['2026-09-23', '2026-09-24', '2026-09-25']);
+});
+
+test('a job can only be moved by one of its own days', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-21', '2026-09-22'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->patch(route('schedule.jobs.update', $job), ['performed_on' => '2026-09-25', 'day' => '2026-09-24'])
+        ->assertSessionHasErrors('day');
+
+    expect($job->fresh()->days())->toBe(['2026-09-21', '2026-09-22']);
+});
+
+test('moving a job asks before its other days land on a day the shop is closed', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-17', '2026-09-18'])->save();
+    $scheduler = User::factory()->scheduler()->create();
+
+    // Thu and Fri to Sat and Sun.
+    $this->actingAs($scheduler)
+        ->patch(route('schedule.jobs.update', $job), ['performed_on' => '2026-09-19', 'day' => '2026-09-17'])
+        ->assertSessionHasErrors('closed_days');
+
+    expect($job->fresh()->days())->toBe(['2026-09-17', '2026-09-18']);
+
+    $this->actingAs($scheduler)
+        ->patch(route('schedule.jobs.update', $job), ['performed_on' => '2026-09-19', 'day' => '2026-09-17', 'on_closed_days' => true])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-19', '2026-09-20']);
+});
+
+test('the planner counts every day of a job over several days as busy', function () {
+    // A Monday, with only Mon 28, Tue 29 and Wed 30 left in the month.
+    $this->travelTo('2026-09-28 09:00:00');
+    $vehicle = Vehicle::factory()->create(['created_at' => '2026-01-10']);
+    $job = ServiceRecord::factory()->for($vehicle)->planned()->create();
+    $job->bookOn(['2026-09-28', '2026-09-29'])->save();
+
+    $this->actingAs(User::factory()->scheduler()->create())->get(route('schedule.index'));
+
+    expect(PlannedInspection::where('template', ChecklistTemplate::AnnualInspection)->sole()->due_on->toDateString())->toBe('2026-09-30');
 });
 
 test('a shopper cannot put anything on the schedule', function () {
@@ -346,7 +474,7 @@ test('a shopper cannot put anything on the schedule', function () {
             'vehicle_id' => Vehicle::factory()->create()->id,
             'title' => 'Replace front brake pads',
             'type' => 'brakes',
-            'performed_on' => '2026-09-21',
+            'days' => ['2026-09-21'],
         ])
         ->assertForbidden();
 });

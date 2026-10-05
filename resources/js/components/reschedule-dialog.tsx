@@ -19,7 +19,8 @@ import type { RouteFormDefinition } from '@/wayfinder';
 
 /**
  * Move something on a schedule to another day. A booked check has to stay
- * inside the window (the month or year) it covers.
+ * inside the window (the month or year) it covers. When the move would
+ * put something on a day the shop is closed, it asks before doing so.
  */
 export default function RescheduleDialog({
     id,
@@ -28,6 +29,7 @@ export default function RescheduleDialog({
     form,
     field,
     defaultDate,
+    fields = {},
     between = null,
     trigger,
 }: {
@@ -37,13 +39,22 @@ export default function RescheduleDialog({
     form: RouteFormDefinition<'post'>;
     field: string;
     defaultDate: string;
+    /** Anything else to send along with the new day. */
+    fields?: Record<string, string>;
     between?: { from: string; to: string } | null;
     trigger: ReactNode;
 }) {
     const [open, setOpen] = useState(false);
+    const [closedDays, setClosedDays] = useState<string | null>(null);
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+            open={open}
+            onOpenChange={(isOpen) => {
+                setOpen(isOpen);
+                setClosedDays(null);
+            }}
+        >
             <DialogTrigger asChild>{trigger}</DialogTrigger>
             <DialogContent>
                 <DialogTitle>Move {title.toLowerCase()}</DialogTitle>
@@ -57,10 +68,29 @@ export default function RescheduleDialog({
                     {...form}
                     options={{ preserveScroll: true }}
                     onSuccess={() => setOpen(false)}
+                    onError={(errors) =>
+                        setClosedDays(errors.closed_days ?? null)
+                    }
                     className="space-y-4"
                 >
                     {({ processing, errors }) => (
                         <>
+                            {Object.entries(fields).map(([name, value]) => (
+                                <input
+                                    key={name}
+                                    type="hidden"
+                                    name={name}
+                                    value={value}
+                                />
+                            ))}
+                            {closedDays !== null && (
+                                <input
+                                    type="hidden"
+                                    name="on_closed_days"
+                                    value="1"
+                                />
+                            )}
+
                             <div className="grid gap-2">
                                 <Label htmlFor={`move_${id}`}>New day</Label>
                                 <Input
@@ -70,9 +100,11 @@ export default function RescheduleDialog({
                                     defaultValue={defaultDate}
                                     min={between?.from}
                                     max={between?.to}
+                                    onChange={() => setClosedDays(null)}
                                     required
                                 />
                                 <InputError message={errors[field]} />
+                                <InputError message={closedDays ?? undefined} />
                             </div>
 
                             <DialogFooter className="gap-2">
@@ -82,7 +114,9 @@ export default function RescheduleDialog({
                                     </Button>
                                 </DialogClose>
                                 <Button type="submit" disabled={processing}>
-                                    Move
+                                    {closedDays === null
+                                        ? 'Move'
+                                        : 'Move anyway'}
                                 </Button>
                             </DialogFooter>
                         </>

@@ -15,6 +15,7 @@ use App\Models\ServiceRecord;
 use App\Models\Vehicle;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,6 +32,8 @@ class ScheduleController extends Controller
     /**
      * Display a month of the calendar: every vehicle's monthly check and
      * annual inspection, booked in automatically, and the jobs planned in.
+     * A job over several days goes on the calendar once for each of its
+     * days in the month, but only counts once in the month's stats.
      */
     public function index(Request $request, PlanInspectionSchedule $planSchedule): Response
     {
@@ -74,11 +77,25 @@ class ScheduleController extends Controller
 
         $jobs = ServiceRecord::query()
             ->with('vehicle')
-            ->whereBetween('performed_on', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+            ->bookedBetween($startOfMonth->toDateString(), $endOfMonth->toDateString())
             ->get()
-            ->map(fn (ServiceRecord $job): array => $this->jobEntry($job, $today));
+            ->map(fn (ServiceRecord $job): array => [
+                ...$this->jobEntry($job, $today),
+                'days_this_month' => array_values(array_filter(
+                    $job->days(),
+                    fn (string $day): bool => str_starts_with($day, $startOfMonth->format('Y-m')),
+                )),
+            ])
+            ->filter(fn (array $job): bool => $job['days_this_month'] !== []);
 
-        $entries = $checks->concat($jobs)
+        $jobDays = $jobs->flatMap(fn (array $job): array => array_map(
+            fn (string $day): array => [...Arr::except($job, 'days_this_month'), 'date' => $day],
+            $job['days_this_month'],
+        ));
+
+        $behind = [ScheduledCheckStatus::Overdue->value, ScheduledCheckStatus::Missed->value];
+
+        $entries = $checks->concat($jobDays)
             ->sortBy(fn (array $entry): array => [$entry['date'], $entry['kind'] === 'job' ? 1 : 0, $entry['vehicle']['display_name'] ?? ''])
             ->values();
 
@@ -91,7 +108,7 @@ class ScheduleController extends Controller
                 'checks_done' => $checks->where('status', ScheduledCheckStatus::Done->value)->count(),
                 'annual' => $annualChecks->count(),
                 'annual_done' => $annualChecks->where('status', ScheduledCheckStatus::Done->value)->count(),
-                'behind' => $entries->whereIn('status', [ScheduledCheckStatus::Overdue->value, ScheduledCheckStatus::Missed->value])->count(),
+                'behind' => $checks->whereIn('status', $behind)->count() + $jobs->whereIn('status', $behind)->count(),
                 'jobs' => $jobs->count(),
             ],
             'vehicles' => Vehicle::query()
@@ -162,17 +179,21 @@ class ScheduleController extends Controller
     }
 
     /**
-     * Describe a job planned in, or done, on a day of the month.
+     * Describe a job planned in, or done, on a day of the month. A job not
+     * yet started is due on each day it is booked on, and overdue on any
+     * other day once its first day has gone by.
      *
      * @return array<string, mixed>
      */
     private function jobEntry(ServiceRecord $job, CarbonImmutable $today): array
     {
+        $days = $job->days();
+
         $status = match (true) {
             $job->status === ServiceStatus::Completed => ScheduledCheckStatus::Done,
             $job->status === ServiceStatus::InProgress => ScheduledCheckStatus::InProgress,
-            $job->performed_on->lessThan($today) => ScheduledCheckStatus::Overdue,
-            $job->performed_on->isSameDay($today) => ScheduledCheckStatus::Due,
+            in_array($today->toDateString(), $days, true) => ScheduledCheckStatus::Due,
+            $days[0] < $today->toDateString() => ScheduledCheckStatus::Overdue,
             default => ScheduledCheckStatus::Upcoming,
         };
 
@@ -180,8 +201,9 @@ class ScheduleController extends Controller
             'id' => $job->id,
             'kind' => 'job',
             'title' => $job->title,
-            'date' => $job->performed_on->toDateString(),
-            'due_on' => $job->performed_on->toDateString(),
+            'date' => $days[0],
+            'due_on' => $days[0],
+            'days' => $days,
             'status' => $status->value,
             'vehicle' => $this->vehicle($job->vehicle),
             'inspection_id' => null,

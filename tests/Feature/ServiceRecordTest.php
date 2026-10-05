@@ -54,6 +54,20 @@ test('a job can be opened to see its full detail', function () {
         );
 });
 
+test('a job over several days shows every day it is booked on', function () {
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->for($user)->planned()->create();
+    $record->bookOn(['2026-10-12', '2026-10-13', '2026-10-14'])->save();
+
+    $this->actingAs($user)
+        ->get(route('service-records.edit', $record))
+        ->assertInertia(fn ($page) => $page
+            ->where('record.performed_on', '2026-10-12')
+            ->where('record.finishes_on', '2026-10-14')
+            ->where('record.days', ['2026-10-12', '2026-10-13', '2026-10-14'])
+        );
+});
+
 test('a shopper cannot open a job', function () {
     $user = User::factory()->shopper()->create();
     $record = ServiceRecord::factory()->create();

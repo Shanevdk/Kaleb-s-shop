@@ -244,6 +244,17 @@ test('every assistant tool reads the user records without failing', function () 
         ->and($tools->call('delete_everything', []))->toHaveKey('error');
 });
 
+test('the assistant finds a job over several days by any of its days', function () {
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->for($user)->planned()->create(['title' => 'Rebuild the engine']);
+    $record->bookOn(['2026-10-12', '2026-10-13', '2026-10-14'])->save();
+
+    $jobs = (new ShopTools($user))->call('list_jobs', ['from' => '2026-10-13', 'to' => '2026-10-14']);
+
+    expect(collect($jobs)->pluck('title')->all())->toBe(['Rebuild the engine'])
+        ->and($jobs[0]['days'])->toBe(['2026-10-12', '2026-10-13', '2026-10-14']);
+});
+
 test('the assistant says it is not set up when there is no api key', function () {
     config(['services.openrouter.key' => null]);
     Http::fake();

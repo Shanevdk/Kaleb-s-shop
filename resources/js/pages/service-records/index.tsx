@@ -21,7 +21,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { formatCurrency, formatDate, formatHours } from '@/lib/format';
+import { formatCurrency, formatHours, formatJobDates } from '@/lib/format';
 import { create, destroy, edit, index, show } from '@/routes/service-records';
 import { show as showVehicle } from '@/routes/vehicles';
 import type { SelectOption, ServiceRecord } from '@/types';
@@ -186,7 +186,7 @@ export default function ServiceRecordsIndex({
                                         className="hover:bg-muted/50 cursor-pointer"
                                     >
                                         <TableCell className="text-muted-foreground">
-                                            {formatDate(record.performed_on)}
+                                            {formatJobDates(record)}
                                         </TableCell>
                                         <TableCell className="max-w-xs">
                                             <p className="truncate font-medium">

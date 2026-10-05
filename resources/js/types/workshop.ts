@@ -244,6 +244,10 @@ export type ServiceRecord = {
     status: ServiceStatus;
     status_label: string;
     performed_on: string;
+    /** The last day of a job booked over several days; null for one day. */
+    finishes_on: string | null;
+    /** Every day the job is booked on, in order. */
+    days: string[];
     odometer: number | null;
     hours: number;
     parts_cost: number;
@@ -478,6 +482,8 @@ export type ScheduleEntry = {
     title: string;
     date: string;
     due_on: string;
+    /** Every day a job is booked on; a check has none. */
+    days?: string[];
     status: ScheduledCheckStatus;
     vehicle: {
         id: string;

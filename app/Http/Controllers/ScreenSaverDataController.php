@@ -26,10 +26,11 @@ class ScreenSaverDataController extends Controller
         $jobs = $user->can('schedule')
             ? ServiceRecord::query()
                 ->with('vehicle')
-                ->whereDate('performed_on', $today)
+                ->bookedBetween($today->toDateString(), $today->toDateString())
                 ->where('status', '!=', ServiceStatus::Completed)
                 ->orderBy('performed_on')
                 ->get()
+                ->filter(fn (ServiceRecord $job): bool => in_array($today->toDateString(), $job->days(), true))
                 ->map(fn (ServiceRecord $job): array => [
                     'id' => $job->id,
                     'title' => $job->title,

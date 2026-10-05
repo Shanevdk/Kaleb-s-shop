@@ -28,7 +28,8 @@ class ScheduleJobRequest extends FormRequest
             'vehicle_id' => ['required', 'string', Rule::exists('vehicles', 'id')],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(ServiceType::class)],
-            'performed_on' => ['required', 'date'],
+            'days' => ['required', 'array', 'min:1', 'max:31'],
+            'days.*' => ['required', 'date', 'distinct'],
             'description' => ['nullable', 'string', 'max:5000'],
         ];
     }

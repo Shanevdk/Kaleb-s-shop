@@ -5,7 +5,7 @@ import PageHeader from '@/components/page-header';
 import StatCard from '@/components/stat-card';
 import StatusBadge from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate, formatHours } from '@/lib/format';
+import { formatCurrency, formatHours, formatJobDates } from '@/lib/format';
 import { dashboard } from '@/routes';
 import {
     create as createRecord,
@@ -133,9 +133,7 @@ export default function Dashboard({
                                                         ?.display_name ??
                                                         '—'}{' '}
                                                     · {record.type_label} ·{' '}
-                                                    {formatDate(
-                                                        record.performed_on,
-                                                    )}
+                                                    {formatJobDates(record)}
                                                 </p>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-4">

@@ -43,6 +43,19 @@ export function formatDate(value: string | null | undefined): string {
 }
 
 /**
+ * Write the days a job is booked on: one date, or the first and last of a
+ * job over several days.
+ */
+export function formatJobDates(job: {
+    performed_on: string;
+    finishes_on: string | null;
+}): string {
+    return job.finishes_on
+        ? `${formatDate(job.performed_on)} – ${formatDate(job.finishes_on)}`
+        : formatDate(job.performed_on);
+}
+
+/**
  * Write an amount the way a person would say it, with its unit tacked on.
  * Whole numbers stay whole; 1.50 L reads as 1.5 L.
  */

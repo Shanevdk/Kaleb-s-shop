@@ -299,11 +299,13 @@ class PlanInspectionSchedule
             });
 
         ServiceRecord::query()
-            ->whereBetween('performed_on', $range)
+            ->bookedBetween(...$range)
             ->where('status', '!=', ServiceStatus::Completed)
-            ->pluck('performed_on')
-            ->each(function (CarbonInterface $performedOn): void {
-                $this->load[$performedOn->toDateString()] += self::WEIGHT_JOB;
+            ->get(['id', 'performed_on', 'scheduled_days', 'finishes_on'])
+            ->flatMap(fn (ServiceRecord $job): array => $job->days())
+            ->filter(fn (string $day): bool => $day >= $range[0] && $day <= $range[1])
+            ->each(function (string $day): void {
+                $this->load[$day] += self::WEIGHT_JOB;
             });
     }
 

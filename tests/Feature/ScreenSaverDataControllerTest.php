@@ -53,6 +53,20 @@ test('it summarises today\'s open jobs and any checklist still in progress', fun
         ->and($response->json('checklistsInProgress.0.itemsCount'))->toBeGreaterThan(0);
 });
 
+test('a job over several days counts as today\'s only on the days it is booked', function () {
+    $onToday = ServiceRecord::factory()->planned()->create();
+    $onToday->bookOn(['2026-09-14', '2026-09-15'])->save();
+    $skipsToday = ServiceRecord::factory()->planned()->create();
+    $skipsToday->bookOn(['2026-09-14', '2026-09-16'])->save();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson(route('screen-saver.data'))
+        ->assertOk();
+
+    expect($response->json('jobsToday'))->toHaveCount(1)
+        ->and($response->json('jobsToday.0.id'))->toBe($onToday->id);
+});
+
 test('a shopper gets no jobs or checklists, just the date', function () {
     ServiceRecord::factory()->planned()->create(['performed_on' => '2026-09-15']);
     Inspection::factory()->withItems()->create(['performed_on' => '2026-09-10']);

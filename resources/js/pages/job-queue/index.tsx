@@ -16,7 +16,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { formatDate, formatNumber } from '@/lib/format';
+import { formatJobDates, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { index, update } from '@/routes/job-queue';
 import { show as showJob } from '@/routes/service-records';
@@ -233,9 +233,7 @@ export default function JobQueue({
                                                         {job.type_label}
                                                     </span>
                                                     <span className="shrink-0">
-                                                        {formatDate(
-                                                            job.performed_on,
-                                                        )}
+                                                        {formatJobDates(job)}
                                                     </span>
                                                     {job.status !==
                                                         'completed' && (

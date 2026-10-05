@@ -35,6 +35,7 @@ import {
     formatCurrency,
     formatDate,
     formatHours,
+    formatJobDates,
     formatOdometer,
     formatQuantity,
 } from '@/lib/format';
@@ -446,9 +447,7 @@ export default function VehicleShow({
                                         {records.map((record) => (
                                             <TableRow key={record.id}>
                                                 <TableCell className="text-muted-foreground">
-                                                    {formatDate(
-                                                        record.performed_on,
-                                                    )}
+                                                    {formatJobDates(record)}
                                                 </TableCell>
                                                 <TableCell className="max-w-xs">
                                                     <p className="truncate font-medium">

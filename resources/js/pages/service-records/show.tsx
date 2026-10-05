@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/table';
 import {
     formatCurrency,
-    formatDate,
     formatHours,
+    formatJobDates,
     formatOdometer,
     formatQuantity,
 } from '@/lib/format';
@@ -61,7 +61,7 @@ export default function ServiceRecordShow({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title={record.title}
-                    description={`${record.type_label} · ${formatDate(record.performed_on)}`}
+                    description={`${record.type_label} · ${formatJobDates(record)}`}
                     actions={
                         <>
                             <Button
