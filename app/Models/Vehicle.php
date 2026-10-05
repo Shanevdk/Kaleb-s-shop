@@ -7,6 +7,8 @@ use App\Enums\PhotoAngle;
 use App\Enums\VehicleCategory;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -150,21 +152,34 @@ class Vehicle extends Model
     }
 
     /**
-     * Get every vehicle as a select option, ordered by make and model.
+     * Get every vehicle as a select option, in alphabetical order.
      *
      * @return array<int, array{value: string, label: string}>
      */
     public static function options(): array
     {
         return static::query()
-            ->orderBy('make')
-            ->orderBy('model')
+            ->alphabetical()
             ->get()
             ->map(fn (self $vehicle): array => [
                 'value' => (string) $vehicle->id,
                 'label' => $vehicle->display_name,
             ])
             ->all();
+    }
+
+    /**
+     * Order vehicles A to Z by the name people know them by: the nickname
+     * when there is one, otherwise the make and model, ignoring case.
+     *
+     * @param  Builder<Vehicle>  $query
+     */
+    #[Scope]
+    protected function alphabetical(Builder $query): void
+    {
+        $query->orderByRaw("lower(coalesce(nullif(nickname, ''), make || ' ' || model))")
+            ->orderBy('year')
+            ->orderBy('id');
     }
 
     /**

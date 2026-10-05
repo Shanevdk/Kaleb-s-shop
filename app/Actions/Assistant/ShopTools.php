@@ -203,8 +203,7 @@ class ShopTools
             ->withSum('serviceRecords as parts_spend', 'parts_cost')
             ->withSum('serviceRecords as labour_spend', 'labour_cost')
             ->withMax('serviceRecords as last_serviced_on', 'performed_on')
-            ->orderBy('make')
-            ->orderBy('model')
+            ->alphabetical()
             ->get()
             ->map(fn (Vehicle $vehicle): array => [
                 ...$this->vehicle($vehicle),

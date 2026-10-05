@@ -342,6 +342,68 @@ test('updating a vehicle keeps its decoded specs when the vin has not changed', 
         ->and($vehicle->engine()['displacement_l'])->toBe(3.2);
 });
 
+test('a vin already on another vehicle cannot be added again, however it is typed', function () {
+    Http::fake();
+
+    $user = User::factory()->create();
+    Vehicle::factory()->create(['vin' => 'MFBUMEF50LW123456']);
+
+    $this->actingAs($user)
+        ->post(route('vehicles.store'), [
+            'make' => 'Ford',
+            'model' => 'Ranger',
+            'year' => 2020,
+            'vin' => 'mfbu-mef50 lw123456',
+        ])
+        ->assertSessionHasErrors(['vin' => 'Another vehicle already has this VIN.']);
+
+    $other = Vehicle::factory()->for($user)->create(['vin' => null]);
+
+    $this->actingAs($user)
+        ->put(route('vehicles.update', $other), [
+            'make' => $other->make,
+            'model' => $other->model,
+            'year' => $other->year,
+            'vin' => 'MFBUMEF50LW123456',
+        ])
+        ->assertSessionHasErrors('vin');
+
+    expect(Vehicle::where('vin', 'MFBUMEF50LW123456')->count())->toBe(1);
+});
+
+test('vehicles without a vin do not clash with each other', function () {
+    $user = User::factory()->create();
+    Vehicle::factory()->create(['vin' => null]);
+
+    $this->actingAs($user)
+        ->post(route('vehicles.store'), [
+            'make' => 'Big Tex',
+            'model' => '14ET',
+            'year' => 2021,
+            'vin' => '',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(Vehicle::whereNull('vin')->count())->toBe(2);
+});
+
+test('the vehicle list is in alphabetical order by nickname, or make and model', function () {
+    $user = User::factory()->create();
+    Vehicle::factory()->create(['nickname' => 'Work ute', 'make' => 'Toyota', 'model' => 'Hilux']);
+    Vehicle::factory()->create(['nickname' => null, 'make' => 'toyota', 'model' => 'Corolla']);
+    Vehicle::factory()->create(['nickname' => null, 'make' => 'Ford', 'model' => 'Ranger']);
+    Vehicle::factory()->create(['nickname' => 'Big red', 'make' => 'Volvo', 'model' => 'FH16']);
+
+    $this->actingAs($user)
+        ->get(route('vehicles.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('vehicles.0.nickname', 'Big red')
+            ->where('vehicles.1.make', 'Ford')
+            ->where('vehicles.2.model', 'Corolla')
+            ->where('vehicles.3.nickname', 'Work ute')
+        );
+});
+
 test('a vehicle page carries its specs, service schedule, common repairs and deferred recalls', function () {
     Http::fake(['api.nhtsa.gov/*' => Http::response(['results' => [[
         'NHTSACampaignNumber' => '20V123000',

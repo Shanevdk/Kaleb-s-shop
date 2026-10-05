@@ -231,8 +231,7 @@ class InventoryItemController extends Controller
     private function fitmentOptions(Request $request): array
     {
         return Vehicle::query()
-            ->orderBy('make')
-            ->orderBy('model')
+            ->alphabetical()
             ->get()
             ->map(fn (Vehicle $vehicle): array => [
                 'id' => $vehicle->id,

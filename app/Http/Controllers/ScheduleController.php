@@ -94,8 +94,7 @@ class ScheduleController extends Controller
                 'jobs' => $jobs->count(),
             ],
             'vehicles' => Vehicle::query()
-                ->orderBy('make')
-                ->orderBy('model')
+                ->alphabetical()
                 ->get()
                 ->map(fn (Vehicle $vehicle): array => ['value' => $vehicle->id, 'label' => $vehicle->display_name])
                 ->all(),

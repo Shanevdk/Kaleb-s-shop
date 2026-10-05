@@ -21,8 +21,7 @@ class DiagnosisController extends Controller
             'isConfigured' => filled(config('services.openrouter.key')),
             'kinds' => MachineKind::options(),
             'vehicles' => Vehicle::query()
-                ->orderBy('make')
-                ->orderBy('model')
+                ->alphabetical()
                 ->get()
                 ->map(fn (Vehicle $vehicle): array => [
                     'id' => $vehicle->id,
