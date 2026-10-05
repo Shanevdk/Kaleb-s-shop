@@ -47,7 +47,7 @@ export type ScreenSaverSettings = {
 };
 
 export const defaultScreenSaverSettings: ScreenSaverSettings = {
-    enabled: true,
+    enabled: false,
     minutes: 2,
     clock: '12h',
     showSeconds: true,
