@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Actions\EstimateJobDuration;
 use App\Concerns\BooksDays;
+use App\Concerns\SitsOnJobQueue;
 use App\Enums\EstimateStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
@@ -53,7 +54,7 @@ use Illuminate\Support\Str;
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */
-    use BooksDays, HasFactory, HasUlids;
+    use BooksDays, HasFactory, HasUlids, SitsOnJobQueue;
 
     /**
      * A job still to be done gets its time estimated in the background as

@@ -150,6 +150,31 @@ test('a mechanic can move a job from one column to another', function () {
     expect($job->fresh()->status)->toBe(ServiceStatus::InProgress);
 });
 
+test('a job booked for later and finished from the board is finished today', function () {
+    $user = User::factory()->create();
+    $job = ServiceRecord::factory()->for($user)->planned()->create(['performed_on' => '2026-11-20']);
+
+    $this->actingAs($user)
+        ->patch(route('job-queue.update', $job), ['status' => 'completed'])
+        ->assertRedirect();
+
+    expect($job->fresh()->performed_on->toDateString())->toBe('2026-09-15');
+});
+
+test('the board leaves work booked well ahead to the schedule, and keeps a finished job for a fortnight after its last day', function () {
+    $user = User::factory()->create();
+    $soon = ServiceRecord::factory()->for($user)->planned()->create(['performed_on' => '2026-09-20']);
+    ServiceRecord::factory()->for($user)->planned()->create(['performed_on' => '2026-11-20']);
+    $finished = ServiceRecord::factory()->for($user)->create(['status' => ServiceStatus::Completed]);
+    $finished->bookOn(['2026-08-25', '2026-09-05'])->save();
+
+    $this->actingAs($user)
+        ->get(route('job-queue.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('jobs', fn ($jobs) => collect($jobs)->pluck('id')->sort()->values()->all() === collect([$soon->id, $finished->id])->sort()->values()->all())
+        );
+});
+
 test('moving a job to complete takes its parts off the shelf', function () {
     $user = User::factory()->create();
     $vehicle = Vehicle::factory()->for($user)->create();

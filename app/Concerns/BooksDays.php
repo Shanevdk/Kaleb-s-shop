@@ -66,6 +66,19 @@ trait BooksDays
     }
 
     /**
+     * Bring the job's days up to the day it was finished: days booked after
+     * it are dropped, and a job that was not due to start until later is
+     * done on that day instead.
+     */
+    public function finishedOn(CarbonInterface|string $day): static
+    {
+        $day = Carbon::parse($day)->toDateString();
+        $worked = array_values(array_filter($this->days(), fn (string $booked): bool => $booked <= $day));
+
+        return $this->bookOn($worked === [] ? [$day] : $worked);
+    }
+
+    /**
      * Get the job's days with every one of them moved as far as it takes to
      * get from one date to the other.
      *

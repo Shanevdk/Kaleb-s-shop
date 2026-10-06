@@ -18,25 +18,17 @@ use Inertia\Response;
 
 class JobQueueController extends Controller
 {
-    /**
-     * How many days a completed job stays on the board before it drops off,
-     * so the queue does not fill up with old finished work.
-     */
-    private const RECENT_COMPLETED_DAYS = 14;
-
     public function __construct(private SyncServiceRecordStock $syncServiceRecordStock) {}
 
     /**
-     * Display the job queue: every job not yet done, plus what was finished
-     * recently, so it can be worked through as a board.
+     * Display the job queue: every job under way or coming up soon, plus
+     * what was finished recently, so it can be worked through as a board.
      */
     public function index(): Response
     {
         $jobs = ServiceRecord::query()
             ->with(['vehicle', 'parts.inventoryItem'])
-            ->where(fn ($query) => $query
-                ->where('status', '!=', ServiceStatus::Completed)
-                ->orWhere('performed_on', '>=', today()->subDays(self::RECENT_COMPLETED_DAYS)))
+            ->onJobQueue()
             ->orderBy('performed_on')
             ->orderBy('created_at')
             ->get();
@@ -93,7 +85,7 @@ class JobQueueController extends Controller
         ]);
 
         $short = DB::transaction(function () use ($request, $serviceRecord, $validated): array {
-            $serviceRecord->update($validated);
+            $serviceRecord->moveOnQueue(ServiceStatus::from($validated['status']))->save();
 
             return $this->syncServiceRecordStock->handle($serviceRecord, $request->user());
         });

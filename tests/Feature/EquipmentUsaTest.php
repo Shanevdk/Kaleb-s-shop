@@ -23,6 +23,7 @@ test('an account without the VDK Equipment USA permission cannot open its lists'
     'usa.equipment-checklists.index',
     'usa.equipment-service-records.index',
     'usa.equipment-schedule.index',
+    'usa.equipment-job-queue.index',
 ]);
 
 test('an account without the VDK Equipment USA permission cannot add equipment to it', function () {

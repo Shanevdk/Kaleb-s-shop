@@ -21,29 +21,45 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { store } from '@/routes/job-queue';
 import type { SelectOption } from '@/types';
+import type { RouteFormDefinition } from '@/wayfinder';
 
 /**
- * What the vehicle picker holds when the job has no vehicle yet; a select
- * item cannot have an empty value.
+ * What the picker holds when the job has nothing picked yet; a select item
+ * cannot have an empty value.
  */
-const NO_VEHICLE = 'none';
+const NOTHING_PICKED = 'none';
 
 /**
- * Drop a job straight on the queue with just what needs doing, and the
- * vehicle if it is known. It lands as planned work today, the same as one
- * logged in full, so the rest of the detail can be filled in later from
- * the service log.
+ * What the job is for: a vehicle on Kaleb's Shop's queue, a machine on an
+ * equipment division's. With `unpickedLabel` set it may be left for later.
+ */
+export type QuickJobSubject = {
+    name: string;
+    label: string;
+    options: SelectOption[];
+    placeholder: string;
+    unpickedLabel?: string;
+};
+
+/**
+ * Drop a job straight on a queue with just what it is for and what needs
+ * doing. It lands as planned work today, the same as one logged in full,
+ * so the rest of the detail can be filled in later from the service log.
  */
 export default function QuickJobDialog({
     trigger,
-    vehicles,
+    form,
+    subject,
+    titlePlaceholder,
 }: {
     trigger: ReactNode;
-    vehicles: SelectOption[];
+    form: RouteFormDefinition<'post'>;
+    subject: QuickJobSubject;
+    titlePlaceholder: string;
 }) {
     const [open, setOpen] = useState(false);
+    const canLeaveUnpicked = subject.unpickedLabel !== undefined;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -56,14 +72,14 @@ export default function QuickJobDialog({
                 </DialogDescription>
 
                 <Form
-                    {...store.form()}
+                    {...form}
                     options={{ preserveScroll: true }}
                     transform={(data) => ({
                         ...data,
-                        vehicle_id:
-                            data.vehicle_id === NO_VEHICLE
+                        [subject.name]:
+                            data[subject.name] === NOTHING_PICKED
                                 ? null
-                                : data.vehicle_id,
+                                : data[subject.name],
                     })}
                     onSuccess={() => setOpen(false)}
                     className="space-y-4"
@@ -71,34 +87,43 @@ export default function QuickJobDialog({
                     {({ processing, errors }) => (
                         <>
                             <div className="grid gap-2">
-                                <Label htmlFor="quick_job_vehicle_id">
-                                    Vehicle
+                                <Label htmlFor="quick_job_subject">
+                                    {subject.label}
                                 </Label>
                                 <Select
-                                    name="vehicle_id"
-                                    defaultValue={NO_VEHICLE}
+                                    name={subject.name}
+                                    defaultValue={
+                                        canLeaveUnpicked
+                                            ? NOTHING_PICKED
+                                            : undefined
+                                    }
+                                    required={!canLeaveUnpicked}
                                 >
                                     <SelectTrigger
-                                        id="quick_job_vehicle_id"
+                                        id="quick_job_subject"
                                         className="w-full"
                                     >
-                                        <SelectValue />
+                                        <SelectValue
+                                            placeholder={subject.placeholder}
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value={NO_VEHICLE}>
-                                            No vehicle yet
-                                        </SelectItem>
-                                        {vehicles.map((vehicle) => (
+                                        {canLeaveUnpicked && (
+                                            <SelectItem value={NOTHING_PICKED}>
+                                                {subject.unpickedLabel}
+                                            </SelectItem>
+                                        )}
+                                        {subject.options.map((option) => (
                                             <SelectItem
-                                                key={vehicle.value}
-                                                value={vehicle.value}
+                                                key={option.value}
+                                                value={option.value}
                                             >
-                                                {vehicle.label}
+                                                {option.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <InputError message={errors.vehicle_id} />
+                                <InputError message={errors[subject.name]} />
                             </div>
 
                             <div className="grid gap-2">
@@ -108,7 +133,7 @@ export default function QuickJobDialog({
                                 <Input
                                     id="quick_job_title"
                                     name="title"
-                                    placeholder="Replace front brake pads"
+                                    placeholder={titlePlaceholder}
                                     maxLength={120}
                                     required
                                     autoFocus

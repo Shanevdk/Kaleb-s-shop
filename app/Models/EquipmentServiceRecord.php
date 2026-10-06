@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\BooksDays;
+use App\Concerns\SitsOnJobQueue;
 use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
@@ -38,7 +39,7 @@ use Illuminate\Support\Carbon;
 class EquipmentServiceRecord extends Model
 {
     /** @use HasFactory<EquipmentServiceRecordFactory> */
-    use BooksDays, HasFactory, HasUlids;
+    use BooksDays, HasFactory, HasUlids, SitsOnJobQueue;
 
     /**
      * Get the owner of the service record.

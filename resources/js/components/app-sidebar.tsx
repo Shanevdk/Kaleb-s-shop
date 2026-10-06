@@ -118,11 +118,10 @@ const mechanicsNavItems: NavSection[] = [
 /**
  * VDK-Equipment and VDK Equipment USA: picked from the brand switcher, in
  * place of Kaleb's Shop above, each with the same nav. Each has its own
- * equipment, checklists, service log and maintenance schedule, kept apart
- * from the other division's and from the mechanics' vehicles, and carries
- * its own copy of the job queue, since equipment jobs are worked the same
- * way vehicle jobs are. The parts catalogue stays out: equipment jobs don't
- * draw from shelf stock.
+ * equipment, checklists, job queue, service log and maintenance schedule,
+ * kept apart from the other division's and from Kaleb's Shop's vehicle
+ * jobs. The parts catalogue stays out: equipment jobs don't draw from shelf
+ * stock.
  */
 function equipmentNavItems(
     division: EquipmentDivision,
@@ -142,7 +141,6 @@ function equipmentNavItems(
             icon: Cog,
             items: [
                 { title: 'Equipment', href: routes.index(), permission },
-                { title: 'Service log', href: routes.serviceLog(), permission },
                 {
                     title: 'Maintenance schedule',
                     href: routes.schedule(),
@@ -154,12 +152,8 @@ function equipmentNavItems(
             title: 'Service',
             icon: Wrench,
             items: [
-                {
-                    title: 'Job queue',
-                    href: jobQueue(),
-                    permission: 'jobQueue',
-                },
-                { title: 'Log job', href: logJob(), permission: 'serviceLog' },
+                { title: 'Job queue', href: routes.jobQueue(), permission },
+                { title: 'Service log', href: routes.serviceLog(), permission },
             ],
         },
         {

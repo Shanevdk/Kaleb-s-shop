@@ -4,6 +4,10 @@ import {
     store as mainStore,
 } from '@/routes/equipment';
 import { index as mainChecklists } from '@/routes/equipment-checklists';
+import {
+    index as mainJobQueue,
+    store as mainJobQueueStore,
+} from '@/routes/equipment-job-queue';
 import { index as mainSchedule } from '@/routes/equipment-schedule';
 import { index as mainServiceLog } from '@/routes/equipment-service-records';
 import {
@@ -12,6 +16,10 @@ import {
     store as usaStore,
 } from '@/routes/usa/equipment';
 import { index as usaChecklists } from '@/routes/usa/equipment-checklists';
+import {
+    index as usaJobQueue,
+    store as usaJobQueueStore,
+} from '@/routes/usa/equipment-job-queue';
 import { index as usaSchedule } from '@/routes/usa/equipment-schedule';
 import { index as usaServiceLog } from '@/routes/usa/equipment-service-records';
 import type { EquipmentDivision } from '@/types';
@@ -30,6 +38,8 @@ export const divisionRoutes = {
         checklists: mainChecklists,
         serviceLog: mainServiceLog,
         schedule: mainSchedule,
+        jobQueue: mainJobQueue,
+        jobQueueStore: mainJobQueueStore,
     },
     usa: {
         index: usaIndex,
@@ -38,5 +48,7 @@ export const divisionRoutes = {
         checklists: usaChecklists,
         serviceLog: usaServiceLog,
         schedule: usaSchedule,
+        jobQueue: usaJobQueue,
+        jobQueueStore: usaJobQueueStore,
     },
 } satisfies Record<EquipmentDivision, unknown>;

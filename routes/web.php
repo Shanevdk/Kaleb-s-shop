@@ -9,6 +9,7 @@ use App\Http\Controllers\DiagnosisController;
 use App\Http\Controllers\EquipmentChecklistController;
 use App\Http\Controllers\EquipmentChecklistItemController;
 use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\EquipmentJobQueueController;
 use App\Http\Controllers\EquipmentScheduleController;
 use App\Http\Controllers\EquipmentScheduleJobController;
 use App\Http\Controllers\EquipmentServiceRecordController;
@@ -240,6 +241,12 @@ $equipmentLists = function (EquipmentDivision $division): void {
     Route::get('equipment-schedule', [EquipmentScheduleController::class, 'index'])
         ->name('equipment-schedule.index')
         ->defaults('division', $division->value);
+    Route::get('equipment-job-queue', [EquipmentJobQueueController::class, 'index'])
+        ->name('equipment-job-queue.index')
+        ->defaults('division', $division->value);
+    Route::post('equipment-job-queue', [EquipmentJobQueueController::class, 'store'])
+        ->name('equipment-job-queue.store')
+        ->defaults('division', $division->value);
 };
 
 Route::middleware(['auth', 'verified', 'can:equipment'])
@@ -281,6 +288,8 @@ Route::middleware(['auth', 'verified', 'can:viewAny,'.Equipment::class])->group(
         ->name('equipment-schedule.jobs.update');
     Route::delete('equipment-schedule/jobs/{equipmentServiceRecord}', [EquipmentScheduleJobController::class, 'destroy'])
         ->name('equipment-schedule.jobs.destroy');
+    Route::patch('equipment-job-queue/{equipmentServiceRecord}', [EquipmentJobQueueController::class, 'update'])
+        ->name('equipment-job-queue.update');
 });
 
 require __DIR__.'/settings.php';
