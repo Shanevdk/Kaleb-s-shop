@@ -453,6 +453,17 @@ test('moving a later day of a job over several days puts that day where it was m
     expect($job->fresh()->days())->toBe(['2026-09-23', '2026-09-24', '2026-09-25']);
 });
 
+test('the days a job is booked on can be changed by hand', function () {
+    $job = ServiceRecord::factory()->planned()->create(['performed_on' => '2026-09-21']);
+
+    // Picked by hand, so landing on a Sunday is not asked about.
+    $this->actingAs(User::factory()->scheduler()->create())
+        ->patch(route('schedule.jobs.update', $job), ['days' => ['2026-09-26', '2026-09-27', '2026-09-24']])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-24', '2026-09-26', '2026-09-27']);
+});
+
 test('a job can only be moved by one of its own days', function () {
     $job = ServiceRecord::factory()->planned()->create();
     $job->bookOn(['2026-09-21', '2026-09-22'])->save();

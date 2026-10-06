@@ -79,7 +79,7 @@ test('maintenance can be put on the equipment schedule', function () {
 test('maintenance needs a piece of equipment, a title, a type and a day', function () {
     $this->actingAs(User::factory()->create())
         ->post(route('equipment-schedule.jobs.store'), ['equipment_id' => 'missing', 'type' => 'brakes'])
-        ->assertSessionHasErrors(['equipment_id', 'title', 'type', 'performed_on']);
+        ->assertSessionHasErrors(['equipment_id', 'title', 'type', 'days']);
 
     expect(EquipmentServiceRecord::count())->toBe(0);
 });
@@ -121,4 +121,47 @@ test('planned maintenance can be taken off the schedule but maintenance under wa
 
     expect(EquipmentServiceRecord::find($planned->id))->toBeNull()
         ->and(EquipmentServiceRecord::find($started->id))->not->toBeNull();
+});
+
+test('maintenance can be booked over several days and shows on each of them', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('equipment-schedule.jobs.store'), [
+            'equipment_id' => Equipment::factory()->create()->id,
+            'title' => 'Rebuild the hydraulics',
+            'type' => 'maintenance',
+            'days' => ['2026-09-23', '2026-09-21', '2026-09-22'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(EquipmentServiceRecord::sole()->days())->toBe(['2026-09-21', '2026-09-22', '2026-09-23']);
+
+    $this->actingAs($user)
+        ->get(route('equipment-schedule.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('entries', fn ($entries) => collect($entries)->where('kind', 'job')->pluck('date')->all() === ['2026-09-21', '2026-09-22', '2026-09-23'])
+            ->where('stats.jobs', 1)
+        );
+});
+
+test('the days maintenance is booked on can be changed by hand', function () {
+    $job = EquipmentServiceRecord::factory()->planned()->create(['performed_on' => '2026-09-21']);
+
+    $this->actingAs(User::factory()->create())
+        ->patch(route('equipment-schedule.jobs.update', $job), ['days' => ['2026-09-24', '2026-09-22']])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-22', '2026-09-24']);
+});
+
+test('moving a later day of maintenance over several days moves all of it', function () {
+    $job = EquipmentServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-21', '2026-09-22'])->save();
+
+    $this->actingAs(User::factory()->create())
+        ->patch(route('equipment-schedule.jobs.update', $job), ['performed_on' => '2026-09-24', 'day' => '2026-09-22'])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-23', '2026-09-24']);
 });

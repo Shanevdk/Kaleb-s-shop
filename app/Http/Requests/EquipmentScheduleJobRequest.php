@@ -35,8 +35,19 @@ class EquipmentScheduleJobRequest extends FormRequest
             'equipment_id' => ['required', 'string', Rule::exists('equipment', 'id')],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(EquipmentServiceType::class)],
-            'performed_on' => ['required', 'date'],
+            'days' => ['required', 'array', 'min:1', 'max:31'],
+            'days.*' => ['required', 'date', 'distinct'],
             'description' => ['nullable', 'string', 'max:5000'],
         ];
+    }
+
+    /**
+     * A single day may still be sent on its own as performed_on.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('days') && $this->filled('performed_on')) {
+            $this->merge(['days' => [$this->input('performed_on')]]);
+        }
     }
 }

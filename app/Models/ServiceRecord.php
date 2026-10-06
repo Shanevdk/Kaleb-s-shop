@@ -3,15 +3,13 @@
 namespace App\Models;
 
 use App\Actions\EstimateJobDuration;
+use App\Concerns\BooksDays;
 use App\Enums\EstimateStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
 use App\Jobs\EstimateServiceRecordDuration;
-use Carbon\CarbonInterface;
 use Database\Factories\ServiceRecordFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Scope;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -55,7 +53,7 @@ use Illuminate\Support\Str;
 class ServiceRecord extends Model
 {
     /** @use HasFactory<ServiceRecordFactory> */
-    use HasFactory, HasUlids;
+    use BooksDays, HasFactory, HasUlids;
 
     /**
      * A job still to be done gets its time estimated in the background as
@@ -64,10 +62,6 @@ class ServiceRecord extends Model
      */
     protected static function booted(): void
     {
-        static::saving(function (ServiceRecord $record): void {
-            $record->moveScheduledDaysWithFirstDay();
-        });
-
         static::created(function (ServiceRecord $record): void {
             if ($record->canBeEstimated()) {
                 $record->queueEstimate();
@@ -215,92 +209,6 @@ class ServiceRecord extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
-    }
-
-    /**
-     * Book the job on the given days. The first becomes the day it is done
-     * on; a job over more than one day remembers the rest as well.
-     *
-     * @param  array<int, string>  $days
-     */
-    public function bookOn(array $days): static
-    {
-        $days = collect($days)
-            ->map(fn (string $day): string => Carbon::parse($day)->toDateString())
-            ->unique()
-            ->sort()
-            ->values();
-
-        $this->performed_on = $days->first();
-        $this->scheduled_days = $days->count() > 1 ? $days->all() : null;
-        $this->finishes_on = $days->count() > 1 ? $days->last() : null;
-
-        return $this;
-    }
-
-    /**
-     * Get every day the job is booked on, in order.
-     *
-     * @return array<int, string>
-     */
-    public function days(): array
-    {
-        return $this->scheduled_days ?? [$this->performed_on->toDateString()];
-    }
-
-    /**
-     * Moving the first day of a job over several days moves the rest of its
-     * days with it, so the job keeps its shape.
-     */
-    private function moveScheduledDaysWithFirstDay(): void
-    {
-        if ($this->scheduled_days === null || ! $this->isDirty('performed_on') || $this->isDirty('scheduled_days')) {
-            return;
-        }
-
-        $this->bookOn($this->daysMovedBy($this->getOriginal('performed_on'), $this->performed_on));
-    }
-
-    /**
-     * Get the job's days with every one of them moved as far as it takes to
-     * get from one date to the other.
-     *
-     * @return array<int, string>
-     */
-    public function daysMovedBy(CarbonInterface|string $from, CarbonInterface|string $to): array
-    {
-        $moved = (int) Carbon::parse($from)->diffInDays(Carbon::parse($to), false);
-
-        return array_map(
-            fn (string $day): string => Carbon::parse($day)->addDays($moved)->toDateString(),
-            $this->days(),
-        );
-    }
-
-    /**
-     * Limit to jobs booked on any day between the two dates.
-     *
-     * @param  Builder<ServiceRecord>  $query
-     */
-    #[Scope]
-    protected function bookedBetween(Builder $query, string $from, string $to): void
-    {
-        $query->where('performed_on', '<=', $to)->bookedFrom($from);
-    }
-
-    /**
-     * Limit to jobs booked on any day from the date onwards.
-     *
-     * @param  Builder<ServiceRecord>  $query
-     */
-    #[Scope]
-    protected function bookedFrom(Builder $query, string $from): void
-    {
-        $query->where(fn (Builder $query) => $query
-            ->where('finishes_on', '>=', $from)
-            ->orWhere(fn (Builder $query) => $query
-                ->whereNull('finishes_on')
-                ->where('performed_on', '>=', $from)));
     }
 
     /**

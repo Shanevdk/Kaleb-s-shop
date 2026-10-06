@@ -104,7 +104,8 @@ class ServiceRecordController extends Controller
         $user = $request->user();
 
         $short = DB::transaction(function () use ($request, $user): array {
-            $record = $user->serviceRecords()->create($request->recordAttributes());
+            $record = $user->serviceRecords()->make($request->recordAttributes());
+            $record->bookOn($request->days())->save();
 
             $this->syncParts($record, $request->parts(), $user);
 
@@ -160,7 +161,7 @@ class ServiceRecordController extends Controller
         $user = $request->user();
 
         $short = DB::transaction(function () use ($request, $serviceRecord, $user): array {
-            $serviceRecord->update($request->recordAttributes());
+            $serviceRecord->fill($request->recordAttributes())->bookOn($request->days())->save();
 
             $partsBefore = $this->partsFingerprint($serviceRecord);
 

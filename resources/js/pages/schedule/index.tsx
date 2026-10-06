@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import ChangeDaysDialog from '@/components/change-days-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
 import RescheduleDialog from '@/components/reschedule-dialog';
@@ -329,24 +330,34 @@ function ScheduleEntryRow({
                         </Link>
                     </Button>
                 )}
-                {entry.can_move && (
+                {entry.can_move && isCheck && (
                     <RescheduleDialog
                         id={entry.id}
                         title={entry.title}
                         subject={entry.vehicle?.display_name}
-                        form={
-                            isCheck
-                                ? updateCheck.form(entry.id)
-                                : updateJob.form(entry.id)
-                        }
-                        field={isCheck ? 'due_on' : 'performed_on'}
-                        defaultDate={isCheck ? entry.due_on : entry.date}
-                        fields={isCheck ? undefined : { day: entry.date }}
+                        form={updateCheck.form(entry.id)}
+                        field="due_on"
+                        defaultDate={entry.due_on}
                         between={entry.window}
                         trigger={
                             <Button size="sm" variant="outline">
                                 <CalendarDays />
                                 Move
+                            </Button>
+                        }
+                    />
+                )}
+                {entry.can_move && !isCheck && (
+                    <ChangeDaysDialog
+                        id={entry.id}
+                        title={entry.title}
+                        subject={entry.vehicle?.display_name}
+                        form={updateJob.form(entry.id)}
+                        days={entry.days ?? [entry.date]}
+                        trigger={
+                            <Button size="sm" variant="outline">
+                                <CalendarDays />
+                                Days
                             </Button>
                         }
                     />

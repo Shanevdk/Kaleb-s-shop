@@ -23,7 +23,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { divisionRoutes } from '@/lib/equipment-divisions';
-import { formatCurrency, formatDate, formatHours } from '@/lib/format';
+import { formatCurrency, formatHours, formatJobDates } from '@/lib/format';
 import { show as showEquipment } from '@/routes/equipment';
 import { destroy } from '@/routes/equipment-service-records';
 import type {
@@ -197,7 +197,7 @@ export default function EquipmentServiceRecordsIndex({
                                         className="hover:bg-muted/50 cursor-pointer"
                                     >
                                         <TableCell className="text-muted-foreground">
-                                            {formatDate(record.performed_on)}
+                                            {formatJobDates(record)}
                                         </TableCell>
                                         <TableCell className="max-w-xs">
                                             <p className="truncate font-medium">

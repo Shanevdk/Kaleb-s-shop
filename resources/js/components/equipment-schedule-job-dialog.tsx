@@ -1,6 +1,7 @@
 import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import DaysField from '@/components/days-field';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,8 +27,8 @@ import { store } from '@/routes/equipment-schedule/jobs';
 import type { SelectOption } from '@/types';
 
 /**
- * Put maintenance on the equipment schedule. It goes into the equipment
- * service log as planned work.
+ * Put maintenance on the equipment schedule, on one day or several. It goes
+ * into the equipment service log as planned work.
  */
 export default function EquipmentScheduleJobDialog({
     trigger,
@@ -98,48 +99,38 @@ export default function EquipmentScheduleJobDialog({
                                 <InputError message={errors.title} />
                             </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="job_type">Type</Label>
-                                    <Select
-                                        name="type"
-                                        defaultValue={types[0]?.value}
-                                        required
+                            <div className="grid gap-2">
+                                <Label htmlFor="job_type">Type</Label>
+                                <Select
+                                    name="type"
+                                    defaultValue={types[0]?.value}
+                                    required
+                                >
+                                    <SelectTrigger
+                                        id="job_type"
+                                        className="w-full"
                                     >
-                                        <SelectTrigger
-                                            id="job_type"
-                                            className="w-full"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {types.map((type) => (
-                                                <SelectItem
-                                                    key={type.value}
-                                                    value={type.value}
-                                                >
-                                                    {type.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <InputError message={errors.type} />
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <Label htmlFor="job_performed_on">
-                                        Day
-                                    </Label>
-                                    <Input
-                                        id="job_performed_on"
-                                        name="performed_on"
-                                        type="date"
-                                        defaultValue={defaultDate}
-                                        required
-                                    />
-                                    <InputError message={errors.performed_on} />
-                                </div>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {types.map((type) => (
+                                            <SelectItem
+                                                key={type.value}
+                                                value={type.value}
+                                            >
+                                                {type.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.type} />
                             </div>
+
+                            <DaysField
+                                id="job_day"
+                                defaultDays={[defaultDate]}
+                                errors={errors}
+                            />
 
                             <div className="grid gap-2">
                                 <Label htmlFor="job_description">Notes</Label>

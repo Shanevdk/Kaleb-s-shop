@@ -68,6 +68,30 @@ test('a job over several days shows every day it is booked on', function () {
         );
 });
 
+test('a job can be logged over several days and its days changed when it is edited', function () {
+    $user = User::factory()->create();
+    $attributes = [
+        'vehicle_id' => Vehicle::factory()->for($user)->create()->id,
+        'title' => 'Rebuild the engine',
+        'type' => ServiceType::Engine->value,
+        'status' => ServiceStatus::Planned->value,
+    ];
+
+    $this->actingAs($user)
+        ->post(route('service-records.store'), [...$attributes, 'days' => ['2026-10-13', '2026-10-12']])
+        ->assertSessionHasNoErrors();
+
+    $record = ServiceRecord::sole();
+    expect($record->days())->toBe(['2026-10-12', '2026-10-13']);
+
+    $this->actingAs($user)
+        ->put(route('service-records.update', $record), [...$attributes, 'days' => ['2026-10-14']])
+        ->assertSessionHasNoErrors();
+
+    expect($record->refresh()->days())->toBe(['2026-10-14'])
+        ->and($record->finishes_on)->toBeNull();
+});
+
 test('a shopper cannot open a job', function () {
     $user = User::factory()->shopper()->create();
     $record = ServiceRecord::factory()->create();
@@ -145,7 +169,7 @@ test('logging a job requires a title, type, status and date', function () {
             'status' => 'napping',
             'performed_on' => 'not-a-date',
         ])
-        ->assertSessionHasErrors(['title', 'type', 'status', 'performed_on']);
+        ->assertSessionHasErrors(['title', 'type', 'status', 'days.0']);
 });
 
 test('a job can be updated by its owner', function () {

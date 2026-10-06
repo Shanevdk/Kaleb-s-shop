@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\ReschedulesJobs;
 use App\Enums\ServiceStatus;
 use App\Http\Requests\EquipmentScheduleJobRequest;
 use App\Models\EquipmentServiceRecord;
@@ -13,16 +14,20 @@ use Inertia\Inertia;
 
 class EquipmentScheduleJobController extends Controller
 {
+    use ReschedulesJobs;
+
     /**
-     * Put maintenance on the equipment schedule. It lands in the equipment
-     * service log as planned work.
+     * Put maintenance on the equipment schedule, on one day or several. It
+     * lands in the equipment service log as planned work.
      */
     public function store(EquipmentScheduleJobRequest $request): RedirectResponse
     {
-        $request->user()->equipmentServiceRecords()->create([
-            ...$request->validated(),
+        $job = $request->user()->equipmentServiceRecords()->make([
+            ...$request->safe()->except('days'),
             'status' => ServiceStatus::Planned,
         ]);
+
+        $job->bookOn($request->validated('days'))->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Maintenance added to the schedule.')]);
 
@@ -30,7 +35,7 @@ class EquipmentScheduleJobController extends Controller
     }
 
     /**
-     * Move maintenance that is not finished yet to another day.
+     * Change the days maintenance that is not finished yet is booked on.
      */
     public function update(Request $request, EquipmentServiceRecord $equipmentServiceRecord): RedirectResponse
     {
@@ -42,14 +47,10 @@ class EquipmentScheduleJobController extends Controller
             ]);
         }
 
-        $validated = $request->validate([
-            'performed_on' => ['required', 'date'],
-        ]);
-
-        $equipmentServiceRecord->update($validated);
+        $this->reschedule($request, $equipmentServiceRecord);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Moved to :date.', [
-            'date' => $equipmentServiceRecord->performed_on->format('D j M'),
+            'date' => $this->bookedDates($equipmentServiceRecord),
         ])]);
 
         return back();

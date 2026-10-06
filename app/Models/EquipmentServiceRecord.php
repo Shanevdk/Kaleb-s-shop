@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BooksDays;
 use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
@@ -24,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property EquipmentServiceType $type
  * @property ServiceStatus $status
  * @property Carbon $performed_on
+ * @property array<int, string>|null $scheduled_days
+ * @property Carbon|null $finishes_on
  * @property string $hours
  * @property string $parts_cost
  * @property string $labour_cost
@@ -35,7 +38,7 @@ use Illuminate\Support\Carbon;
 class EquipmentServiceRecord extends Model
 {
     /** @use HasFactory<EquipmentServiceRecordFactory> */
-    use HasFactory, HasUlids;
+    use BooksDays, HasFactory, HasUlids;
 
     /**
      * Get the owner of the service record.
@@ -89,6 +92,8 @@ class EquipmentServiceRecord extends Model
             'type' => EquipmentServiceType::class,
             'status' => ServiceStatus::class,
             'performed_on' => 'date',
+            'scheduled_days' => 'array',
+            'finishes_on' => 'date',
             'hours' => 'decimal:2',
             'parts_cost' => 'decimal:2',
             'labour_cost' => 'decimal:2',

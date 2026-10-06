@@ -1,7 +1,7 @@
 import { Form } from '@inertiajs/react';
-import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import DaysField from '@/components/days-field';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,26 +27,6 @@ import { store } from '@/routes/schedule/jobs';
 import type { SelectOption } from '@/types';
 
 /**
- * The day after the given one, as YYYY-MM-DD.
- */
-const dayAfter = (date: string) =>
-    new Date(Date.parse(`${date}T00:00:00Z`) + 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
-
-/**
- * The day to add next: the one after the latest day picked so far, or the
- * day the dialog opened on when none has been picked yet.
- */
-const nextDay = (days: string[], defaultDate: string) => {
-    const picked = days.filter((day) => day !== '').sort();
-
-    return picked.length > 0
-        ? dayAfter(picked[picked.length - 1])
-        : defaultDate;
-};
-
-/**
  * Put a job on the schedule for a vehicle, on one day or several. It goes
  * into the service log as planned work for the mechanics to pick up.
  */
@@ -62,19 +42,9 @@ export default function ScheduleJobDialog({
     defaultDate: string;
 }) {
     const [open, setOpen] = useState(false);
-    const [days, setDays] = useState([defaultDate]);
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={(isOpen) => {
-                if (isOpen) {
-                    setDays([defaultDate]);
-                }
-
-                setOpen(isOpen);
-            }}
-        >
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{trigger}</DialogTrigger>
             <DialogContent>
                 <DialogTitle>Add a job to the schedule</DialogTitle>
@@ -155,79 +125,11 @@ export default function ScheduleJobDialog({
                                 <InputError message={errors.type} />
                             </div>
 
-                            <div className="grid gap-2">
-                                <Label htmlFor="job_day_0">
-                                    {days.length > 1 ? 'Days' : 'Day'}
-                                </Label>
-                                {days.map((day, position) => (
-                                    <div
-                                        key={position}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Input
-                                            id={`job_day_${position}`}
-                                            name="days[]"
-                                            type="date"
-                                            value={day}
-                                            onChange={(event) =>
-                                                setDays((current) =>
-                                                    current.map(
-                                                        (existing, index) =>
-                                                            index === position
-                                                                ? event.target
-                                                                      .value
-                                                                : existing,
-                                                    ),
-                                                )
-                                            }
-                                            aria-label={`Day ${position + 1}`}
-                                            required
-                                        />
-                                        {days.length > 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    setDays((current) =>
-                                                        current.filter(
-                                                            (_, index) =>
-                                                                index !==
-                                                                position,
-                                                        ),
-                                                    )
-                                                }
-                                                aria-label={`Remove day ${position + 1}`}
-                                            >
-                                                <X />
-                                            </Button>
-                                        )}
-                                    </div>
-                                ))}
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="justify-self-start"
-                                    onClick={() =>
-                                        setDays((current) => [
-                                            ...current,
-                                            nextDay(current, defaultDate),
-                                        ])
-                                    }
-                                >
-                                    <Plus />
-                                    Add another day
-                                </Button>
-                                <InputError
-                                    message={
-                                        errors.days ??
-                                        Object.entries(errors).find(([key]) =>
-                                            key.startsWith('days.'),
-                                        )?.[1]
-                                    }
-                                />
-                            </div>
+                            <DaysField
+                                id="job_day"
+                                defaultDays={[defaultDate]}
+                                errors={errors}
+                            />
 
                             <div className="grid gap-2">
                                 <Label htmlFor="job_description">Notes</Label>

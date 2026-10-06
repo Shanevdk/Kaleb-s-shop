@@ -10,10 +10,10 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import ChangeDaysDialog from '@/components/change-days-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import EquipmentScheduleJobDialog from '@/components/equipment-schedule-job-dialog';
 import PageHeader from '@/components/page-header';
-import RescheduleDialog from '@/components/reschedule-dialog';
 import ScheduleCalendar, {
     firstDayToShow,
     isBehind,
@@ -55,18 +55,32 @@ const kinds: Record<EquipmentScheduleEntryKind, CalendarKind> = {
 };
 
 /**
- * Move maintenance to another day.
+ * Move maintenance to another day. Dragging any day of maintenance over
+ * several days moves all of it by the same amount; if that would put its
+ * other days on days the shop is closed, it asks before doing so.
  */
-const moveEntry = (entry: EquipmentScheduleEntry, date: string) =>
+const moveEntry = (
+    entry: EquipmentScheduleEntry,
+    date: string,
+    onClosedDays = false,
+) =>
     router.patch(
         updateJob.url(entry.id),
-        { performed_on: date },
+        { performed_on: date, day: entry.date, on_closed_days: onClosedDays },
         {
             preserveScroll: true,
             onError: (errors) =>
-                toast.error(
-                    Object.values(errors)[0] ?? 'That could not be moved.',
-                ),
+                errors.closed_days
+                    ? toast.warning(errors.closed_days, {
+                          action: {
+                              label: 'Move anyway',
+                              onClick: () => moveEntry(entry, date, true),
+                          },
+                      })
+                    : toast.error(
+                          Object.values(errors)[0] ??
+                              'That could not be moved.',
+                      ),
         },
     );
 
@@ -180,7 +194,7 @@ export default function EquipmentSchedule({
                             : entry.title
                     }
                     onMove={moveEntry}
-                    dragHint="Drag maintenance to move it to another day."
+                    dragHint="Drag maintenance to move it to another day. Maintenance over several days moves as a whole."
                 />
 
                 <ScheduleDayPanel
@@ -241,6 +255,12 @@ function EquipmentScheduleEntryRow({
                     >
                         {statusLabels[entry.status]}
                     </span>
+                    {entry.days && entry.days.length > 1 && (
+                        <span className="text-muted-foreground text-xs">
+                            Day {entry.days.indexOf(entry.date) + 1} of{' '}
+                            {entry.days.length}
+                        </span>
+                    )}
                 </div>
                 <p className="truncate font-medium">{entry.title}</p>
                 <p className="text-muted-foreground text-xs">
@@ -267,17 +287,16 @@ function EquipmentScheduleEntryRow({
                     )
                 )}
                 {entry.can_move && (
-                    <RescheduleDialog
+                    <ChangeDaysDialog
                         id={entry.id}
                         title={entry.title}
                         subject={entry.equipment?.name}
                         form={updateJob.form(entry.id)}
-                        field="performed_on"
-                        defaultDate={entry.date}
+                        days={entry.days ?? [entry.date]}
                         trigger={
                             <Button size="sm" variant="outline">
                                 <CalendarDays />
-                                Move
+                                Days
                             </Button>
                         }
                     />

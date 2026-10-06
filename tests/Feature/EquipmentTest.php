@@ -278,6 +278,30 @@ test('a service record can be logged, updated and removed against a piece of equ
     expect(EquipmentServiceRecord::find($record->id))->toBeNull();
 });
 
+test('a service record can be logged over several days and its days changed', function () {
+    $user = User::factory()->create();
+    $equipment = Equipment::factory()->for($user)->create();
+    $attributes = [
+        'title' => 'Rebuild the hydraulics',
+        'type' => EquipmentServiceType::Maintenance->value,
+        'status' => ServiceStatus::Planned->value,
+    ];
+
+    $this->actingAs($user)
+        ->post(route('equipment-service-records.store', $equipment), [...$attributes, 'days' => ['2026-10-13', '2026-10-12']])
+        ->assertSessionHasNoErrors();
+
+    $record = EquipmentServiceRecord::sole();
+    expect($record->days())->toBe(['2026-10-12', '2026-10-13']);
+
+    $this->actingAs($user)
+        ->patch(route('equipment-service-records.update', $record), [...$attributes, 'days' => ['2026-10-12', '2026-10-13', '2026-10-15']])
+        ->assertSessionHasNoErrors();
+
+    expect($record->refresh()->days())->toBe(['2026-10-12', '2026-10-13', '2026-10-15'])
+        ->and($record->finishes_on->toDateString())->toBe('2026-10-15');
+});
+
 test('guests cannot see the equipment service log', function () {
     $this->get(route('equipment-service-records.index'))->assertRedirect(route('login'));
 });

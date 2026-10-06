@@ -27,7 +27,12 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { divisionRoutes } from '@/lib/equipment-divisions';
-import { formatCurrency, formatDate, formatHours } from '@/lib/format';
+import {
+    formatCurrency,
+    formatDate,
+    formatHours,
+    formatJobDates,
+} from '@/lib/format';
 import { destroy, edit, show } from '@/routes/equipment';
 import { show as showChecklist } from '@/routes/equipment-checklists';
 import { destroy as destroyRecord } from '@/routes/equipment-service-records';
@@ -247,9 +252,7 @@ export default function EquipmentShow({
                                         {records.map((record) => (
                                             <TableRow key={record.id}>
                                                 <TableCell className="text-muted-foreground">
-                                                    {formatDate(
-                                                        record.performed_on,
-                                                    )}
+                                                    {formatJobDates(record)}
                                                 </TableCell>
                                                 <TableCell className="max-w-xs">
                                                     <p className="truncate font-medium">

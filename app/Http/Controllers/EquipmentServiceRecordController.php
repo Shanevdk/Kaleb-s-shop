@@ -10,6 +10,7 @@ use App\Models\Equipment;
 use App\Models\EquipmentServiceRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -81,10 +82,10 @@ class EquipmentServiceRecordController extends Controller
 
         $validated = $this->validated($request);
 
-        $request->user()->equipmentServiceRecords()->create([
-            ...$validated,
+        $request->user()->equipmentServiceRecords()->make([
+            ...Arr::except($validated, 'days'),
             'equipment_id' => $equipment->id,
-        ]);
+        ])->bookOn($validated['days'])->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Service record logged.')]);
 
@@ -98,7 +99,9 @@ class EquipmentServiceRecordController extends Controller
     {
         Gate::authorize('update', $equipmentServiceRecord);
 
-        $equipmentServiceRecord->update($this->validated($request));
+        $validated = $this->validated($request);
+
+        $equipmentServiceRecord->fill(Arr::except($validated, 'days'))->bookOn($validated['days'])->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Service record updated.')]);
 
@@ -120,7 +123,8 @@ class EquipmentServiceRecordController extends Controller
     }
 
     /**
-     * Get the validated attributes for a service record.
+     * Get the validated attributes for a service record, with the days it is
+     * booked on. A single day may still be sent on its own as performed_on.
      *
      * @return array<string, mixed>
      */
@@ -132,11 +136,16 @@ class EquipmentServiceRecordController extends Controller
             'labour_cost' => $request->input('labour_cost') ?: 0,
         ]);
 
+        if (! $request->has('days') && $request->filled('performed_on')) {
+            $request->merge(['days' => [$request->input('performed_on')]]);
+        }
+
         return $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(EquipmentServiceType::class)],
             'status' => ['required', Rule::enum(ServiceStatus::class)],
-            'performed_on' => ['required', 'date'],
+            'days' => ['required', 'array', 'min:1', 'max:31'],
+            'days.*' => ['required', 'date', 'distinct'],
             'hours' => ['nullable', 'numeric', 'min:0', 'max:1000'],
             'parts_cost' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'labour_cost' => ['nullable', 'numeric', 'min:0', 'max:1000000'],

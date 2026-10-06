@@ -27,6 +27,8 @@ class EquipmentServiceRecordResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'performed_on' => $this->performed_on->toDateString(),
+            'finishes_on' => $this->finishes_on?->toDateString(),
+            'days' => $this->days(),
             'hours' => (float) $this->hours,
             'parts_cost' => (float) $this->parts_cost,
             'labour_cost' => (float) $this->labour_cost,

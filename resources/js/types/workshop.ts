@@ -379,6 +379,10 @@ export type EquipmentServiceRecord = {
     status: ServiceStatus;
     status_label: string;
     performed_on: string;
+    /** The last day of maintenance booked over several days; null for one day. */
+    finishes_on: string | null;
+    /** Every day the maintenance is booked on, in order. */
+    days: string[];
     hours: number;
     parts_cost: number;
     labour_cost: number;
@@ -516,6 +520,8 @@ export type EquipmentScheduleEntry = {
     title: string;
     type_label: string | null;
     date: string;
+    /** Every day maintenance is booked on; a checklist has none. */
+    days?: string[];
     status: ScheduledCheckStatus;
     equipment: {
         id: string;

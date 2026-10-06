@@ -1,7 +1,7 @@
 import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import InputError from '@/components/input-error';
+import DaysField from '@/components/days-field';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -12,32 +12,25 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { formatDate } from '@/lib/format';
 import type { RouteFormDefinition } from '@/wayfinder';
 
 /**
- * Move something on a schedule to another day. A booked check has to stay
- * inside the window (the month or year) it covers.
+ * Change the days a job on a schedule is booked on: move it, spread it over
+ * more days, or take days off it.
  */
-export default function RescheduleDialog({
+export default function ChangeDaysDialog({
     id,
     title,
     subject,
     form,
-    field,
-    defaultDate,
-    between = null,
+    days,
     trigger,
 }: {
     id: string;
     title: string;
     subject: string | undefined;
     form: RouteFormDefinition<'post'>;
-    field: string;
-    defaultDate: string;
-    between?: { from: string; to: string } | null;
+    days: string[];
     trigger: ReactNode;
 }) {
     const [open, setOpen] = useState(false);
@@ -46,12 +39,10 @@ export default function RescheduleDialog({
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{trigger}</DialogTrigger>
             <DialogContent>
-                <DialogTitle>Move {title.toLowerCase()}</DialogTitle>
-                <DialogDescription>
-                    {subject}
-                    {between &&
-                        ` · any day from ${formatDate(between.from)} to ${formatDate(between.to)}`}
-                </DialogDescription>
+                <DialogTitle>
+                    Change the days for {title.toLowerCase()}
+                </DialogTitle>
+                <DialogDescription>{subject}</DialogDescription>
 
                 <Form
                     {...form}
@@ -61,19 +52,11 @@ export default function RescheduleDialog({
                 >
                     {({ processing, errors }) => (
                         <>
-                            <div className="grid gap-2">
-                                <Label htmlFor={`move_${id}`}>New day</Label>
-                                <Input
-                                    id={`move_${id}`}
-                                    name={field}
-                                    type="date"
-                                    defaultValue={defaultDate}
-                                    min={between?.from}
-                                    max={between?.to}
-                                    required
-                                />
-                                <InputError message={errors[field]} />
-                            </div>
+                            <DaysField
+                                id={`days_${id}`}
+                                defaultDays={days}
+                                errors={errors}
+                            />
 
                             <DialogFooter className="gap-2">
                                 <DialogClose asChild>
@@ -82,7 +65,7 @@ export default function RescheduleDialog({
                                     </Button>
                                 </DialogClose>
                                 <Button type="submit" disabled={processing}>
-                                    Move
+                                    Save days
                                 </Button>
                             </DialogFooter>
                         </>

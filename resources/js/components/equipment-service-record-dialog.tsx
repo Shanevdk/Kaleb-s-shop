@@ -1,6 +1,7 @@
 import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import DaysField from '@/components/days-field';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -144,24 +145,13 @@ export default function EquipmentServiceRecordDialog({
                                 </div>
                             </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="record_performed_on">
-                                        Day
-                                    </Label>
-                                    <Input
-                                        id="record_performed_on"
-                                        name="performed_on"
-                                        type="date"
-                                        defaultValue={
-                                            record?.performed_on ??
-                                            todayString()
-                                        }
-                                        required
-                                    />
-                                    <InputError message={errors.performed_on} />
-                                </div>
+                            <DaysField
+                                id="record_day"
+                                defaultDays={record?.days ?? [todayString()]}
+                                errors={errors}
+                            />
 
+                            <div className="grid gap-4 sm:grid-cols-3">
                                 <div className="grid gap-2">
                                     <Label htmlFor="record_hours">Hours</Label>
                                     <Input
@@ -175,9 +165,7 @@ export default function EquipmentServiceRecordDialog({
                                     />
                                     <InputError message={errors.hours} />
                                 </div>
-                            </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="record_parts_cost">
                                         Parts cost

@@ -39,7 +39,8 @@ class ServiceRecordRequest extends FormRequest
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(ServiceType::class)],
             'status' => ['required', Rule::enum(ServiceStatus::class)],
-            'performed_on' => ['required', 'date'],
+            'days' => ['required', 'array', 'min:1', 'max:31'],
+            'days.*' => ['required', 'date', 'distinct'],
             'odometer' => ['nullable', 'integer', 'min:0', 'max:5000000'],
             'hours' => ['nullable', 'numeric', 'min:0', 'max:999'],
             'parts_cost' => ['nullable', 'numeric', 'min:0', 'max:999999'],
@@ -69,7 +70,17 @@ class ServiceRecordRequest extends FormRequest
      */
     public function recordAttributes(): array
     {
-        return $this->safe()->except('parts');
+        return $this->safe()->except(['parts', 'days']);
+    }
+
+    /**
+     * Get the days the job is booked on.
+     *
+     * @return array<int, string>
+     */
+    public function days(): array
+    {
+        return $this->validated('days');
     }
 
     /**
@@ -89,7 +100,8 @@ class ServiceRecordRequest extends FormRequest
     }
 
     /**
-     * Prepare the data for validation.
+     * Prepare the data for validation. A single day may still be sent on its
+     * own as performed_on.
      */
     protected function prepareForValidation(): void
     {
@@ -98,5 +110,9 @@ class ServiceRecordRequest extends FormRequest
             'parts_cost' => $this->input('parts_cost') ?: 0,
             'labour_cost' => $this->input('labour_cost') ?: 0,
         ]);
+
+        if (! $this->has('days') && $this->filled('performed_on')) {
+            $this->merge(['days' => [$this->input('performed_on')]]);
+        }
     }
 }

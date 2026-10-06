@@ -1,6 +1,7 @@
 import { Form, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import ServiceRecordController from '@/actions/App/Http/Controllers/ServiceRecordController';
+import DaysField from '@/components/days-field';
 import InputError from '@/components/input-error';
 import JobEstimate from '@/components/job-estimate';
 import ServiceRecordParts from '@/components/service-record-parts';
@@ -15,7 +16,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { formatDate, todayString } from '@/lib/format';
+import { todayString } from '@/lib/format';
 import { index } from '@/routes/service-records';
 import type {
     SelectOption,
@@ -190,29 +191,15 @@ export default function ServiceRecordForm({
                             Time &amp; cost
                         </h2>
 
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                            <div className="grid gap-2">
-                                <Label htmlFor="performed_on">Date</Label>
-                                <Input
-                                    id="performed_on"
-                                    name="performed_on"
-                                    type="date"
-                                    defaultValue={
-                                        record?.performed_on ?? todayString()
-                                    }
-                                    required
-                                />
-                                {record && record.days.length > 1 && (
-                                    <p className="text-muted-foreground text-xs">
-                                        First of {record.days.length} days
-                                        booked, to{' '}
-                                        {formatDate(record.days.at(-1))}.
-                                        Changing it moves the other days too.
-                                    </p>
-                                )}
-                                <InputError message={errors.performed_on} />
-                            </div>
+                        <div className="max-w-xs">
+                            <DaysField
+                                id="performed_on"
+                                defaultDays={record?.days ?? [todayString()]}
+                                errors={errors}
+                            />
+                        </div>
 
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="odometer">Odometer (km)</Label>
                                 <Input
