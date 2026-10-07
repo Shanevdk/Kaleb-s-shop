@@ -1,34 +1,38 @@
-import {
-    Camera,
-    CameraPosition,
-    DataCaptureContext,
-    DataCaptureView,
-    FrameSourceState,
-} from '@scandit/web-datacapture-core';
-import {
-    BarcodeCapture,
-    BarcodeCaptureOverlay,
-    BarcodeCaptureSettings,
-    barcodeCaptureLoader,
-    Symbology,
-} from '@scandit/web-datacapture-barcode';
+import type * as ScanditBarcode from '@scandit/web-datacapture-barcode';
+import type * as ScanditCore from '@scandit/web-datacapture-core';
 import { useEffect, useRef, useState } from 'react';
+
+/**
+ * Load the Scandit SDK the first time the camera is opened. It is a few
+ * hundred kilobytes of script, so pages that offer scanning stay quick to
+ * load for everyone who never presses the button.
+ */
+function loadScandit() {
+    return Promise.all([
+        import('@scandit/web-datacapture-core'),
+        import('@scandit/web-datacapture-barcode'),
+    ]);
+}
 
 /**
  * The symbologies worth reading in a workshop: retail codes on boxed parts,
  * Code 128/39 on supplier labels, and QR / Data Matrix on newer packaging.
  */
-const symbologies = [
-    Symbology.EAN13UPCA,
-    Symbology.EAN8,
-    Symbology.UPCE,
-    Symbology.Code128,
-    Symbology.Code39,
-    Symbology.Code93,
-    Symbology.InterleavedTwoOfFive,
-    Symbology.QR,
-    Symbology.DataMatrix,
-];
+function workshopSymbologies({
+    Symbology,
+}: typeof ScanditBarcode): ScanditBarcode.Symbology[] {
+    return [
+        Symbology.EAN13UPCA,
+        Symbology.EAN8,
+        Symbology.UPCE,
+        Symbology.Code128,
+        Symbology.Code39,
+        Symbology.Code93,
+        Symbology.InterleavedTwoOfFive,
+        Symbology.QR,
+        Symbology.DataMatrix,
+    ];
+}
 
 export type ScannerStatus = 'idle' | 'starting' | 'running' | 'error';
 
@@ -70,9 +74,10 @@ export function useBarcodeScanner({
         }
 
         let disposed = false;
-        let context: DataCaptureContext | null = null;
-        let camera: Camera | null = null;
-        let view: DataCaptureView | null = null;
+        let context: ScanditCore.DataCaptureContext | null = null;
+        let camera: ScanditCore.Camera | null = null;
+        let view: ScanditCore.DataCaptureView | null = null;
+        let core: typeof ScanditCore | null = null;
 
         /**
          * Switch the camera off and free the engine. The cleanup calls it, and
@@ -87,9 +92,11 @@ export function useBarcodeScanner({
             context = null;
 
             openView?.detachFromElement();
-            void openCamera
-                ?.switchToDesiredState(FrameSourceState.Off)
-                .catch(() => {});
+            if (openCamera && core) {
+                void openCamera
+                    .switchToDesiredState(core.FrameSourceState.Off)
+                    .catch(() => {});
+            }
             void openContext?.dispose();
         };
 
@@ -98,6 +105,27 @@ export function useBarcodeScanner({
             setError(null);
 
             try {
+                const [loadedCore, barcode] = await loadScandit();
+                core = loadedCore;
+
+                if (disposed) {
+                    return;
+                }
+
+                const {
+                    Camera,
+                    CameraPosition,
+                    DataCaptureContext,
+                    DataCaptureView,
+                    FrameSourceState,
+                } = loadedCore;
+                const {
+                    BarcodeCapture,
+                    BarcodeCaptureOverlay,
+                    BarcodeCaptureSettings,
+                    barcodeCaptureLoader,
+                } = barcode;
+
                 const startedContext = await DataCaptureContext.forLicenseKey(
                     licenseKey,
                     {
@@ -120,7 +148,7 @@ export function useBarcodeScanner({
                 await startedContext.setFrameSource(startedCamera);
 
                 const settings = new BarcodeCaptureSettings();
-                settings.enableSymbologies(symbologies);
+                settings.enableSymbologies(workshopSymbologies(barcode));
                 settings.codeDuplicateFilter = 1500;
 
                 const capture = await BarcodeCapture.forContext(

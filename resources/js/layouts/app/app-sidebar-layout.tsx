@@ -18,8 +18,14 @@ export default function AppSidebarLayout({
             <AppSidebar />
             <AppContent variant="sidebar" className="min-w-0 overflow-x-clip">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
-                {/* The page stays mounted under the skeleton, so going nowhere keeps its state. */}
-                <div className={isLoading ? 'hidden' : 'contents'}>
+                {/* The page stays mounted under the skeleton, so going nowhere keeps its state. A new page, or one coming back from under the skeleton, fades in. */}
+                <div
+                    className={
+                        isLoading
+                            ? 'hidden'
+                            : '*:motion-safe:animate-in *:motion-safe:fade-in contents *:motion-safe:duration-200'
+                    }
+                >
                     {children}
                 </div>
                 {isLoading && <PageSkeleton />}

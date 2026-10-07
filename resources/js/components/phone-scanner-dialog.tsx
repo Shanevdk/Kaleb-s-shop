@@ -260,6 +260,8 @@ export default function PhoneScannerDialog({
                         <>
                             <img
                                 src={pairing.qr}
+                                width={240}
+                                height={240}
                                 alt="QR code to open the phone scanner"
                                 className="size-60 rounded-xl border bg-white p-2"
                             />

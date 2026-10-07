@@ -565,6 +565,8 @@ export default function MachineModel({
                         {photos.engine && (
                             <img
                                 src={photos.engine}
+                                loading="lazy"
+                                decoding="async"
                                 alt="Engine bay photo"
                                 className="aspect-[4/3] w-full rounded-lg border object-cover"
                             />

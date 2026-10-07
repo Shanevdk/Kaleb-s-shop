@@ -32,6 +32,25 @@ test('a photo of the vehicle can be taken from a set angle and replaced', functi
     Storage::disk('public')->assertExists($second);
 });
 
+test('a camera photo is kept as a webp shrunk to fit 1600 pixels', function () {
+    Storage::fake('public');
+    $user = User::factory()->create();
+    $vehicle = Vehicle::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->post(route('vehicles.photos.store', [$vehicle, 'front']), [
+            'photo' => UploadedFile::fake()->image('front.jpg', 4000, 3000),
+        ])
+        ->assertRedirect();
+
+    $path = $vehicle->refresh()->photos['front'];
+    $size = getimagesizefromstring(Storage::disk('public')->get($path));
+
+    expect($path)->toEndWith('.webp')
+        ->and($size['mime'])->toBe('image/webp')
+        ->and([$size[0], $size[1]])->toBe([1600, 1200]);
+});
+
 test('the vehicle page lists the photo urls and the angles to shoot', function () {
     Storage::fake('public');
     $user = User::factory()->create();

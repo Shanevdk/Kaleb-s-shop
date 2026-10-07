@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\RecordStockMovement;
+use App\Actions\StoreOptimizedImage;
 use App\Enums\PartCategory;
 use App\Enums\UnitOfMeasure;
 use App\Http\Requests\AssignBarcodeRequest;
@@ -98,11 +99,11 @@ class InventoryItemController extends Controller
     /**
      * Store a newly stocked part.
      */
-    public function store(InventoryItemRequest $request): RedirectResponse
+    public function store(InventoryItemRequest $request, StoreOptimizedImage $storeOptimizedImage): RedirectResponse
     {
         $inventoryItem = $request->user()->inventoryItems()->create([
             ...$request->safe()->except(['image', 'remove_image', 'fitments', 'quantity_shown']),
-            'image_path' => $this->storeImage($request->file('image')),
+            'image_path' => $this->storeImage($request->file('image'), $storeOptimizedImage),
         ]);
 
         $inventoryItem->syncFitments($request->fitments());
@@ -138,6 +139,7 @@ class InventoryItemController extends Controller
         InventoryItemRequest $request,
         InventoryItem $inventoryItem,
         RecordStockMovement $recordStockMovement,
+        StoreOptimizedImage $storeOptimizedImage,
     ): RedirectResponse {
         $attributes = $request->safe()->except(['image', 'remove_image', 'fitments', 'quantity', 'quantity_shown']);
         $quantityChange = $request->quantityChange($inventoryItem);
@@ -145,7 +147,7 @@ class InventoryItemController extends Controller
 
         if ($image instanceof UploadedFile) {
             $this->deleteImage($inventoryItem);
-            $attributes['image_path'] = $this->storeImage($image);
+            $attributes['image_path'] = $this->storeImage($image, $storeOptimizedImage);
         } elseif ($request->boolean('remove_image')) {
             $this->deleteImage($inventoryItem);
             $attributes['image_path'] = null;
@@ -242,11 +244,15 @@ class InventoryItemController extends Controller
     }
 
     /**
-     * Put the uploaded part photo on the public disk.
+     * Put the uploaded part photo on the public disk, shrunk to a WebP.
      */
-    private function storeImage(?UploadedFile $image): ?string
+    private function storeImage(?UploadedFile $image, StoreOptimizedImage $storeOptimizedImage): ?string
     {
-        return $image?->store('inventory', 'public') ?: null;
+        if ($image === null) {
+            return null;
+        }
+
+        return $storeOptimizedImage->handle($image, 'inventory') ?: null;
     }
 
     /**

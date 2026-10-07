@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\StoreOptimizedImage;
 use App\Enums\PhotoAngle;
 use App\Http\Requests\VehiclePhotoRequest;
 use App\Models\Vehicle;
@@ -16,7 +17,7 @@ class VehiclePhotoController extends Controller
      * Keep a photo of the vehicle from one of the set angles, replacing
      * whatever was there for that angle.
      */
-    public function store(VehiclePhotoRequest $request, Vehicle $vehicle, PhotoAngle $angle): RedirectResponse
+    public function store(VehiclePhotoRequest $request, Vehicle $vehicle, PhotoAngle $angle, StoreOptimizedImage $storeOptimizedImage): RedirectResponse
     {
         $photos = $vehicle->photos ?? [];
 
@@ -24,7 +25,7 @@ class VehiclePhotoController extends Controller
             Storage::disk('public')->delete($photos[$angle->value]);
         }
 
-        $photos[$angle->value] = $request->file('photo')->store("vehicles/{$vehicle->id}", 'public');
+        $photos[$angle->value] = $storeOptimizedImage->handle($request->file('photo'), "vehicles/{$vehicle->id}");
 
         $vehicle->update(['photos' => $photos]);
 

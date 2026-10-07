@@ -104,6 +104,8 @@ export default function PhotoCapture({
                         <img
                             src={src}
                             alt={angle.label}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover"
                         />
                     ) : (

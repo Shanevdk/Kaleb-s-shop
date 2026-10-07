@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function PageSkeleton() {
     return (
         <div
-            className="flex flex-1 flex-col gap-6 p-4 sm:p-6"
+            className="motion-safe:animate-in motion-safe:fade-in flex flex-1 flex-col gap-6 p-4 motion-safe:duration-300 sm:p-6"
             role="status"
             aria-label="Loading"
         >

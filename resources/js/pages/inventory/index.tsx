@@ -303,6 +303,7 @@ export default function InventoryIndex({
                                             src={item.image_url}
                                             alt={item.name}
                                             loading="lazy"
+                                            decoding="async"
                                             className="size-full object-cover"
                                         />
                                     ) : (

@@ -5,15 +5,25 @@ import { useEffect, useState } from 'react';
  * Whether a visit to another page is taking long enough to be worth a
  * skeleton. Quick visits (prefetched pages, mostly) never show one, and
  * reloading the same page with new filters keeps it on screen.
+ *
+ * The wait is timed from `before`, not `start`: a visit that picks up a
+ * prefetch still on its way never sends a request of its own, so it never
+ * fires `start` or `finish`, only `navigate` once the page arrives.
  */
 export function usePageLoading(delay = 150): boolean {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout> | undefined;
-        let current: unknown = null;
+        let pending: { id: string; pathname: string } | null = null;
 
-        const offStart = router.on('start', (event) => {
+        const stop = () => {
+            pending = null;
+            clearTimeout(timer);
+            setIsLoading(false);
+        };
+
+        const offBefore = router.on('before', (event) => {
             const { visit } = event.detail;
 
             if (
@@ -27,24 +37,39 @@ export function usePageLoading(delay = 150): boolean {
                 return;
             }
 
-            current = visit;
+            pending = { id: visit.id, pathname: visit.url.pathname };
             clearTimeout(timer);
             timer = setTimeout(() => setIsLoading(true), delay);
         });
 
-        const offFinish = router.on('finish', (event) => {
-            if (event.detail.visit !== current) {
-                return;
-            }
+        const offNavigate = router.on('navigate', (event) => {
+            const { pathname } = new URL(
+                event.detail.page.url,
+                window.location.origin,
+            );
 
-            current = null;
-            clearTimeout(timer);
-            setIsLoading(false);
+            if (pending?.pathname === pathname) {
+                stop();
+            }
+        });
+
+        const offFinish = router.on('finish', (event) => {
+            if (event.detail.visit.id === pending?.id) {
+                stop();
+            }
+        });
+
+        const offNetworkError = router.on('networkError', () => {
+            if (pending) {
+                stop();
+            }
         });
 
         return () => {
-            offStart();
+            offBefore();
+            offNavigate();
             offFinish();
+            offNetworkError();
             clearTimeout(timer);
         };
     }, [delay]);

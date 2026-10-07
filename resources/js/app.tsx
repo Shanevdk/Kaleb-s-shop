@@ -5,6 +5,7 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { prefetchOnIntent } from '@/lib/prefetch-on-intent';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -105,6 +106,8 @@ if (!redirectingToLastPath) {
             color: '#4B5563',
         },
     });
+
+    prefetchOnIntent();
 
     // This will set light / dark mode on load...
     initializeTheme();
