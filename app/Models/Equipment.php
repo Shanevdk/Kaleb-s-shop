@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property EquipmentStatus $status
  * @property Carbon|null $purchased_on
  * @property string|null $notes
+ * @property string|null $default_checklist_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -54,6 +55,18 @@ class Equipment extends Model
     public function checklists(): HasMany
     {
         return $this->hasMany(EquipmentChecklist::class);
+    }
+
+    /**
+     * Get the checklist the next one is started from. Each new checklist
+     * takes over as the default, so checks added to or taken off it carry
+     * forward.
+     *
+     * @return BelongsTo<EquipmentChecklist, $this>
+     */
+    public function defaultChecklist(): BelongsTo
+    {
+        return $this->belongsTo(EquipmentChecklist::class, 'default_checklist_id');
     }
 
     /**

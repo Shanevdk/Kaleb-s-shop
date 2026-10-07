@@ -9,6 +9,7 @@ use App\Models\Equipment;
 use App\Models\EquipmentChecklist;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,14 +56,45 @@ class EquipmentChecklistController extends Controller
             'performed_on' => ['required', 'date'],
         ]);
 
-        $checklist = $request->user()->equipmentChecklists()->create([
-            ...$validated,
-            'equipment_id' => $equipment->id,
+        $default = $equipment->defaultChecklist()->with('items')->first();
+
+        $checklist = DB::transaction(function () use ($request, $validated, $equipment, $default): EquipmentChecklist {
+            $checklist = $request->user()->equipmentChecklists()->create([
+                ...$validated,
+                'equipment_id' => $equipment->id,
+            ]);
+
+            if ($default !== null) {
+                $checklist->copyChecksFrom($default);
+            }
+
+            $equipment->defaultChecklist()->associate($checklist)->save();
+
+            return $checklist;
+        });
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $default === null
+                ? __('Checklist started. It is now the default for this machine.')
+                : __('Checklist started with the default checks.'),
         ]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Checklist started.')]);
-
         return to_route('equipment-checklists.show', $checklist);
+    }
+
+    /**
+     * Start the equipment's next checklist from this one.
+     */
+    public function makeDefault(EquipmentChecklist $equipmentChecklist): RedirectResponse
+    {
+        Gate::authorize('update', $equipmentChecklist);
+
+        $equipmentChecklist->equipment->defaultChecklist()->associate($equipmentChecklist)->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Default checklist set.')]);
+
+        return back();
     }
 
     /**
@@ -115,6 +147,12 @@ class EquipmentChecklistController extends Controller
         $equipment = $equipmentChecklist->equipment;
 
         $equipmentChecklist->delete();
+
+        if ($equipment->default_checklist_id === $equipmentChecklist->id) {
+            $equipment->defaultChecklist()->associate(
+                $equipment->checklists()->latest('performed_on')->latest('id')->first(),
+            )->save();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Checklist removed.')]);
 

@@ -26,8 +26,10 @@ import { store } from '@/routes/equipment-checklists';
 import type { SelectOption } from '@/types';
 
 /**
- * Start a checklist against a piece of equipment. Items are added once it
- * opens, the same way an ad hoc check is added to a vehicle's checklist.
+ * Start a checklist against a piece of equipment. It starts with the checks
+ * on the equipment's default checklist, the last one started, and takes
+ * over as the default itself; on a machine with none, checks are added once
+ * it opens, the same way an ad hoc check is added to a vehicle's checklist.
  * Opened from the equipment's own page the equipment is already known;
  * opened from a division's checklists, it is picked from that division's
  * equipment.
@@ -36,9 +38,11 @@ export default function EquipmentChecklistDialog({
     trigger,
     equipmentId,
     equipment = [],
+    defaultChecklist = null,
 }: {
     trigger: ReactNode;
     equipmentId?: string;
+    defaultChecklist?: { id: string; title: string } | null;
     equipment?: SelectOption[];
 }) {
     const [open, setOpen] = useState(false);
@@ -51,7 +55,11 @@ export default function EquipmentChecklistDialog({
             <DialogContent>
                 <DialogTitle>Start a checklist</DialogTitle>
                 <DialogDescription>
-                    Add what needs checking once it opens.
+                    {defaultChecklist
+                        ? `Starts with the checks from ${defaultChecklist.title}, and becomes the default for next time.`
+                        : equipmentId === undefined
+                          ? "Starts with the checks from the machine's default checklist, if it has one, and becomes the default for next time."
+                          : 'Add what needs checking once it opens. It becomes the default for next time.'}
                 </DialogDescription>
 
                 <Form
@@ -96,6 +104,7 @@ export default function EquipmentChecklistDialog({
                                     id="checklist_title"
                                     name="title"
                                     placeholder="Safety check"
+                                    defaultValue={defaultChecklist?.title}
                                     maxLength={120}
                                     required
                                 />

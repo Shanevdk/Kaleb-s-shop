@@ -73,7 +73,9 @@ test('adding equipment requires a name and a valid status', function () {
 test('the equipment page lists its checklists and service records', function () {
     $user = User::factory()->create();
     $equipment = Equipment::factory()->for($user)->create();
-    EquipmentChecklist::factory()->for($user)->for($equipment)->create();
+    $older = EquipmentChecklist::factory()->for($user)->for($equipment)->create(['performed_on' => '2026-09-01']);
+    $default = EquipmentChecklist::factory()->for($user)->for($equipment)->create(['performed_on' => '2026-09-08', 'title' => 'Safety check']);
+    $equipment->defaultChecklist()->associate($default)->save();
     EquipmentServiceRecord::factory()->for($user)->for($equipment)->create();
 
     $this->actingAs($user)
@@ -81,7 +83,11 @@ test('the equipment page lists its checklists and service records', function () 
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('equipment/show')
-            ->has('checklists', 1)
+            ->where('equipment.default_checklist', ['id' => $default->id, 'title' => 'Safety check'])
+            ->has('checklists', 2)
+            ->where('checklists.0.is_default', true)
+            ->where('checklists.1.id', $older->id)
+            ->where('checklists.1.is_default', false)
             ->has('records', 1)
         );
 });
@@ -187,7 +193,77 @@ test('a checklist can be started against a piece of equipment', function () {
     $response->assertRedirect(route('equipment-checklists.show', $checklist));
     expect($checklist->user_id)->toBe($user->id)
         ->and($checklist->equipment_id)->toBe($equipment->id)
-        ->and($checklist->title)->toBe('Safety check');
+        ->and($checklist->title)->toBe('Safety check')
+        ->and($checklist->items()->count())->toBe(0)
+        ->and($equipment->fresh()->default_checklist_id)->toBe($checklist->id);
+});
+
+test('a new checklist starts with the default checklist\'s checks, unchecked, and takes over as the default', function () {
+    $user = User::factory()->create();
+    $equipment = Equipment::factory()->for($user)->create();
+    $default = EquipmentChecklist::factory()->for($user)->for($equipment)->create();
+    EquipmentChecklistItem::factory()->for($default)->create(['label' => 'Test emergency stop', 'position' => 2, 'status' => CheckStatus::Attention, 'notes' => 'Sticks']);
+    EquipmentChecklistItem::factory()->for($default)->create(['label' => 'Check for leaks', 'position' => 1, 'status' => CheckStatus::Good]);
+    $equipment->defaultChecklist()->associate($default)->save();
+
+    $this->actingAs($user)->post(route('equipment-checklists.store', $equipment), [
+        'title' => 'Safety check',
+        'performed_on' => '2026-09-17',
+    ]);
+
+    $checklist = EquipmentChecklist::query()->whereKeyNot($default->id)->sole();
+
+    expect($checklist->items->map->only('label', 'status', 'notes')->all())->toBe([
+        ['label' => 'Check for leaks', 'status' => CheckStatus::Pending, 'notes' => null],
+        ['label' => 'Test emergency stop', 'status' => CheckStatus::Pending, 'notes' => null],
+    ])
+        ->and($default->items()->count())->toBe(2)
+        ->and($equipment->fresh()->default_checklist_id)->toBe($checklist->id);
+});
+
+test('an older checklist can be made the default again', function () {
+    $user = User::factory()->create();
+    $equipment = Equipment::factory()->for($user)->create();
+    [$older, $newer] = EquipmentChecklist::factory()->for($user)->for($equipment)->count(2)->create();
+    $equipment->defaultChecklist()->associate($newer)->save();
+
+    $this->actingAs($user)
+        ->put(route('equipment-checklists.make-default', $older))
+        ->assertRedirect();
+
+    expect($equipment->fresh()->default_checklist_id)->toBe($older->id);
+
+    $this->actingAs($user)
+        ->get(route('equipment-checklists.show', $older))
+        ->assertInertia(fn ($page) => $page->where('checklist.is_default', true));
+});
+
+test('a checklist on equipment in a division the account cannot open cannot be made the default', function () {
+    $equipment = Equipment::factory()->usa()->create();
+    $checklist = EquipmentChecklist::factory()->for($equipment)->create();
+
+    $this->actingAs(User::factory()->shopper()->create(['permissions' => ['equipment']]))
+        ->put(route('equipment-checklists.make-default', $checklist))
+        ->assertForbidden();
+
+    expect($equipment->fresh()->default_checklist_id)->toBeNull();
+});
+
+test('deleting the default checklist hands the default to the latest one left', function () {
+    $user = User::factory()->create();
+    $equipment = Equipment::factory()->for($user)->create();
+    $oldest = EquipmentChecklist::factory()->for($user)->for($equipment)->create(['performed_on' => '2026-09-01']);
+    $latestLeft = EquipmentChecklist::factory()->for($user)->for($equipment)->create(['performed_on' => '2026-09-08']);
+    $default = EquipmentChecklist::factory()->for($user)->for($equipment)->create(['performed_on' => '2026-09-15']);
+    $equipment->defaultChecklist()->associate($default)->save();
+
+    $this->actingAs($user)->delete(route('equipment-checklists.destroy', $default));
+
+    expect($equipment->fresh()->default_checklist_id)->toBe($latestLeft->id);
+
+    $this->actingAs($user)->delete(route('equipment-checklists.destroy', $oldest));
+
+    expect($equipment->fresh()->default_checklist_id)->toBe($latestLeft->id);
 });
 
 test('a check can be added to a checklist, checked off with a note, and removed', function () {

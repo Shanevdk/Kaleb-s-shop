@@ -4,6 +4,7 @@ import {
     CheckCircle2,
     ListChecks,
     Plus,
+    Star,
     Trash2,
     X,
 } from 'lucide-react';
@@ -24,7 +25,12 @@ import {
     store as storeItem,
     update as updateItem,
 } from '@/routes/equipment-checklist-items';
-import { destroy, show, update } from '@/routes/equipment-checklists';
+import {
+    makeDefault,
+    destroy,
+    show,
+    update,
+} from '@/routes/equipment-checklists';
 import { showFailure } from '@/lib/optimistic';
 import type { EquipmentChecklist, EquipmentChecklistItem } from '@/types';
 
@@ -83,6 +89,53 @@ function RemoveCheck({ item }: { item: EquipmentChecklistItem }) {
         />
     ) : (
         button
+    );
+}
+
+/**
+ * Mark the checklist the equipment's next one is copied from, or let an
+ * older one take that back.
+ */
+function DefaultChecklistToggle({
+    checklist,
+}: {
+    checklist: EquipmentChecklist;
+}) {
+    if (checklist.is_default) {
+        return (
+            <span className="bg-primary/10 text-primary inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium">
+                <Star className="size-4 fill-current" />
+                Default checklist
+            </span>
+        );
+    }
+
+    // It shows as the default straight away, and goes back if the server says no.
+    const asDefault = (props: Record<string, unknown>) => ({
+        checklist: {
+            ...(props.checklist as EquipmentChecklist),
+            is_default: true,
+        },
+    });
+
+    return (
+        <Button
+            variant="outline"
+            onClick={() =>
+                router.optimistic(asDefault).put(
+                    makeDefault(checklist.id).url,
+                    {},
+                    {
+                        preserveScroll: true,
+                        showProgress: false,
+                        onError: (errors) => showFailure(errors),
+                    },
+                )
+            }
+        >
+            <Star />
+            Make default
+        </Button>
     );
 }
 
@@ -159,6 +212,7 @@ export default function EquipmentChecklistShow({
                     description={equipmentName}
                     actions={
                         <>
+                            <DefaultChecklistToggle checklist={checklist} />
                             <Button variant="outline" asChild>
                                 <Link
                                     href={showEquipment(checklist.equipment_id)}
@@ -257,6 +311,16 @@ export default function EquipmentChecklistShow({
                                 <div className="border-t px-5 py-3">
                                     <AddCheck checklistId={checklist.id} />
                                 </div>
+                            )}
+
+                            {checklist.is_default && (
+                                <p className="text-muted-foreground border-t px-5 py-3 text-sm">
+                                    The next checklist on {equipmentName} starts
+                                    with these checks
+                                    {canEdit
+                                        ? ', so any you add or take off here carry forward.'
+                                        : '.'}
+                                </p>
                             )}
                         </section>
                     </div>

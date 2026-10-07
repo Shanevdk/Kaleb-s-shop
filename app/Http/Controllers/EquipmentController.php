@@ -91,7 +91,10 @@ class EquipmentController extends Controller
             ->withCheckTallies()
             ->latest('performed_on')
             ->latest('id')
-            ->get();
+            ->get()
+            ->each->setRelation('equipment', $equipment);
+
+        $equipment->load('defaultChecklist');
 
         $records = $equipment->serviceRecords()
             ->latest('performed_on')

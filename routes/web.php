@@ -272,6 +272,8 @@ Route::middleware(['auth', 'verified', 'can:viewAny,'.Equipment::class])->group(
         ->name('equipment-checklists.show');
     Route::patch('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'update'])
         ->name('equipment-checklists.update');
+    Route::put('equipment-checklists/{equipmentChecklist}/default', [EquipmentChecklistController::class, 'makeDefault'])
+        ->name('equipment-checklists.make-default');
     Route::delete('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'destroy'])
         ->name('equipment-checklists.destroy');
     Route::post('equipment-checklists/{equipmentChecklist}/items', [EquipmentChecklistItemController::class, 'store'])

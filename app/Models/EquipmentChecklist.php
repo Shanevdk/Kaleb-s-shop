@@ -108,6 +108,30 @@ class EquipmentChecklist extends Model
     }
 
     /**
+     * Copy every check on another checklist, ready to be checked again.
+     */
+    public function copyChecksFrom(EquipmentChecklist $source): void
+    {
+        $this->items()->createMany(
+            $source->items->map(fn (EquipmentChecklistItem $item): array => [
+                'label' => $item->label,
+                'position' => $item->position,
+            ])->all(),
+        );
+    }
+
+    /**
+     * Determine whether this is the checklist its equipment's next one is
+     * started from.
+     *
+     * @return Attribute<bool, never>
+     */
+    protected function isDefault(): Attribute
+    {
+        return Attribute::get(fn (): bool => $this->equipment->default_checklist_id === $this->id);
+    }
+
+    /**
      * Determine whether every item has been checked off.
      *
      * @return Attribute<bool, never>

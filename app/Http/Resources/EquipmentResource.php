@@ -30,6 +30,10 @@ class EquipmentResource extends JsonResource
             'status_label' => $this->status->label(),
             'purchased_on' => $this->purchased_on?->toDateString(),
             'notes' => $this->notes,
+            'default_checklist' => $this->whenLoaded('defaultChecklist', fn (): array => [
+                'id' => $this->defaultChecklist->id,
+                'title' => $this->defaultChecklist->title,
+            ]),
             'checklists_count' => $this->whenCounted('checklists'),
             'service_records_count' => $this->whenCounted('serviceRecords'),
             'spend' => $this->when(

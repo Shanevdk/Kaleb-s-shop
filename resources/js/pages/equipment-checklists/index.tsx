@@ -158,8 +158,13 @@ export default function EquipmentChecklistsIndex({
                                             <p className="leading-tight font-semibold">
                                                 {checklist.title}
                                             </p>
-                                            <p className="text-muted-foreground text-sm">
+                                            <p className="text-muted-foreground flex items-center gap-2 text-sm">
                                                 {checklist.equipment?.name}
+                                                {checklist.is_default && (
+                                                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                                                        Default
+                                                    </span>
+                                                )}
                                             </p>
                                         </div>
                                         <span className="text-muted-foreground shrink-0 text-xs">

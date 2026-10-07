@@ -338,6 +338,8 @@ export type Equipment = {
     status_label: string;
     purchased_on: string | null;
     notes: string | null;
+    /** The checklist the next one is copied from. */
+    default_checklist?: { id: string; title: string } | null;
     checklists_count?: number;
     service_records_count?: number;
     spend?: number;
@@ -360,6 +362,8 @@ export type EquipmentChecklist = {
     performed_on: string;
     notes: string | null;
     is_complete: boolean;
+    /** Whether the equipment's next checklist is copied from this one. */
+    is_default?: boolean;
     checked_count?: number;
     flagged_count?: number;
     fixed_count?: number;

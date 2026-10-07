@@ -115,6 +115,7 @@ export default function EquipmentShow({
                                     </Button>
                                 }
                                 equipmentId={equipment.id}
+                                defaultChecklist={equipment.default_checklist}
                             />
                             <AssignBarcodeDialog
                                 name={equipment.name}
@@ -376,8 +377,13 @@ export default function EquipmentShow({
                                                 className="hover:bg-muted/50 flex flex-col gap-2 px-6 py-4 transition-colors sm:flex-row sm:items-center sm:justify-between"
                                             >
                                                 <div className="min-w-0">
-                                                    <p className="font-medium">
+                                                    <p className="flex items-center gap-2 font-medium">
                                                         {checklist.title}
+                                                        {checklist.is_default && (
+                                                            <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                                                                Default
+                                                            </span>
+                                                        )}
                                                     </p>
                                                     <p className="text-muted-foreground text-sm">
                                                         {formatDate(

@@ -25,6 +25,7 @@ class EquipmentChecklistResource extends JsonResource
             'performed_on' => $this->performed_on->toDateString(),
             'notes' => $this->notes,
             'is_complete' => $this->is_complete,
+            'is_default' => $this->whenLoaded('equipment', fn (): bool => $this->is_default),
             'checked_count' => $this->when(
                 $this->resource->getAttribute('checked_count') !== null,
                 fn (): int => (int) $this->resource->getAttribute('checked_count'),
