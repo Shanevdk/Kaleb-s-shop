@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\PlanInspectionSchedule;
 use App\Concerns\ClampsRequestedMonth;
+use App\Concerns\PutsJobsOnCalendar;
 use App\Enums\ChecklistTemplate;
 use App\Enums\ScheduledCheckStatus;
 use App\Enums\ServiceStatus;
@@ -15,14 +16,13 @@ use App\Models\ServiceRecord;
 use App\Models\Vehicle;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ScheduleController extends Controller
 {
-    use ClampsRequestedMonth;
+    use ClampsRequestedMonth, PutsJobsOnCalendar;
 
     /**
      * How many months past the one on screen get booked in as well.
@@ -79,19 +79,9 @@ class ScheduleController extends Controller
             ->with('vehicle')
             ->bookedBetween($startOfMonth->toDateString(), $endOfMonth->toDateString())
             ->get()
-            ->map(fn (ServiceRecord $job): array => [
-                ...$this->jobEntry($job, $today),
-                'days_this_month' => array_values(array_filter(
-                    $job->days(),
-                    fn (string $day): bool => str_starts_with($day, $startOfMonth->format('Y-m')),
-                )),
-            ])
-            ->filter(fn (array $job): bool => $job['days_this_month'] !== []);
+            ->map(fn (ServiceRecord $job): array => $this->jobEntry($job, $today));
 
-        $jobDays = $jobs->flatMap(fn (array $job): array => array_map(
-            fn (string $day): array => [...Arr::except($job, 'days_this_month'), 'date' => $day],
-            $job['days_this_month'],
-        ));
+        [$jobs, $jobDays] = $this->jobsInMonth($jobs, $startOfMonth);
 
         $behind = [ScheduledCheckStatus::Overdue->value, ScheduledCheckStatus::Missed->value];
 
@@ -179,23 +169,13 @@ class ScheduleController extends Controller
     }
 
     /**
-     * Describe a job planned in, or done, on a day of the month. A job not
-     * yet started is due on each day it is booked on, and overdue on any
-     * other day once its first day has gone by.
+     * Describe a job planned in, or done, on a day of the month.
      *
      * @return array<string, mixed>
      */
     private function jobEntry(ServiceRecord $job, CarbonImmutable $today): array
     {
         $days = $job->days();
-
-        $status = match (true) {
-            $job->status === ServiceStatus::Completed => ScheduledCheckStatus::Done,
-            $job->status === ServiceStatus::InProgress => ScheduledCheckStatus::InProgress,
-            in_array($today->toDateString(), $days, true) => ScheduledCheckStatus::Due,
-            $days[0] < $today->toDateString() => ScheduledCheckStatus::Overdue,
-            default => ScheduledCheckStatus::Upcoming,
-        };
 
         return [
             'id' => $job->id,
@@ -204,7 +184,7 @@ class ScheduleController extends Controller
             'date' => $days[0],
             'due_on' => $days[0],
             'days' => $days,
-            'status' => $status->value,
+            'status' => $this->jobStatus($job, $today)->value,
             'vehicle' => $this->vehicle($job->vehicle),
             'inspection_id' => null,
             'service_record_id' => $job->id,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\ValidatesBookedDays;
 use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
@@ -18,6 +19,8 @@ use Inertia\Response;
 
 class EquipmentServiceRecordController extends Controller
 {
+    use ValidatesBookedDays;
+
     /**
      * Display every service record logged against any piece of the
      * division's equipment.
@@ -99,7 +102,7 @@ class EquipmentServiceRecordController extends Controller
     {
         Gate::authorize('update', $equipmentServiceRecord);
 
-        $validated = $this->validated($request);
+        $validated = $this->validated($request, $equipmentServiceRecord);
 
         $equipmentServiceRecord->fill(Arr::except($validated, 'days'))->bookOn($validated['days'])->save();
 
@@ -124,11 +127,11 @@ class EquipmentServiceRecordController extends Controller
 
     /**
      * Get the validated attributes for a service record, with the days it is
-     * booked on. A single day may still be sent on its own as performed_on.
+     * booked on.
      *
      * @return array<string, mixed>
      */
-    private function validated(Request $request): array
+    private function validated(Request $request, ?EquipmentServiceRecord $record = null): array
     {
         $request->merge([
             'hours' => $request->input('hours') ?: 0,
@@ -136,16 +139,13 @@ class EquipmentServiceRecordController extends Controller
             'labour_cost' => $request->input('labour_cost') ?: 0,
         ]);
 
-        if (! $request->has('days') && $request->filled('performed_on')) {
-            $request->merge(['days' => [$request->input('performed_on')]]);
-        }
+        $this->mergeBookedDays($request, $record);
 
         return $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(EquipmentServiceType::class)],
             'status' => ['required', Rule::enum(ServiceStatus::class)],
-            'days' => ['required', 'array', 'min:1', 'max:31'],
-            'days.*' => ['required', 'date', 'distinct'],
+            ...self::bookedDaysRules(),
             'hours' => ['nullable', 'numeric', 'min:0', 'max:1000'],
             'parts_cost' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'labour_cost' => ['nullable', 'numeric', 'min:0', 'max:1000000'],

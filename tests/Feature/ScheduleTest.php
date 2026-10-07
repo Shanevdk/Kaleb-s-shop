@@ -453,15 +453,33 @@ test('moving a later day of a job over several days puts that day where it was m
     expect($job->fresh()->days())->toBe(['2026-09-23', '2026-09-24', '2026-09-25']);
 });
 
-test('the days a job is booked on can be changed by hand', function () {
+test('the days a job is booked on can be changed by hand, and the same day picked twice counts once', function () {
     $job = ServiceRecord::factory()->planned()->create(['performed_on' => '2026-09-21']);
 
-    // Picked by hand, so landing on a Sunday is not asked about.
     $this->actingAs(User::factory()->scheduler()->create())
-        ->patch(route('schedule.jobs.update', $job), ['days' => ['2026-09-26', '2026-09-27', '2026-09-24']])
+        ->patch(route('schedule.jobs.update', $job), ['days' => ['2026-09-26', '2026-09-24', '2026-09-24']])
         ->assertSessionHasNoErrors();
 
-    expect($job->fresh()->days())->toBe(['2026-09-24', '2026-09-26', '2026-09-27']);
+    expect($job->fresh()->days())->toBe(['2026-09-24', '2026-09-26']);
+});
+
+test('changing the days of a job by hand asks before adding a day the shop is closed', function () {
+    $job = ServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-20', '2026-09-21'])->save();
+    $scheduler = User::factory()->scheduler()->create();
+
+    // Sunday 20 was already booked, so only the new Sunday 27 is asked about.
+    $this->actingAs($scheduler)
+        ->patch(route('schedule.jobs.update', $job), ['days' => ['2026-09-20', '2026-09-21', '2026-09-27']])
+        ->assertSessionHasErrors(['closed_days' => 'The shop is closed on Sun 27 Sep.']);
+
+    expect($job->fresh()->days())->toBe(['2026-09-20', '2026-09-21']);
+
+    $this->actingAs($scheduler)
+        ->patch(route('schedule.jobs.update', $job), ['days' => ['2026-09-20', '2026-09-21', '2026-09-27'], 'on_closed_days' => true])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-20', '2026-09-21', '2026-09-27']);
 });
 
 test('a job can only be moved by one of its own days', function () {

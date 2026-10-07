@@ -165,3 +165,22 @@ test('moving a later day of maintenance over several days moves all of it', func
 
     expect($job->fresh()->days())->toBe(['2026-09-23', '2026-09-24']);
 });
+
+test('moving maintenance asks before its other days land on a day the shop is closed', function () {
+    $job = EquipmentServiceRecord::factory()->planned()->create();
+    $job->bookOn(['2026-09-17', '2026-09-18'])->save();
+    $user = User::factory()->create();
+
+    // Thu and Fri to Sat and Sun.
+    $this->actingAs($user)
+        ->patch(route('equipment-schedule.jobs.update', $job), ['performed_on' => '2026-09-19', 'day' => '2026-09-17'])
+        ->assertSessionHasErrors('closed_days');
+
+    expect($job->fresh()->days())->toBe(['2026-09-17', '2026-09-18']);
+
+    $this->actingAs($user)
+        ->patch(route('equipment-schedule.jobs.update', $job), ['performed_on' => '2026-09-19', 'day' => '2026-09-17', 'on_closed_days' => true])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->days())->toBe(['2026-09-19', '2026-09-20']);
+});

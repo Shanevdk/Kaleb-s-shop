@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\ValidatesBookedDays;
 use App\Enums\EquipmentServiceType;
 use App\Models\Equipment;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Rule;
 
 class EquipmentScheduleJobRequest extends FormRequest
 {
+    use ValidatesBookedDays;
+
     /**
      * Determine if the user is authorized to make this request. Maintenance
      * lands on the schedule of the division its equipment belongs to, which
@@ -35,19 +38,16 @@ class EquipmentScheduleJobRequest extends FormRequest
             'equipment_id' => ['required', 'string', Rule::exists('equipment', 'id')],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(EquipmentServiceType::class)],
-            'days' => ['required', 'array', 'min:1', 'max:31'],
-            'days.*' => ['required', 'date', 'distinct'],
+            ...self::bookedDaysRules(),
             'description' => ['nullable', 'string', 'max:5000'],
         ];
     }
 
     /**
-     * A single day may still be sent on its own as performed_on.
+     * Prepare the data for validation.
      */
     protected function prepareForValidation(): void
     {
-        if (! $this->has('days') && $this->filled('performed_on')) {
-            $this->merge(['days' => [$this->input('performed_on')]]);
-        }
+        $this->mergeBookedDays($this);
     }
 }

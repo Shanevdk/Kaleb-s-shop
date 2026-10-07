@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\ValidatesBookedDays;
 use App\Enums\ServiceType;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class ScheduleJobRequest extends FormRequest
 {
+    use ValidatesBookedDays;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -28,9 +31,16 @@ class ScheduleJobRequest extends FormRequest
             'vehicle_id' => ['required', 'string', Rule::exists('vehicles', 'id')],
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(ServiceType::class)],
-            'days' => ['required', 'array', 'min:1', 'max:31'],
-            'days.*' => ['required', 'date', 'distinct'],
+            ...self::bookedDaysRules(),
             'description' => ['nullable', 'string', 'max:5000'],
         ];
+    }
+
+    /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->mergeBookedDays($this);
     }
 }

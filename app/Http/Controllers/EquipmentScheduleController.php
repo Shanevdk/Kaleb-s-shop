@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Concerns\ClampsRequestedMonth;
+use App\Concerns\PutsJobsOnCalendar;
 use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ScheduledCheckStatus;
@@ -13,13 +14,12 @@ use App\Models\EquipmentChecklist;
 use App\Models\EquipmentServiceRecord;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class EquipmentScheduleController extends Controller
 {
-    use ClampsRequestedMonth;
+    use ClampsRequestedMonth, PutsJobsOnCalendar;
 
     /**
      * Display a month of the division's equipment maintenance calendar: the
@@ -41,19 +41,9 @@ class EquipmentScheduleController extends Controller
             ->with('equipment')
             ->bookedBetween(...$between)
             ->get()
-            ->map(fn (EquipmentServiceRecord $job): array => [
-                ...$this->jobEntry($job, $today),
-                'days_this_month' => array_values(array_filter(
-                    $job->days(),
-                    fn (string $day): bool => str_starts_with($day, $startOfMonth->format('Y-m')),
-                )),
-            ])
-            ->filter(fn (array $job): bool => $job['days_this_month'] !== []);
+            ->map(fn (EquipmentServiceRecord $job): array => $this->jobEntry($job, $today));
 
-        $jobDays = $jobs->flatMap(fn (array $job): array => array_map(
-            fn (string $day): array => [...Arr::except($job, 'days_this_month'), 'date' => $day],
-            $job['days_this_month'],
-        ));
+        [$jobs, $jobDays] = $this->jobsInMonth($jobs, $startOfMonth);
 
         $checklists = EquipmentChecklist::query()
             ->inDivision($division)
@@ -91,23 +81,13 @@ class EquipmentScheduleController extends Controller
     }
 
     /**
-     * Describe maintenance planned in, or done, on a day of the month. Any
-     * not yet started is due on each day it is booked on, and overdue on
-     * any other day once its first day has gone by.
+     * Describe maintenance planned in, or done, on a day of the month.
      *
      * @return array<string, mixed>
      */
     private function jobEntry(EquipmentServiceRecord $job, CarbonImmutable $today): array
     {
         $days = $job->days();
-
-        $status = match (true) {
-            $job->status === ServiceStatus::Completed => ScheduledCheckStatus::Done,
-            $job->status === ServiceStatus::InProgress => ScheduledCheckStatus::InProgress,
-            in_array($today->toDateString(), $days, true) => ScheduledCheckStatus::Due,
-            $days[0] < $today->toDateString() => ScheduledCheckStatus::Overdue,
-            default => ScheduledCheckStatus::Upcoming,
-        };
 
         return [
             'id' => $job->id,
@@ -116,7 +96,7 @@ class EquipmentScheduleController extends Controller
             'type_label' => $job->type->label(),
             'date' => $days[0],
             'days' => $days,
-            'status' => $status->value,
+            'status' => $this->jobStatus($job, $today)->value,
             'equipment' => $this->equipment($job->equipment),
             'checklist_id' => null,
             'can_move' => $job->status !== ServiceStatus::Completed,

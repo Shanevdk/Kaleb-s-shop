@@ -49,7 +49,7 @@ class EquipmentScheduleJobController extends Controller
 
         $this->reschedule($request, $equipmentServiceRecord);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Moved to :date.', [
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Booked on :date.', [
             'date' => $this->bookedDates($equipmentServiceRecord),
         ])]);
 

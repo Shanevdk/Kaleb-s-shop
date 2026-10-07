@@ -92,6 +92,24 @@ test('a job can be logged over several days and its days changed when it is edit
         ->and($record->finishes_on)->toBeNull();
 });
 
+test('changing just the first day of a job over several days moves the rest with it', function () {
+    $user = User::factory()->create();
+    $record = ServiceRecord::factory()->for($user)->planned()->create();
+    $record->bookOn(['2026-10-12', '2026-10-13', '2026-10-15'])->save();
+
+    $this->actingAs($user)
+        ->put(route('service-records.update', $record), [
+            'vehicle_id' => $record->vehicle_id,
+            'title' => $record->title,
+            'type' => $record->type->value,
+            'status' => $record->status->value,
+            'performed_on' => '2026-10-19',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($record->refresh()->days())->toBe(['2026-10-19', '2026-10-20', '2026-10-22']);
+});
+
 test('a shopper cannot open a job', function () {
     $user = User::factory()->shopper()->create();
     $record = ServiceRecord::factory()->create();

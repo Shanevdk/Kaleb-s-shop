@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Concerns\ValidatesBookedDays;
 use App\Enums\ServiceStatus;
 use App\Enums\ServiceType;
 use App\Enums\UnitOfMeasure;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Rule;
 
 class ServiceRecordRequest extends FormRequest
 {
+    use ValidatesBookedDays;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -39,8 +42,7 @@ class ServiceRecordRequest extends FormRequest
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(ServiceType::class)],
             'status' => ['required', Rule::enum(ServiceStatus::class)],
-            'days' => ['required', 'array', 'min:1', 'max:31'],
-            'days.*' => ['required', 'date', 'distinct'],
+            ...self::bookedDaysRules(),
             'odometer' => ['nullable', 'integer', 'min:0', 'max:5000000'],
             'hours' => ['nullable', 'numeric', 'min:0', 'max:999'],
             'parts_cost' => ['nullable', 'numeric', 'min:0', 'max:999999'],
@@ -100,8 +102,7 @@ class ServiceRecordRequest extends FormRequest
     }
 
     /**
-     * Prepare the data for validation. A single day may still be sent on its
-     * own as performed_on.
+     * Prepare the data for validation.
      */
     protected function prepareForValidation(): void
     {
@@ -111,8 +112,6 @@ class ServiceRecordRequest extends FormRequest
             'labour_cost' => $this->input('labour_cost') ?: 0,
         ]);
 
-        if (! $this->has('days') && $this->filled('performed_on')) {
-            $this->merge(['days' => [$this->input('performed_on')]]);
-        }
+        $this->mergeBookedDays($this, $this->route('service_record'));
     }
 }
