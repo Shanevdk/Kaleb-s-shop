@@ -24,6 +24,7 @@ class EquipmentResource extends JsonResource
             'name' => $this->name,
             'category' => $this->category,
             'serial_number' => $this->serial_number,
+            'barcode' => $this->barcode,
             'location' => $this->location,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),

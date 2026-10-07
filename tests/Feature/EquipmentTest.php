@@ -119,6 +119,60 @@ test('equipment can be removed', function () {
     expect(Equipment::find($equipment->id))->toBeNull();
 });
 
+test('a code can be assigned to a piece of equipment, but not one already on another', function () {
+    $user = User::factory()->create();
+    $loader = Equipment::factory()->create(['barcode' => 'VDK-0001']);
+    $lift = Equipment::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('equipment.barcode', $lift), ['barcode' => ' VDK-0002 '])
+        ->assertSessionHasNoErrors();
+
+    expect($lift->refresh()->barcode)->toBe('VDK-0002');
+
+    $this->actingAs($user)
+        ->put(route('equipment.barcode', $lift), ['barcode' => $loader->barcode])
+        ->assertSessionHasErrors('barcode');
+
+    expect($lift->refresh()->barcode)->toBe('VDK-0002');
+});
+
+test('only someone with the equipment\'s division can assign it a code', function () {
+    $lift = Equipment::factory()->usa()->create();
+
+    $this->actingAs(User::factory()->shopper()->create(['permissions' => ['equipment']]))
+        ->put(route('equipment.barcode', $lift), ['barcode' => 'VDK-0002'])
+        ->assertForbidden();
+
+    expect($lift->refresh()->barcode)->toBeNull();
+});
+
+test('scanning a machine\'s code or serial number brings it up', function () {
+    $user = User::factory()->create();
+    $loader = Equipment::factory()->create(['barcode' => 'VDK-0001']);
+    $lift = Equipment::factory()->usa()->create(['serial_number' => 'SN-778']);
+
+    $this->actingAs($user)
+        ->post(route('equipment.scan'), ['barcode' => 'VDK-0001'])
+        ->assertRedirect(route('equipment.show', $loader));
+
+    $this->actingAs($user)
+        ->post(route('equipment.scan'), ['barcode' => 'SN-778'])
+        ->assertRedirect(route('equipment.show', $lift));
+
+    $this->actingAs($user)
+        ->post(route('equipment.scan'), ['barcode' => 'nothing-here'])
+        ->assertSessionHasErrors('barcode');
+});
+
+test('scanning a machine from a division the account cannot see finds nothing', function () {
+    $lift = Equipment::factory()->usa()->create(['barcode' => 'VDK-0002']);
+
+    $this->actingAs(User::factory()->shopper()->create(['permissions' => ['equipment']]))
+        ->post(route('equipment.scan'), ['barcode' => $lift->barcode])
+        ->assertSessionHasErrors('barcode');
+});
+
 test('a checklist can be started against a piece of equipment', function () {
     $user = User::factory()->create();
     $equipment = Equipment::factory()->for($user)->create();

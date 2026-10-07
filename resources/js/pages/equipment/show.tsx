@@ -7,9 +7,11 @@ import {
     Clock,
     Pencil,
     Plus,
+    QrCode,
     Trash2,
     Wrench,
 } from 'lucide-react';
+import AssignBarcodeDialog from '@/components/assign-barcode-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
 import EquipmentChecklistDialog from '@/components/equipment-checklist-dialog';
@@ -33,7 +35,7 @@ import {
     formatHours,
     formatJobDates,
 } from '@/lib/format';
-import { destroy, edit, show } from '@/routes/equipment';
+import { barcode, destroy, edit, show } from '@/routes/equipment';
 import { show as showChecklist } from '@/routes/equipment-checklists';
 import { destroy as destroyRecord } from '@/routes/equipment-service-records';
 import type {
@@ -78,6 +80,7 @@ export default function EquipmentShow({
     const details = [
         { label: 'Category', value: equipment.category || '—' },
         { label: 'Serial number', value: equipment.serial_number || '—' },
+        { label: 'Scan code', value: equipment.barcode || '—' },
         { label: 'Location', value: equipment.location || '—' },
         { label: 'Status', value: equipment.status_label },
         { label: 'Purchased', value: formatDate(equipment.purchased_on) },
@@ -112,6 +115,20 @@ export default function EquipmentShow({
                                     </Button>
                                 }
                                 equipmentId={equipment.id}
+                            />
+                            <AssignBarcodeDialog
+                                name={equipment.name}
+                                barcode={equipment.barcode}
+                                url={barcode(equipment.id).url}
+                                noun="machine"
+                                trigger={
+                                    <Button variant="outline">
+                                        <QrCode />
+                                        {equipment.barcode
+                                            ? 'Change code'
+                                            : 'Assign code'}
+                                    </Button>
+                                }
                             />
                             <Button variant="outline" asChild>
                                 <Link href={edit(equipment.id)}>

@@ -2,6 +2,7 @@ import { Form, Head, Link, setLayoutProps } from '@inertiajs/react';
 import { Plus, Search, Wrench } from 'lucide-react';
 import AmericanFlag from '@/components/american-flag';
 import EmptyState from '@/components/empty-state';
+import EquipmentScanDialog from '@/components/equipment-scan-dialog';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,12 +44,15 @@ export default function EquipmentIndex({
                     title="Equipment"
                     description="Every tool and machine the shop owns, with its history attached."
                     actions={
-                        <Button asChild>
-                            <Link href={create()}>
-                                <Plus />
-                                Add equipment
-                            </Link>
-                        </Button>
+                        <>
+                            <EquipmentScanDialog />
+                            <Button asChild>
+                                <Link href={create()}>
+                                    <Plus />
+                                    Add equipment
+                                </Link>
+                            </Button>
+                        </>
                     }
                 />
 

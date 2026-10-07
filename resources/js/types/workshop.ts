@@ -332,6 +332,7 @@ export type Equipment = {
     name: string;
     category: string | null;
     serial_number: string | null;
+    barcode: string | null;
     location: string | null;
     status: EquipmentStatus;
     status_label: string;

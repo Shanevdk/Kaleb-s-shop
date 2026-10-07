@@ -6,6 +6,7 @@ use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\EquipmentStatus;
 use App\Enums\ServiceStatus;
+use App\Http\Requests\EquipmentBarcodeRequest;
 use App\Http\Requests\EquipmentRequest;
 use App\Http\Resources\EquipmentChecklistResource;
 use App\Http\Resources\EquipmentResource;
@@ -16,6 +17,7 @@ use App\Models\EquipmentServiceRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -135,6 +137,45 @@ class EquipmentController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Equipment updated.')]);
 
         return to_route('equipment.show', $equipment);
+    }
+
+    /**
+     * Bring up the equipment a scanned QR code, barcode or serial number
+     * belongs to. A machine in a division the user cannot see is treated
+     * as not found.
+     */
+    public function scan(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'barcode' => ['required', 'string', 'max:255'],
+        ]);
+
+        $code = trim($validated['barcode']);
+        $equipment = Equipment::findByCode($code);
+
+        if ($equipment === null || $request->user()->cannot('view', $equipment)) {
+            throw ValidationException::withMessages([
+                'barcode' => __('No equipment scans as :code. Assign it from the machine\'s page first.', ['code' => $code]),
+            ]);
+        }
+
+        return to_route('equipment.show', $equipment);
+    }
+
+    /**
+     * Point a scanned QR code or barcode at the given piece of equipment,
+     * replacing any it had.
+     */
+    public function assignBarcode(EquipmentBarcodeRequest $request, Equipment $equipment): RedirectResponse
+    {
+        $equipment->update(['barcode' => $request->validated('barcode')]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Code assigned to :name.', ['name' => $equipment->name]),
+        ]);
+
+        return back();
     }
 
     /**

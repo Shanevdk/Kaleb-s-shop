@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string|null $category
  * @property string|null $serial_number
+ * @property string|null $barcode
  * @property string|null $location
  * @property EquipmentStatus $status
  * @property Carbon|null $purchased_on
@@ -29,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['division', 'name', 'category', 'serial_number', 'location', 'status', 'purchased_on', 'notes'])]
+#[Fillable(['division', 'name', 'category', 'serial_number', 'barcode', 'location', 'status', 'purchased_on', 'notes'])]
 class Equipment extends Model
 {
     /** @use HasFactory<EquipmentFactory> */
@@ -74,6 +75,16 @@ class Equipment extends Model
     protected function inDivision(Builder $query, EquipmentDivision $division): void
     {
         $query->where('division', $division);
+    }
+
+    /**
+     * Find the equipment a scanned code belongs to: the QR code or barcode
+     * assigned to it, or else the serial number printed on its plate.
+     */
+    public static function findByCode(string $code): ?self
+    {
+        return static::query()->where('barcode', $code)->first()
+            ?? static::query()->where('serial_number', $code)->first();
     }
 
     /**

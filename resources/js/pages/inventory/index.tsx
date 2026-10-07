@@ -31,7 +31,15 @@ import UseStockDialog from '@/components/use-stock-dialog';
 import { formatCurrency, formatNumber, formatQuantity } from '@/lib/format';
 import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
-import { adjust, create, destroy, edit, index, scan } from '@/routes/inventory';
+import {
+    adjust,
+    barcode,
+    create,
+    destroy,
+    edit,
+    index,
+    scan,
+} from '@/routes/inventory';
 import { show as showVehicle } from '@/routes/vehicles';
 import type { InventoryItem, SelectOption } from '@/types';
 
@@ -464,7 +472,12 @@ export default function InventoryIndex({
                                         </div>
 
                                         <div className="flex items-center gap-1">
-                                            <AssignBarcodeDialog item={item} />
+                                            <AssignBarcodeDialog
+                                                name={item.name}
+                                                barcode={item.barcode}
+                                                url={barcode(item.id).url}
+                                                noun="part"
+                                            />
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

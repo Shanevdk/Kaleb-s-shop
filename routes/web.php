@@ -261,7 +261,11 @@ Route::middleware(['auth', 'verified', 'can:equipment-usa'])
 // address whichever division it belongs to. Each action checks the
 // permission for that division.
 Route::middleware(['auth', 'verified', 'can:viewAny,'.Equipment::class])->group(function () {
+    Route::post('equipment/scan', [EquipmentController::class, 'scan'])
+        ->name('equipment.scan');
     Route::resource('equipment', EquipmentController::class)->only(['show', 'edit', 'update', 'destroy']);
+    Route::put('equipment/{equipment}/barcode', [EquipmentController::class, 'assignBarcode'])
+        ->name('equipment.barcode');
     Route::post('equipment/{equipment}/checklists', [EquipmentChecklistController::class, 'store'])
         ->name('equipment-checklists.store');
     Route::get('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'show'])
