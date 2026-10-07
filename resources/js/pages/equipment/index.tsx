@@ -1,5 +1,6 @@
 import { Form, Head, Link, setLayoutProps } from '@inertiajs/react';
 import { Plus, Search, Wrench } from 'lucide-react';
+import AmericanFlag from '@/components/american-flag';
 import EmptyState from '@/components/empty-state';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,16 @@ export default function EquipmentIndex({
         <>
             <Head title="Equipment" />
 
-            <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+            <div className="relative isolate flex flex-1 flex-col gap-6 p-4 sm:p-6">
+                {division === 'usa' && (
+                    <AmericanFlag
+                        whole
+                        preserveAspectRatio="xMinYMin slice"
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 w-full opacity-20 [mask-image:linear-gradient(to_bottom,black,transparent)] sm:h-[32rem] dark:opacity-15"
+                    />
+                )}
+
                 <PageHeader
                     title="Equipment"
                     description="Every tool and machine the shop owns, with its history attached."
@@ -53,7 +63,7 @@ export default function EquipmentIndex({
                         name="search"
                         defaultValue={filters.search}
                         placeholder="Search name, category, serial number"
-                        className="pl-9"
+                        className="bg-background pl-9"
                         aria-label="Search equipment"
                     />
                 </Form>
