@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDate, formatOdometer } from '@/lib/format';
+import { showFailure } from '@/lib/optimistic';
 import { destroy, index, show, update } from '@/routes/inspections';
 import {
     destroy as destroyItem,
@@ -56,6 +57,20 @@ function RemoveCheck({
 }) {
     const options = { query: { remember: remember ? '1' : '0' } };
     const needsConfirming = item.status !== 'pending' || Boolean(item.notes);
+
+    // The check goes straight away, and comes back if the server says no.
+    const withoutItem = (props: Record<string, unknown>) => {
+        const inspection = props.inspection as Inspection;
+
+        return {
+            inspection: {
+                ...inspection,
+                items: inspection.items?.filter(
+                    (existing) => existing.id !== item.id,
+                ),
+            },
+        };
+    };
     const button = (
         <Button
             variant="ghost"
@@ -66,9 +81,13 @@ function RemoveCheck({
                 needsConfirming
                     ? undefined
                     : () =>
-                          router.delete(destroyItem.url(item.id, options), {
-                              preserveScroll: true,
-                          })
+                          router
+                              .optimistic(withoutItem)
+                              .delete(destroyItem.url(item.id, options), {
+                                  preserveScroll: true,
+                                  showProgress: false,
+                                  onError: (errors) => showFailure(errors),
+                              })
             }
         >
             <X />
@@ -82,6 +101,7 @@ function RemoveCheck({
             description={`"${item.label}" has already been checked or has a note, and that goes with it.`}
             confirmLabel="Remove check"
             form={destroyItem.form(item.id, options)}
+            optimistic={withoutItem}
         />
     ) : (
         button

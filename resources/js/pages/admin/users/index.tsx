@@ -36,6 +36,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
+import { showFailure } from '@/lib/optimistic';
 import { create, destroy, index, update, verify } from '@/routes/admin/users';
 import { update as updatePermissions } from '@/routes/admin/users/permissions';
 import type {
@@ -54,8 +55,28 @@ export default function AdminUsersIndex({
     roles: RoleOption[];
     permissionOptions: PermissionOption[];
 }) {
+    const withUser =
+        (user: TeamMember, changes: Partial<TeamMember>) =>
+        (props: { users: TeamMember[] }) => ({
+            users: props.users.map((existing) =>
+                existing.id === user.id
+                    ? { ...existing, ...changes }
+                    : existing,
+            ),
+        });
+
     const changeRole = (user: TeamMember, role: string) => {
-        router.patch(update(user.id).url, { role }, { preserveScroll: true });
+        router
+            .optimistic(withUser(user, { role: role as TeamMember['role'] }))
+            .patch(
+                update(user.id).url,
+                { role },
+                {
+                    preserveScroll: true,
+                    showProgress: false,
+                    onError: (errors) => showFailure(errors),
+                },
+            );
     };
 
     // Tracks the permissions each account is mid-save with, so a second
@@ -82,6 +103,8 @@ export default function AdminUsersIndex({
             { permissions: next },
             {
                 preserveScroll: true,
+                showProgress: false,
+                onError: (errors) => showFailure(errors),
                 onFinish: () =>
                     setPendingPermissions(({ [user.id]: _, ...rest }) => rest),
             },
@@ -89,7 +112,15 @@ export default function AdminUsersIndex({
     };
 
     const verifyUser = (user: TeamMember) => {
-        router.post(verify(user.id).url, {}, { preserveScroll: true });
+        router.optimistic(withUser(user, { is_verified: true })).post(
+            verify(user.id).url,
+            {},
+            {
+                preserveScroll: true,
+                showProgress: false,
+                onError: (errors) => showFailure(errors),
+            },
+        );
     };
 
     return (

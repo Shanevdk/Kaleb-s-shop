@@ -9,7 +9,6 @@ import {
     Wrench,
 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import ChangeDaysDialog from '@/components/change-days-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import PageHeader from '@/components/page-header';
@@ -25,6 +24,8 @@ import type { CalendarKind } from '@/components/schedule-calendar';
 import ScheduleJobDialog from '@/components/schedule-job-dialog';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
+import { moveJob } from '@/lib/move-job';
+import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 import { create as startCheck, show as showCheck } from '@/routes/inspections';
 import { index } from '@/routes/schedule';
@@ -64,43 +65,43 @@ const kinds: Record<ScheduleEntryKind, CalendarKind> = {
 };
 
 /**
- * Move a check or a job to another day. Dragging any day of a job over
- * several days moves the whole job by the same amount; if that would put
- * its other days on days the shop is closed, it asks before doing so.
+ * Move a check or a job to another day. It shows on its new day straight
+ * away, and goes back if the move is turned down. A job over several days
+ * moves as a whole.
  */
-const moveEntry = (
-    entry: ScheduleEntry,
-    date: string,
-    onClosedDays = false,
-) => {
-    const isJob = entry.kind === 'job';
+const moveEntry = (entry: ScheduleEntry, date: string) =>
+    entry.kind === 'job'
+        ? moveJob(updateJob.url(entry.id), entry, date)
+        : router
+              .optimistic<{ entries: ScheduleEntry[] }>((props) => ({
+                  entries: props.entries.map((existing) =>
+                      existing.kind === entry.kind && existing.id === entry.id
+                          ? { ...existing, date, due_on: date }
+                          : existing,
+                  ),
+              }))
+              .patch(
+                  updateCheck.url(entry.id),
+                  { due_on: date },
+                  {
+                      preserveScroll: true,
+                      showProgress: false,
+                      onError: (errors) =>
+                          showFailure(errors, 'That could not be moved.'),
+                  },
+              );
 
-    router.patch(
-        isJob ? updateJob.url(entry.id) : updateCheck.url(entry.id),
-        isJob
-            ? {
-                  performed_on: date,
-                  day: entry.date,
-                  on_closed_days: onClosedDays,
-              }
-            : { due_on: date },
-        {
-            preserveScroll: true,
-            onError: (errors) =>
-                errors.closed_days
-                    ? toast.warning(errors.closed_days, {
-                          action: {
-                              label: 'Move anyway',
-                              onClick: () => moveEntry(entry, date, true),
-                          },
-                      })
-                    : toast.error(
-                          Object.values(errors)[0] ??
-                              'That could not be moved.',
-                      ),
-        },
-    );
-};
+/**
+ * Take a check or a job off the calendar straight away while it is being
+ * taken off the schedule.
+ */
+const withoutEntry =
+    (entry: ScheduleEntry) => (props: Record<string, unknown>) => ({
+        entries: (props.entries as ScheduleEntry[]).filter(
+            (existing) =>
+                !(existing.kind === entry.kind && existing.id === entry.id),
+        ),
+    });
 
 export default function Schedule({
     month,
@@ -391,6 +392,7 @@ function ScheduleEntryRow({
                                 ? removeCheck.form(entry.id)
                                 : removeJob.form(entry.id)
                         }
+                        optimistic={withoutEntry(entry)}
                     />
                 )}
             </div>

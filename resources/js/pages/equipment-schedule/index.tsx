@@ -1,4 +1,4 @@
-import { Head, Link, router, setLayoutProps, usePage } from '@inertiajs/react';
+import { Head, Link, setLayoutProps, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     CalendarCheck,
@@ -9,7 +9,6 @@ import {
     Wrench,
 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import ChangeDaysDialog from '@/components/change-days-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import EquipmentScheduleJobDialog from '@/components/equipment-schedule-job-dialog';
@@ -25,6 +24,7 @@ import type { CalendarKind } from '@/components/schedule-calendar';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { divisionRoutes } from '@/lib/equipment-divisions';
+import { moveJob } from '@/lib/move-job';
 import { cn } from '@/lib/utils';
 import { show as showEquipment } from '@/routes/equipment';
 import { show as showChecklist } from '@/routes/equipment-checklists';
@@ -55,34 +55,11 @@ const kinds: Record<EquipmentScheduleEntryKind, CalendarKind> = {
 };
 
 /**
- * Move maintenance to another day. Dragging any day of maintenance over
- * several days moves all of it by the same amount; if that would put its
- * other days on days the shop is closed, it asks before doing so.
+ * Move maintenance to another day. Maintenance over several days moves as a
+ * whole.
  */
-const moveEntry = (
-    entry: EquipmentScheduleEntry,
-    date: string,
-    onClosedDays = false,
-) =>
-    router.patch(
-        updateJob.url(entry.id),
-        { performed_on: date, day: entry.date, on_closed_days: onClosedDays },
-        {
-            preserveScroll: true,
-            onError: (errors) =>
-                errors.closed_days
-                    ? toast.warning(errors.closed_days, {
-                          action: {
-                              label: 'Move anyway',
-                              onClick: () => moveEntry(entry, date, true),
-                          },
-                      })
-                    : toast.error(
-                          Object.values(errors)[0] ??
-                              'That could not be moved.',
-                      ),
-        },
-    );
+const moveEntry = (entry: EquipmentScheduleEntry, date: string) =>
+    moveJob(updateJob.url(entry.id), entry, date);
 
 export default function EquipmentSchedule({
     division,
@@ -316,6 +293,17 @@ function EquipmentScheduleEntryRow({
                         description="Nobody has started it, so it is removed from the equipment service log as well."
                         confirmLabel="Remove maintenance"
                         form={removeJob.form(entry.id)}
+                        optimistic={(props) => ({
+                            entries: (
+                                props.entries as EquipmentScheduleEntry[]
+                            ).filter(
+                                (existing) =>
+                                    !(
+                                        existing.kind === entry.kind &&
+                                        existing.id === entry.id
+                                    ),
+                            ),
+                        })}
                     />
                 )}
             </div>

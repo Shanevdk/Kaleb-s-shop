@@ -1,9 +1,10 @@
 import { router } from '@inertiajs/react';
 import { AlertTriangle, Check, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 import { update } from '@/routes/inspection-items';
-import type { CheckStatus, InspectionItem } from '@/types';
+import type { CheckStatus, Inspection, InspectionItem } from '@/types';
 
 const choices: {
     status: Exclude<CheckStatus, 'pending'>;
@@ -38,12 +39,31 @@ export default function CheckStatusButtons({
     item: InspectionItem;
     disabled?: boolean;
 }) {
+    // The tick shows straight away; it is put back if the save fails.
     const setStatus = (status: CheckStatus) => {
-        router.patch(
-            update(item.id).url,
-            { status: status === item.status ? 'pending' : status },
-            { preserveScroll: true, preserveState: true },
-        );
+        const next = status === item.status ? 'pending' : status;
+
+        router
+            .optimistic<{ inspection: Inspection }>((props) => ({
+                inspection: {
+                    ...props.inspection,
+                    items: props.inspection.items?.map((existing) =>
+                        existing.id === item.id
+                            ? { ...existing, status: next }
+                            : existing,
+                    ),
+                },
+            }))
+            .patch(
+                update(item.id).url,
+                { status: next },
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    showProgress: false,
+                    onError: (errors) => showFailure(errors),
+                },
+            );
     };
 
     return (

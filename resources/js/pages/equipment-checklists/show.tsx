@@ -25,6 +25,7 @@ import {
     update as updateItem,
 } from '@/routes/equipment-checklist-items';
 import { destroy, show, update } from '@/routes/equipment-checklists';
+import { showFailure } from '@/lib/optimistic';
 import type { EquipmentChecklist, EquipmentChecklistItem } from '@/types';
 
 /**
@@ -33,6 +34,21 @@ import type { EquipmentChecklist, EquipmentChecklistItem } from '@/types';
  */
 function RemoveCheck({ item }: { item: EquipmentChecklistItem }) {
     const needsConfirming = item.status !== 'pending' || Boolean(item.notes);
+
+    // The check goes straight away, and comes back if the server says no.
+    const withoutItem = (props: Record<string, unknown>) => {
+        const checklist = props.checklist as EquipmentChecklist;
+
+        return {
+            checklist: {
+                ...checklist,
+                items: checklist.items?.filter(
+                    (existing) => existing.id !== item.id,
+                ),
+            },
+        };
+    };
+
     const button = (
         <Button
             variant="ghost"
@@ -43,9 +59,13 @@ function RemoveCheck({ item }: { item: EquipmentChecklistItem }) {
                 needsConfirming
                     ? undefined
                     : () =>
-                          router.delete(destroyItem(item.id).url, {
-                              preserveScroll: true,
-                          })
+                          router
+                              .optimistic(withoutItem)
+                              .delete(destroyItem(item.id).url, {
+                                  preserveScroll: true,
+                                  showProgress: false,
+                                  onError: (errors) => showFailure(errors),
+                              })
             }
         >
             <X />
@@ -59,6 +79,7 @@ function RemoveCheck({ item }: { item: EquipmentChecklistItem }) {
             description={`"${item.label}" has already been checked or has a note, and that goes with it.`}
             confirmLabel="Remove check"
             form={destroyItem.form(item.id)}
+            optimistic={withoutItem}
         />
     ) : (
         button

@@ -2,8 +2,8 @@ import { router } from '@inertiajs/react';
 import { CheckCircle2, Circle, ListTodo } from 'lucide-react';
 import { useState } from 'react';
 import type { DragEvent, KeyboardEvent, ReactNode } from 'react';
-import { toast } from 'sonner';
 import EmptyState from '@/components/empty-state';
+import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 import type { ServiceStatus } from '@/types';
 
@@ -17,8 +17,10 @@ const columns: { status: ServiceStatus; title: string; icon: typeof Circle }[] =
 /**
  * A job queue as a board: a column for not started, in progress and
  * complete. A card is dragged to another column to move the job along, and
- * tapped to open it. What a card shows is up to the page, since vehicle and
- * equipment jobs carry different detail.
+ * tapped to open it. A dropped card lands in its new column straight away,
+ * and goes back if the move is turned down. What a card shows is up to the
+ * page, since vehicle and equipment jobs carry different detail. The page's
+ * jobs prop has to be called jobs.
  */
 export default function JobBoard<
     Job extends { id: string; status: ServiceStatus },
@@ -35,17 +37,22 @@ export default function JobBoard<
     renderCard: (job: Job) => ReactNode;
 }) {
     const onMove = (job: Job, status: ServiceStatus) => {
-        router.patch(
-            moveUrl(job),
-            { status },
-            {
-                preserveScroll: true,
-                onError: (errors) =>
-                    toast.error(
-                        Object.values(errors)[0] ?? 'That could not be moved.',
-                    ),
-            },
-        );
+        router
+            .optimistic<{ jobs: Job[] }>((props) => ({
+                jobs: props.jobs.map((existing) =>
+                    existing.id === job.id ? { ...existing, status } : existing,
+                ),
+            }))
+            .patch(
+                moveUrl(job),
+                { status },
+                {
+                    preserveScroll: true,
+                    showProgress: false,
+                    onError: (errors) =>
+                        showFailure(errors, 'That could not be moved.'),
+                },
+            );
     };
 
     const byStatus = jobs.reduce<Record<ServiceStatus, Job[]>>(

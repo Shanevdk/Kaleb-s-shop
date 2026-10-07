@@ -47,11 +47,7 @@ export default function ShoppingList({
     shortLines,
     reorderLines,
     stats,
-}: {
-    shortLines: ShoppingListLine[];
-    reorderLines: ShoppingListLine[];
-    stats: Stats;
-}) {
+}: ShoppingListProps) {
     // Shoppers see the list but cannot open the parts or jobs behind it.
     const { can } = usePage().props.auth;
     const canOpenInventory = can.inventory;
@@ -383,15 +379,57 @@ export default function ShoppingList({
 }
 
 /**
+ * The id a ticked line's order goes by until the server has saved it.
+ */
+const PENDING_ORDER = 'pending';
+
+type ShoppingListProps = {
+    shortLines: ShoppingListLine[];
+    reorderLines: ShoppingListLine[];
+    stats: Stats;
+};
+
+const isSameLine = (one: ShoppingListLine, other: ShoppingListLine) =>
+    one.inventory_item_id === other.inventory_item_id &&
+    one.name === other.name;
+
+/**
+ * How the list looks once a line's order is placed, changed or taken back
+ * off, so the tick shows before the server has answered.
+ */
+const withOrder =
+    (line: ShoppingListLine, order: ShoppingListLine['order']) =>
+    (props: ShoppingListProps): Partial<ShoppingListProps> => {
+        const update = (lines: ShoppingListLine[]) =>
+            lines.map((existing) =>
+                isSameLine(existing, line) ? { ...existing, order } : existing,
+            );
+
+        const shortLines = update(props.shortLines);
+        const reorderLines = update(props.reorderLines);
+
+        return {
+            shortLines,
+            reorderLines,
+            stats: {
+                ...props.stats,
+                ordered: [...shortLines, ...reorderLines].filter(
+                    (existing) => existing.order !== null,
+                ).length,
+            },
+        };
+    };
+
+/**
  * Tick a line off as ordered and say how many were ordered. Changing the
  * amount on a ticked line updates the order; unticking it takes the order
- * back off, unless part of it has already been received.
+ * back off, unless part of it has already been received. The tick shows
+ * straight away, and goes back if the server turns it down.
  */
 function OrderToggle({ line }: { line: ShoppingListLine }) {
     const [quantity, setQuantity] = useState(() =>
         String(line.order?.quantity_ordered ?? line.shortfall),
     );
-    const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string>();
 
     const order = line.order;
@@ -400,34 +438,41 @@ function OrderToggle({ line }: { line: ShoppingListLine }) {
     const requestOptions = {
         preserveScroll: true,
         preserveState: true,
-        onStart: () => {
-            setProcessing(true);
-            setError(undefined);
-        },
+        showProgress: false,
+        onStart: () => setError(undefined),
         onError: (errors: Record<string, string>) =>
             setError(errors.quantity ?? Object.values(errors)[0]),
-        onFinish: () => setProcessing(false),
     };
 
     const submitOrder = () => {
-        router.post(
-            placeOrder.url(),
-            {
-                inventory_item_id: line.inventory_item_id,
-                name: line.name,
-                part_number: line.part_number,
-                brand: line.brand,
-                supplier: line.supplier,
-                unit: line.unit,
-                quantity,
-            },
-            requestOptions,
-        );
+        router
+            .optimistic(
+                withOrder(line, {
+                    id: order?.id ?? PENDING_ORDER,
+                    quantity_ordered: Number(quantity) || 0,
+                    quantity_received: order?.quantity_received ?? 0,
+                }),
+            )
+            .post(
+                placeOrder.url(),
+                {
+                    inventory_item_id: line.inventory_item_id,
+                    name: line.name,
+                    part_number: line.part_number,
+                    brand: line.brand,
+                    supplier: line.supplier,
+                    unit: line.unit,
+                    quantity,
+                },
+                requestOptions,
+            );
     };
 
     const withdrawOrder = () => {
-        if (order) {
-            router.delete(cancelOrder(order.id).url, requestOptions);
+        if (order && order.id !== PENDING_ORDER) {
+            router
+                .optimistic(withOrder(line, null))
+                .delete(cancelOrder(order.id).url, requestOptions);
         }
     };
 
@@ -436,7 +481,7 @@ function OrderToggle({ line }: { line: ShoppingListLine }) {
             <div className="flex items-center gap-2">
                 <Checkbox
                     checked={order !== null}
-                    disabled={processing || partlyReceived}
+                    disabled={partlyReceived || order?.id === PENDING_ORDER}
                     onCheckedChange={(checked) =>
                         checked === true ? submitOrder() : withdrawOrder()
                     }
@@ -448,7 +493,6 @@ function OrderToggle({ line }: { line: ShoppingListLine }) {
                     min="0"
                     step="any"
                     value={quantity}
-                    disabled={processing}
                     onChange={(event) => setQuantity(event.target.value)}
                     onBlur={() => {
                         if (

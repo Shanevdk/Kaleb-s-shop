@@ -18,6 +18,7 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 import { destroy as reopenDay } from '@/routes/schedule/closed-days';
 import type { ClosedDay, ScheduledCheckStatus } from '@/types';
@@ -495,12 +496,27 @@ export function ScheduleDayPanel({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() =>
-                                    router.delete(
-                                        reopenDay.url(
-                                            markedClosed.id as string,
-                                        ),
-                                        { preserveScroll: true },
-                                    )
+                                    router
+                                        .optimistic<{
+                                            closedDays: ClosedDay[];
+                                        }>((props) => ({
+                                            closedDays: props.closedDays.filter(
+                                                (closed) =>
+                                                    closed.id !==
+                                                    markedClosed.id,
+                                            ),
+                                        }))
+                                        .delete(
+                                            reopenDay.url(
+                                                markedClosed.id as string,
+                                            ),
+                                            {
+                                                preserveScroll: true,
+                                                showProgress: false,
+                                                onError: (errors) =>
+                                                    showFailure(errors),
+                                            },
+                                        )
                                 }
                             >
                                 Open this day

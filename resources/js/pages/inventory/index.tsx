@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import UseStockDialog from '@/components/use-stock-dialog';
 import { formatCurrency, formatNumber, formatQuantity } from '@/lib/format';
+import { showFailure } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 import { adjust, create, destroy, edit, index, scan } from '@/routes/inventory';
 import { show as showVehicle } from '@/routes/vehicles';
@@ -78,12 +79,29 @@ export default function InventoryIndex({
         );
     };
 
+    // The new count shows straight away; it is put back if the save fails.
     const adjustQuantity = (item: InventoryItem, delta: number) => {
-        router.patch(
-            adjust(item.id).url,
-            { delta, vehicle_id: filters.vehicle || null },
-            { preserveScroll: true, preserveState: true },
-        );
+        router
+            .optimistic<{ items: InventoryItem[] }>((props) => ({
+                items: props.items.map((existing) =>
+                    existing.id === item.id
+                        ? {
+                              ...existing,
+                              quantity: Math.max(0, existing.quantity + delta),
+                          }
+                        : existing,
+                ),
+            }))
+            .patch(
+                adjust(item.id).url,
+                { delta, vehicle_id: filters.vehicle || null },
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    showProgress: false,
+                    onError: (errors) => showFailure(errors),
+                },
+            );
     };
 
     const isFiltered =
