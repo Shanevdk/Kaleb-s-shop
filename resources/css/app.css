@@ -64,6 +64,10 @@
     --color-brand-navy: #001f4f;
     --color-brand-orange: #ef521d;
 
+    /* The logo: a pale steel spanner and gear on charcoal. */
+    --color-brand-charcoal: #2b2b2b;
+    --color-brand-steel: #d6d2ca;
+
     /* The sweep over a vehicle while the AI studies its photos. */
     --animate-scan: scan 2.4s ease-in-out infinite;
 

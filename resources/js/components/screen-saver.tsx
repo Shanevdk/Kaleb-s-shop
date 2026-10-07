@@ -203,7 +203,7 @@ export default function ScreenSaver() {
                         }}
                     >
                         <header className="flex items-center gap-3">
-                            <span className="bg-brand-navy ring-brand-orange flex size-11 items-center justify-center rounded-xl ring-2 ring-offset-2 ring-offset-transparent">
+                            <span className="bg-brand-charcoal text-brand-steel flex size-11 items-center justify-center rounded-xl">
                                 <AppLogoIcon className="size-8 fill-current" />
                             </span>
                             <AppWordmark className="h-6 drop-shadow" onDark />

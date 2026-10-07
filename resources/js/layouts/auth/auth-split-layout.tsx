@@ -19,7 +19,7 @@ export default function AuthSplitLayout({
                         href={home()}
                         className="relative z-20 flex flex-col items-center justify-center gap-3 lg:hidden"
                     >
-                        <span className="bg-brand-navy ring-brand-orange flex size-12 items-center justify-center rounded-xl text-white ring-1 ring-offset-2">
+                        <span className="bg-brand-charcoal text-brand-steel flex size-12 items-center justify-center rounded-xl">
                             <AppLogoIcon className="size-9 fill-current" />
                         </span>
                         <AppWordmark className="h-5" />

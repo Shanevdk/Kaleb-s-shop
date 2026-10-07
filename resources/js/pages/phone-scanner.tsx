@@ -113,7 +113,7 @@ export default function PhoneScanner({
 
             <div className="bg-brand-navy flex min-h-svh flex-col text-white">
                 <header className="flex items-center gap-3 px-4 py-3">
-                    <span className="ring-brand-orange flex size-9 items-center justify-center rounded-lg ring-1">
+                    <span className="bg-brand-charcoal text-brand-steel flex size-9 items-center justify-center rounded-lg">
                         <AppLogoIcon className="size-7 fill-current" />
                     </span>
                     <div className="grid gap-0.5">

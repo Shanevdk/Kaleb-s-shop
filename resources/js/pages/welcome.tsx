@@ -56,7 +56,7 @@ export default function Welcome() {
                 <header className="bg-brand-navy text-white">
                     <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
                         <div className="flex items-center gap-3">
-                            <span className="ring-brand-orange ring-offset-brand-navy flex size-9 items-center justify-center rounded-lg ring-1 ring-offset-2">
+                            <span className="bg-brand-charcoal text-brand-steel flex size-9 items-center justify-center rounded-lg">
                                 <AppLogoIcon className="size-7 fill-current" />
                             </span>
                             <AppWordmark className="h-5" onDark />

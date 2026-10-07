@@ -37,7 +37,7 @@ export default function WorkOrder({
             <div className="min-h-svh bg-zinc-100 text-zinc-900 print:bg-white">
                 <header className="bg-brand-navy text-white [print-color-adjust:exact]">
                     <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4 sm:px-6">
-                        <span className="ring-brand-orange flex size-10 shrink-0 items-center justify-center rounded-lg ring-1">
+                        <span className="bg-brand-charcoal text-brand-steel flex size-10 shrink-0 items-center justify-center rounded-lg">
                             <AppLogoIcon className="size-8 fill-current" />
                         </span>
                         <div className="grid min-w-0 flex-1 gap-1">

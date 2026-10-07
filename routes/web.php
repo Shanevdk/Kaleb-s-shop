@@ -54,7 +54,7 @@ Route::get('site.webmanifest', function () {
         'scope' => '/',
         'display' => 'standalone',
         'orientation' => 'portrait',
-        'background_color' => '#001f4f',
+        'background_color' => '#2b2b2b',
         'theme_color' => '#001f4f',
         'icons' => [
             ['src' => '/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],

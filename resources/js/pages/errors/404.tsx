@@ -223,7 +223,7 @@ export default function NotFound() {
             <div className="flex min-h-screen flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
                 <header className="mx-auto w-full max-w-5xl px-6 py-8">
                     <div className="flex items-center gap-2">
-                        <AppLogoIcon className="text-brand-navy size-6 fill-current dark:text-white" />
+                        <AppLogoIcon className="size-6 fill-current text-neutral-500 dark:text-neutral-300" />
                         <AppWordmark className="h-4" />
                     </div>
                 </header>
