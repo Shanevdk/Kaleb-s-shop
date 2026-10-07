@@ -372,7 +372,7 @@ export type EquipmentChecklist = {
 
 export type EquipmentServiceRecord = {
     id: string;
-    equipment_id: string;
+    equipment_id: string | null;
     title: string;
     type: string;
     type_label: string;
@@ -391,7 +391,7 @@ export type EquipmentServiceRecord = {
     equipment?: {
         id: string;
         name: string;
-    };
+    } | null;
 };
 
 export type UnitOption = SelectOption & {

@@ -43,17 +43,19 @@ class EquipmentJobQueueController extends Controller
     /**
      * Quickly add a job for one of the division's machines straight to its
      * queue. It lands as planned work of no particular type today, to be
-     * filled in later from the service log.
+     * filled in later from the service log. The machine can be left for
+     * later too.
      */
     public function store(Request $request, EquipmentDivision $division): RedirectResponse
     {
         $validated = $request->validate([
-            'equipment_id' => ['required', 'string', Rule::exists('equipment', 'id')->where('division', $division->value)],
+            'equipment_id' => ['nullable', 'string', Rule::exists('equipment', 'id')->where('division', $division->value)],
             'title' => ['required', 'string', 'max:120'],
         ]);
 
         $request->user()->equipmentServiceRecords()->make([
             ...$validated,
+            'division' => $division,
             'type' => EquipmentServiceType::Other,
             'status' => ServiceStatus::Planned,
         ])->bookOn([today()->toDateString()])->save();

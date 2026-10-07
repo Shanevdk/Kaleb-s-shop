@@ -96,7 +96,9 @@ class EquipmentServiceRecordController extends Controller
     }
 
     /**
-     * Update the given service record.
+     * Update the given service record, and pick the machine for a job that
+     * was quick-added without one. The machine stays within the record's
+     * division.
      */
     public function update(Request $request, EquipmentServiceRecord $equipmentServiceRecord): RedirectResponse
     {
@@ -142,6 +144,9 @@ class EquipmentServiceRecordController extends Controller
         $this->mergeBookedDays($request, $record);
 
         return $request->validate([
+            ...($record === null ? [] : [
+                'equipment_id' => ['sometimes', 'nullable', 'string', Rule::exists('equipment', 'id')->where('division', $record->division->value)],
+            ]),
             'title' => ['required', 'string', 'max:120'],
             'type' => ['required', Rule::enum(EquipmentServiceType::class)],
             'status' => ['required', Rule::enum(ServiceStatus::class)],

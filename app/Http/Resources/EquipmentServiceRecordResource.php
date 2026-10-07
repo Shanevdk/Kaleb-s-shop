@@ -34,7 +34,7 @@ class EquipmentServiceRecordResource extends JsonResource
             'labour_cost' => (float) $this->labour_cost,
             'total_cost' => $this->total_cost,
             'description' => $this->description,
-            'equipment' => $this->whenLoaded('equipment', fn (): array => [
+            'equipment' => $this->whenLoaded('equipment', fn (): ?array => $this->equipment === null ? null : [
                 'id' => $this->equipment->id,
                 'name' => $this->equipment->name,
             ]),

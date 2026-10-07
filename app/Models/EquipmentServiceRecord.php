@@ -21,7 +21,8 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property string $user_id
- * @property string $equipment_id
+ * @property EquipmentDivision $division
+ * @property string|null $equipment_id
  * @property string $title
  * @property EquipmentServiceType $type
  * @property ServiceStatus $status
@@ -35,11 +36,25 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['equipment_id', 'title', 'type', 'status', 'performed_on', 'hours', 'parts_cost', 'labour_cost', 'description'])]
+#[Fillable(['division', 'equipment_id', 'title', 'type', 'status', 'performed_on', 'hours', 'parts_cost', 'labour_cost', 'description'])]
 class EquipmentServiceRecord extends Model
 {
     /** @use HasFactory<EquipmentServiceRecordFactory> */
     use BooksDays, HasFactory, HasUlids, SitsOnJobQueue;
+
+    /**
+     * Work logged against a machine belongs to that machine's division; only
+     * a job still waiting for its machine keeps to the division it was added
+     * to.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (EquipmentServiceRecord $record): void {
+            if ($record->equipment_id !== null && $record->isDirty('equipment_id')) {
+                $record->division = $record->equipment()->sole()->division;
+            }
+        });
+    }
 
     /**
      * Get the owner of the service record.
@@ -52,7 +67,7 @@ class EquipmentServiceRecord extends Model
     }
 
     /**
-     * Get the equipment the work was carried out on.
+     * Get the equipment the work was carried out on, once it is picked.
      *
      * @return BelongsTo<Equipment, $this>
      */
@@ -69,7 +84,7 @@ class EquipmentServiceRecord extends Model
     #[Scope]
     protected function inDivision(Builder $query, EquipmentDivision $division): void
     {
-        $query->whereRelation('equipment', 'division', $division);
+        $query->where('division', $division);
     }
 
     /**
@@ -90,6 +105,7 @@ class EquipmentServiceRecord extends Model
     protected function casts(): array
     {
         return [
+            'division' => EquipmentDivision::class,
             'type' => EquipmentServiceType::class,
             'status' => ServiceStatus::class,
             'performed_on' => 'date',

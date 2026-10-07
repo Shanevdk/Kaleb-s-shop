@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\EquipmentDivision;
 use App\Enums\EquipmentServiceType;
 use App\Enums\ServiceStatus;
 use App\Models\Equipment;
@@ -126,6 +127,61 @@ test('a job cannot be quick added for the other division\'s machine', function (
         ->assertSessionHasErrors('equipment_id');
 
     expect(EquipmentServiceRecord::count())->toBe(0);
+});
+
+test('a quick added job can leave the machine for later and stays on its own division\'s queue', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('usa.equipment-job-queue.store'), [
+            'equipment_id' => null,
+            'title' => 'Tidy the parts cage',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $job = EquipmentServiceRecord::sole();
+    expect($job->equipment_id)->toBeNull()
+        ->and($job->division)->toBe(EquipmentDivision::Usa);
+
+    $this->actingAs($user)
+        ->get(route('usa.equipment-job-queue.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('jobs.0.id', $job->id)
+            ->where('jobs.0.equipment', null)
+        );
+
+    $this->actingAs($user)
+        ->get(route('equipment-job-queue.index'))
+        ->assertInertia(fn ($page) => $page->where('jobs', []));
+
+    $this->actingAs(User::factory()->shopper()->create(['permissions' => ['equipment']]))
+        ->patch(route('equipment-job-queue.update', $job), ['status' => 'in_progress'])
+        ->assertForbidden();
+});
+
+test('a job without a machine can have one picked later from the division\'s service log', function () {
+    $user = User::factory()->create();
+    $lift = Equipment::factory()->usa()->create();
+    $loader = Equipment::factory()->create();
+    $job = EquipmentServiceRecord::factory()->planned()->create(['equipment_id' => null, 'division' => EquipmentDivision::Usa]);
+    $attributes = [
+        'title' => $job->title,
+        'type' => $job->type->value,
+        'status' => $job->status->value,
+        'performed_on' => $job->performed_on->toDateString(),
+    ];
+
+    $this->actingAs($user)
+        ->patch(route('equipment-service-records.update', $job), [...$attributes, 'equipment_id' => $loader->id])
+        ->assertSessionHasErrors('equipment_id');
+
+    expect($job->fresh()->equipment_id)->toBeNull();
+
+    $this->actingAs($user)
+        ->patch(route('equipment-service-records.update', $job), [...$attributes, 'equipment_id' => $lift->id])
+        ->assertSessionHasNoErrors();
+
+    expect($job->fresh()->equipment_id)->toBe($lift->id);
 });
 
 test('a job can be moved along the board, but only by someone with its division', function () {

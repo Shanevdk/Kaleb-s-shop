@@ -290,9 +290,6 @@ export default function EquipmentShow({
                                                                     <Pencil />
                                                                 </Button>
                                                             }
-                                                            equipmentId={
-                                                                equipment.id
-                                                            }
                                                             types={types}
                                                             statuses={statuses}
                                                             record={record}

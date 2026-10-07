@@ -208,7 +208,7 @@ export default function EquipmentServiceRecordsIndex({
                                             </p>
                                         </TableCell>
                                         <TableCell>
-                                            {record.equipment && (
+                                            {record.equipment ? (
                                                 <Link
                                                     href={showEquipment(
                                                         record.equipment.id,
@@ -220,6 +220,10 @@ export default function EquipmentServiceRecordsIndex({
                                                 >
                                                     {record.equipment.name}
                                                 </Link>
+                                            ) : (
+                                                <span className="text-muted-foreground">
+                                                    No machine yet
+                                                </span>
                                             )}
                                         </TableCell>
                                         <TableCell>
@@ -251,9 +255,7 @@ export default function EquipmentServiceRecordsIndex({
                                                             <Pencil />
                                                         </Button>
                                                     }
-                                                    equipmentId={
-                                                        record.equipment_id
-                                                    }
+                                                    equipment={equipment}
                                                     types={types}
                                                     statuses={statuses}
                                                     record={record}

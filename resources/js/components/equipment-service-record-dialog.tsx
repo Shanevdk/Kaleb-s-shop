@@ -28,23 +28,37 @@ import { store, update } from '@/routes/equipment-service-records';
 import type { EquipmentServiceRecord, SelectOption } from '@/types';
 
 /**
- * Log or edit a service record against a piece of equipment.
+ * What the machine picker holds when the record has no machine yet; a
+ * select item cannot have an empty value.
+ */
+const NO_MACHINE = 'none';
+
+/**
+ * Log a service record against a piece of equipment, or edit one. Given the
+ * division's machines, editing can also pick the machine for a job that was
+ * quick-added without one.
  */
 export default function EquipmentServiceRecordDialog({
     trigger,
-    equipmentId,
     types,
     statuses,
-    record,
+    equipment,
+    ...target
 }: {
     trigger: ReactNode;
-    equipmentId: string;
     types: SelectOption[];
     statuses: SelectOption[];
-    record?: EquipmentServiceRecord;
-}) {
+    equipment?: SelectOption[];
+} & (
+    | { record: EquipmentServiceRecord; equipmentId?: never }
+    | { record?: never; equipmentId: string }
+)) {
     const [open, setOpen] = useState(false);
-    const action = record ? update.form(record.id) : store.form(equipmentId);
+    const record = target.record;
+    const action = target.record
+        ? update.form(target.record.id)
+        : store.form(target.equipmentId);
+    const canPickMachine = record !== undefined && equipment !== undefined;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -62,11 +76,51 @@ export default function EquipmentServiceRecordDialog({
                 <Form
                     {...action}
                     options={{ preserveScroll: true }}
+                    transform={(data) =>
+                        data.equipment_id === NO_MACHINE
+                            ? { ...data, equipment_id: null }
+                            : data
+                    }
                     onSuccess={() => setOpen(false)}
                     className="space-y-4"
                 >
                     {({ processing, errors }) => (
                         <>
+                            {canPickMachine && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="record_equipment_id">
+                                        Equipment
+                                    </Label>
+                                    <Select
+                                        name="equipment_id"
+                                        defaultValue={
+                                            record.equipment_id ?? NO_MACHINE
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="record_equipment_id"
+                                            className="w-full"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NO_MACHINE}>
+                                                No machine yet
+                                            </SelectItem>
+                                            {equipment.map((item) => (
+                                                <SelectItem
+                                                    key={item.value}
+                                                    value={item.value}
+                                                >
+                                                    {item.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.equipment_id} />
+                                </div>
+                            )}
+
                             <div className="grid gap-2">
                                 <Label htmlFor="record_title">
                                     What was done

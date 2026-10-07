@@ -49,6 +49,7 @@ export default function EquipmentJobQueue({
                                 label: 'Equipment',
                                 options: equipment,
                                 placeholder: 'Pick a machine',
+                                unpickedLabel: 'No machine yet',
                             }}
                             titlePlaceholder="Replace the hydraulic hose"
                             trigger={
@@ -65,13 +66,17 @@ export default function EquipmentJobQueue({
                     jobs={jobs}
                     moveUrl={(job) => update.url(job.id)}
                     onOpen={(job) =>
-                        router.visit(showEquipment(job.equipment_id).url)
+                        router.visit(
+                            job.equipment_id
+                                ? showEquipment(job.equipment_id).url
+                                : divisionRoutes[division].serviceLog().url,
+                        )
                     }
                     renderCard={(job) => (
                         <>
                             <p className="truncate font-medium">{job.title}</p>
                             <p className="text-muted-foreground truncate text-xs">
-                                {job.equipment?.name}
+                                {job.equipment?.name ?? 'No machine'}
                             </p>
                             <div className="text-muted-foreground flex items-center gap-2 text-[11px]">
                                 <span className="truncate">
