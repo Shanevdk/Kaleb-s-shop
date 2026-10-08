@@ -10,6 +10,7 @@ use App\Http\Controllers\EquipmentChecklistController;
 use App\Http\Controllers\EquipmentChecklistItemController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\EquipmentJobQueueController;
+use App\Http\Controllers\EquipmentPhotoController;
 use App\Http\Controllers\EquipmentScheduleController;
 use App\Http\Controllers\EquipmentScheduleJobController;
 use App\Http\Controllers\EquipmentServiceRecordController;
@@ -266,6 +267,11 @@ Route::middleware(['auth', 'verified', 'can:viewAny,'.Equipment::class])->group(
     Route::resource('equipment', EquipmentController::class)->only(['show', 'edit', 'update', 'destroy']);
     Route::put('equipment/{equipment}/barcode', [EquipmentController::class, 'assignBarcode'])
         ->name('equipment.barcode');
+    Route::post('equipment/{equipment}/photos', [EquipmentPhotoController::class, 'store'])
+        ->name('equipment.photos.store');
+    Route::delete('equipment/{equipment}/photos/{photo}', [EquipmentPhotoController::class, 'destroy'])
+        ->where('photo', '[A-Za-z0-9]+\.[A-Za-z0-9]+')
+        ->name('equipment.photos.destroy');
     Route::post('equipment/{equipment}/checklists', [EquipmentChecklistController::class, 'store'])
         ->name('equipment-checklists.store');
     Route::get('equipment-checklists/{equipmentChecklist}', [EquipmentChecklistController::class, 'show'])

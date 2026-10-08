@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property string $id
@@ -27,15 +28,48 @@ use Illuminate\Support\Carbon;
  * @property EquipmentStatus $status
  * @property Carbon|null $purchased_on
  * @property string|null $notes
+ * @property array<int, string>|null $photos
  * @property string|null $default_checklist_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['division', 'name', 'category', 'serial_number', 'barcode', 'location', 'status', 'purchased_on', 'notes'])]
+#[Fillable(['division', 'name', 'category', 'serial_number', 'barcode', 'location', 'status', 'purchased_on', 'notes', 'photos'])]
 class Equipment extends Model
 {
     /** @use HasFactory<EquipmentFactory> */
     use HasFactory, HasUlids;
+
+    /**
+     * How many photos a piece of equipment can keep.
+     */
+    public const MAX_PHOTOS = 20;
+
+    /**
+     * The photos go from disk when the equipment goes.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Equipment $equipment): void {
+            Storage::disk('public')->delete($equipment->photos ?? []);
+        });
+    }
+
+    /**
+     * Get each photo, oldest first, with the file name it is removed by and
+     * its public URL.
+     *
+     * @return array<int, array{id: string, url: string}>
+     */
+    public function photoList(): array
+    {
+        return array_map(
+            fn (string $path): array => [
+                'id' => basename($path),
+                'url' => Storage::disk('public')->url($path),
+            ],
+            $this->photos ?? [],
+        );
+    }
 
     /**
      * Get the owner of the equipment record.
@@ -130,6 +164,7 @@ class Equipment extends Model
             'division' => EquipmentDivision::class,
             'status' => EquipmentStatus::class,
             'purchased_on' => 'date',
+            'photos' => 'array',
         ];
     }
 

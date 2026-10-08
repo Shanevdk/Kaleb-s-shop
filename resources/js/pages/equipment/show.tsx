@@ -15,6 +15,7 @@ import AssignBarcodeDialog from '@/components/assign-barcode-dialog';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
 import EquipmentChecklistDialog from '@/components/equipment-checklist-dialog';
+import EquipmentPhotos from '@/components/equipment-photos';
 import EquipmentServiceRecordDialog from '@/components/equipment-service-record-dialog';
 import PageHeader from '@/components/page-header';
 import StatCard from '@/components/stat-card';
@@ -219,6 +220,12 @@ export default function EquipmentShow({
                     </aside>
 
                     <div className="space-y-6">
+                        <EquipmentPhotos
+                            equipmentId={equipment.id}
+                            name={equipment.name}
+                            photos={equipment.photos}
+                        />
+
                         <section className="bg-card rounded-xl border">
                             <header className="flex items-center justify-between border-b px-6 py-4">
                                 <h2 className="font-semibold">

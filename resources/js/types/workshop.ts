@@ -326,6 +326,12 @@ export type EquipmentStatus = 'active' | 'out_of_service' | 'retired';
  */
 export type EquipmentDivision = 'main' | 'usa';
 
+export type EquipmentPhoto = {
+    /** The photo's file name, which it is removed by. */
+    id: string;
+    url: string;
+};
+
 export type Equipment = {
     id: string;
     division: EquipmentDivision;
@@ -338,6 +344,8 @@ export type Equipment = {
     status_label: string;
     purchased_on: string | null;
     notes: string | null;
+    /** Oldest first. */
+    photos: EquipmentPhoto[];
     /** The checklist the next one is copied from. */
     default_checklist?: { id: string; title: string } | null;
     checklists_count?: number;
