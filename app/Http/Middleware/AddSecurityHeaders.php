@@ -55,9 +55,8 @@ class AddSecurityHeaders
     /**
      * Build the policy. Scripts only come from the app itself (and the Vite
      * dev server while it runs), inline ones only with this request's nonce.
-     * The barcode scanner loads its engine from a CDN as WebAssembly and
-     * runs it in a worker, so that origin, WebAssembly and blob workers are
-     * allowed too.
+     * The barcode scanner's reading engine is WebAssembly served by the app
+     * itself, so WebAssembly is allowed too.
      */
     private function contentSecurityPolicy(): string
     {
@@ -66,19 +65,12 @@ class AddSecurityHeaders
             "'nonce-".Vite::cspNonce()."'",
             "'wasm-unsafe-eval'",
             $this->originOf(config('app.asset_url')),
-            $this->originOf(config('services.scandit.library_location')),
             $this->viteDevServer(),
-        ]));
-
-        $workerSources = array_unique(array_filter([
-            "'self'",
-            'blob:',
-            $this->originOf(config('services.scandit.library_location')),
         ]));
 
         return implode('; ', [
             'script-src '.implode(' ', $scriptSources),
-            'worker-src '.implode(' ', $workerSources),
+            "worker-src 'self' blob:",
             "object-src 'none'",
             "base-uri 'self'",
             "frame-src 'none'",

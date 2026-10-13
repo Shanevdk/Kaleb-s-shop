@@ -50,10 +50,6 @@ class HandleInertiaRequests extends Middleware
                     ->all(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-            'scandit' => fn (): ?array => $request->user() === null ? null : [
-                'license_key' => (string) config('services.scandit.license_key'),
-                'library_location' => (string) config('services.scandit.library_location'),
-            ],
         ];
     }
 }

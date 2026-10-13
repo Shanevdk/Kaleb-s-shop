@@ -47,14 +47,6 @@ return [
         ))),
     ],
 
-    'scandit' => [
-        'license_key' => env('SCANDIT_LICENSE_KEY'),
-        'library_location' => env(
-            'SCANDIT_LIBRARY_LOCATION',
-            'https://cdn.jsdelivr.net/npm/@scandit/web-datacapture-barcode@8.6.0/sdc-lib/',
-        ),
-    ],
-
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

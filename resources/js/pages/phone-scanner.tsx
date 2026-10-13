@@ -1,14 +1,9 @@
 import { Head, useHttp } from '@inertiajs/react';
-import {
-    AlertTriangle,
-    CheckCircle2,
-    Clock,
-    Loader2,
-    ScanBarcode,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
+import ScannerViewfinder from '@/components/scanner-viewfinder';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
@@ -24,11 +19,9 @@ type Sent = PhoneScan & { key: number };
 export default function PhoneScanner({
     expired,
     scanUrl,
-    scanner,
 }: {
     expired: boolean;
     scanUrl: string | null;
-    scanner: { license_key: string; library_location: string };
 }) {
     const [sent, setSent] = useState<Sent[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -58,7 +51,6 @@ export default function PhoneScanner({
 
         recent.current = { code, at: Date.now() };
         setError(null);
-        navigator.vibrate?.(60);
 
         http.transform(() => ({ barcode: code }));
         http.post(scanUrl, {
@@ -90,8 +82,6 @@ export default function PhoneScanner({
     };
 
     const camera = useBarcodeScanner({
-        licenseKey: scanner.license_key,
-        libraryLocation: scanner.library_location,
         autoStart: !expired,
         onScan: send,
     });
@@ -104,8 +94,6 @@ export default function PhoneScanner({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [linkExpired]);
-
-    const hasCamera = scanner.license_key !== '';
 
     return (
         <>
@@ -137,38 +125,26 @@ export default function PhoneScanner({
                     </div>
                 ) : (
                     <>
-                        {hasCamera ? (
-                            <div className="relative aspect-[3/4] max-h-[60svh] w-full bg-black">
-                                <div
-                                    ref={camera.hostRef}
-                                    className="absolute inset-0"
-                                />
-                                {camera.status === 'starting' && (
-                                    <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-white/80">
-                                        <Loader2 className="size-4 animate-spin" />
-                                        Starting the camera…
-                                    </div>
-                                )}
-                                {camera.status === 'error' && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
-                                        <AlertTriangle className="size-6 text-amber-400" />
-                                        <p className="font-medium">
-                                            The camera could not start
-                                        </p>
-                                        <p className="text-sm text-white/70">
-                                            {camera.error} Allow camera access
-                                            for this site, then reload.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="m-4 flex items-center gap-3 rounded-lg border border-dashed border-white/30 p-4 text-sm text-white/80">
-                                <ScanBarcode className="size-5 shrink-0" />
-                                Camera scanning is not set up on this shop yet.
-                                Type the code below instead.
-                            </div>
-                        )}
+                        <div className="relative aspect-[3/4] max-h-[60svh] w-full bg-black">
+                            <ScannerViewfinder scanner={camera} />
+                            {camera.status === 'starting' && (
+                                <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-white/80">
+                                    <Loader2 className="size-4 animate-spin" />
+                                    Starting the camera…
+                                </div>
+                            )}
+                            {camera.status === 'error' && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
+                                    <AlertTriangle className="size-6 text-amber-400" />
+                                    <p className="font-medium">
+                                        The camera could not start
+                                    </p>
+                                    <p className="text-sm text-white/70">
+                                        {camera.error}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
 
                         <form
                             onSubmit={(event) => {

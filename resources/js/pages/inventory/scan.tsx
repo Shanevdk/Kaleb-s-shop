@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import PageHeader from '@/components/page-header';
 import PhoneScannerDialog from '@/components/phone-scanner-dialog';
+import ScannerViewfinder from '@/components/scanner-viewfinder';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,11 +43,9 @@ type Job =
     | { kind: 'link'; barcode: string; inventoryItemId: string };
 
 export default function InventoryScan({
-    scandit,
     items,
     result,
 }: {
-    scandit: { license_key: string; library_location: string };
     items: SelectOption[];
     result?: ScanResult;
 }) {
@@ -164,8 +163,6 @@ export default function InventoryScan({
     const logKey = useRef(0);
 
     const scanner = useBarcodeScanner({
-        licenseKey: scandit.license_key,
-        libraryLocation: scandit.library_location,
         onScan: submitBarcode,
     });
 
@@ -200,8 +197,6 @@ export default function InventoryScan({
         });
     };
 
-    const scannerConfigured = scandit.license_key !== '';
-
     return (
         <>
             <Head title="Scan barcodes" />
@@ -227,57 +222,33 @@ export default function InventoryScan({
                     <section className="bg-card overflow-hidden rounded-xl border">
                         <header className="flex items-center justify-between gap-3 border-b px-5 py-3">
                             <h2 className="font-semibold">Camera</h2>
-                            {scannerConfigured &&
-                                (scanner.active ? (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={scanner.stop}
-                                    >
-                                        <CameraOff />
-                                        Stop
-                                    </Button>
-                                ) : (
-                                    <Button size="sm" onClick={scanner.start}>
-                                        <CameraIcon />
-                                        Start camera
-                                    </Button>
-                                ))}
+                            {scanner.active ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={scanner.stop}
+                                >
+                                    <CameraOff />
+                                    Stop
+                                </Button>
+                            ) : (
+                                <Button size="sm" onClick={scanner.start}>
+                                    <CameraIcon />
+                                    Start camera
+                                </Button>
+                            )}
                         </header>
 
                         <div className="bg-muted relative aspect-video w-full">
-                            <div
-                                ref={scanner.hostRef}
-                                className="absolute inset-0"
-                            />
+                            <ScannerViewfinder scanner={scanner} />
 
                             {!scanner.active && (
                                 <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
                                     <ScanBarcode className="size-8" />
-                                    {scannerConfigured ? (
-                                        <p className="max-w-sm text-sm">
-                                            Start the camera and hold a barcode
-                                            in view. Every hit books one unit
-                                            in.
-                                        </p>
-                                    ) : (
-                                        <div className="max-w-md space-y-2 text-sm">
-                                            <p className="text-foreground font-medium">
-                                                Camera scanning is not
-                                                configured
-                                            </p>
-                                            <p>
-                                                Add your Scandit key as{' '}
-                                                <code className="bg-background rounded px-1 py-0.5 font-mono text-xs">
-                                                    SCANDIT_LICENSE_KEY
-                                                </code>{' '}
-                                                in the .env file, then reload.
-                                                Until then, use the keyboard
-                                                entry on the right — a USB
-                                                barcode scanner works there too.
-                                            </p>
-                                        </div>
-                                    )}
+                                    <p className="max-w-sm text-sm">
+                                        Start the camera and hold a barcode in
+                                        view. Every hit books one unit in.
+                                    </p>
                                 </div>
                             )}
 

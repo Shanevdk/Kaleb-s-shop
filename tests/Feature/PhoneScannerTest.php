@@ -62,7 +62,7 @@ test('the phone opens the scanner from the link without logging in, and the comp
             ->component('phone-scanner')
             ->where('expired', false)
             ->where('scanUrl', fn (string $url): bool => str_contains($url, 'signature='))
-            ->has('scanner.license_key')
+            ->missing('scanner')
         );
 
     $this->actingAs($user)

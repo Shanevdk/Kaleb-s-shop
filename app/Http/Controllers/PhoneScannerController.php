@@ -72,10 +72,6 @@ class PhoneScannerController extends Controller
                 Carbon::parse($session['expires_at']),
                 ['token' => $token],
             ),
-            'scanner' => [
-                'license_key' => (string) config('services.scandit.license_key'),
-                'library_location' => (string) config('services.scandit.library_location'),
-            ],
         ]);
     }
 

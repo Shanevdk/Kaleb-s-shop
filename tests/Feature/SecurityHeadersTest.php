@@ -25,14 +25,13 @@ test('the inline theme script carries the nonce the policy allows', function () 
         ->and($response->getContent())->toContain('<script nonce="'.$matches[1].'">');
 });
 
-test('the barcode scanner library is allowed to load', function () {
-    config(['services.scandit.library_location' => 'https://cdn.jsdelivr.net/npm/@scandit/web-datacapture-barcode@8.6.0/sdc-lib/']);
-
+test('the barcode scanner engine can run without opening scripts up to an outside origin', function () {
     $policy = $this->get(route('login'))->headers->get('Content-Security-Policy');
 
     expect($policy)
-        ->toContain("'wasm-unsafe-eval' https://cdn.jsdelivr.net")
-        ->toContain("worker-src 'self' blob: https://cdn.jsdelivr.net");
+        ->toContain("'wasm-unsafe-eval'")
+        ->toContain("worker-src 'self' blob:;")
+        ->not->toContain('cdn.jsdelivr.net');
 });
 
 test('browsers are told to stick to https once they reach the site over it', function () {

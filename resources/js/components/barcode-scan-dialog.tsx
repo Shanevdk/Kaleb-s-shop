@@ -1,8 +1,8 @@
-import { usePage } from '@inertiajs/react';
-import { AlertTriangle, ScanQrCode } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
 import InputError from '@/components/input-error';
+import ScannerViewfinder from '@/components/scanner-viewfinder';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -18,7 +18,7 @@ import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
 /**
  * Open the camera in a dialog and hand back the QR code or barcode it reads.
  * The box underneath takes a typed code or a USB scanner, which is also the
- * way in when camera scanning is not configured.
+ * way in when the device has no camera.
  */
 export default function BarcodeScanDialog({
     open,
@@ -99,8 +99,6 @@ export default function BarcodeScanDialog({
  * the dialog shuts the camera off.
  */
 function CameraView({ onScan }: { onScan: (code: string) => void }) {
-    const { scandit } = usePage().props;
-
     /**
      * The camera re-reads a code held in view every second and a half, so the
      * same one is only handed back once. A rejected code can still be retried
@@ -109,8 +107,6 @@ function CameraView({ onScan }: { onScan: (code: string) => void }) {
     const lastScannedRef = useRef<string | null>(null);
 
     const scanner = useBarcodeScanner({
-        licenseKey: scandit?.license_key ?? '',
-        libraryLocation: scandit?.library_location ?? '',
         autoStart: true,
         onScan: (code) => {
             if (code === lastScannedRef.current) {
@@ -122,21 +118,9 @@ function CameraView({ onScan }: { onScan: (code: string) => void }) {
         },
     });
 
-    if (!scandit?.license_key) {
-        return (
-            <div className="text-muted-foreground flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm">
-                <ScanQrCode className="size-5 shrink-0" />
-                <p>
-                    Camera scanning is not set up yet. Type the code below, or
-                    click in the box and use a USB scanner.
-                </p>
-            </div>
-        );
-    }
-
     return (
         <div className="bg-muted relative aspect-[4/3] w-full overflow-hidden rounded-lg">
-            <div ref={scanner.hostRef} className="absolute inset-0" />
+            <ScannerViewfinder scanner={scanner} />
 
             {scanner.status === 'starting' && (
                 <div className="bg-background/70 text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">

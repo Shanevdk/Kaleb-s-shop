@@ -7,27 +7,14 @@ test('guests cannot open the scanner', function () {
     $this->get(route('inventory.scan'))->assertRedirect(route('login'));
 });
 
-test('the scanner passes the scandit key through to the page', function () {
-    config()->set('services.scandit.license_key', 'test-license-key');
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
+test('the scanner opens without needing a licence key', function () {
+    $this->actingAs(User::factory()->create())
         ->get(route('inventory.scan'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('inventory/scan')
-            ->where('scandit.license_key', 'test-license-key')
-            ->has('scandit.library_location')
+            ->missing('scandit')
         );
-});
-
-test('the scanner reports no key when scandit is not configured', function () {
-    config()->set('services.scandit.license_key', null);
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('inventory.scan'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('scandit.license_key', ''));
 });
 
 test('the scanner offers every part in the shop to link against', function () {
@@ -240,21 +227,6 @@ test('a blank barcode is stored as null so many parts can go without one', funct
     ])->assertRedirect(route('inventory.index'));
 
     expect(InventoryItem::where('name', 'No barcode part')->firstOrFail()->barcode)->toBeNull();
-});
-
-test('the scanner key is shared with the part form so codes can be scanned into it', function () {
-    config()->set('services.scandit.license_key', 'test-license-key');
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('inventory.create'))
-        ->assertInertia(fn ($page) => $page->where('scandit.license_key', 'test-license-key'));
-});
-
-test('guests are not sent the scanner key', function () {
-    config()->set('services.scandit.license_key', 'test-license-key');
-
-    $this->get(route('login'))
-        ->assertInertia(fn ($page) => $page->where('scandit', null));
 });
 
 test('guests cannot assign a code to a part', function () {
