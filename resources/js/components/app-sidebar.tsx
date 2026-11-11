@@ -6,6 +6,7 @@ import {
     ClipboardCheck,
     Cog,
     LayoutGrid,
+    MessageSquareWarning,
     Package,
     ShoppingCart,
     Users,
@@ -36,6 +37,7 @@ import { index as inventory } from '@/routes/inventory';
 import { index as receiving } from '@/routes/receiving';
 import { index as schedule } from '@/routes/schedule';
 import { index as shoppingList } from '@/routes/shopping-list';
+import { index as feedbackInbox } from '@/routes/admin/feedback';
 import { index as team } from '@/routes/admin/users';
 import { index as vehicles } from '@/routes/vehicles';
 import type { Auth, EquipmentDivision, NavEntry, NavItem } from '@/types';
@@ -191,9 +193,19 @@ const workspaceNav: Record<
     },
 };
 
-const adminNavItems: NavLeaf[] = [
-    { title: 'Team', href: team(), icon: Users, permission: 'manageTeam' },
-];
+/** The team, and the feedback it sends, with a count of what still needs an answer. */
+function adminNavItems(openFeedback: number): NavLeaf[] {
+    return [
+        { title: 'Team', href: team(), icon: Users, permission: 'manageTeam' },
+        {
+            title: 'Feedback',
+            href: feedbackInbox(),
+            icon: MessageSquareWarning,
+            permission: 'manageTeam',
+            badge: openFeedback,
+        },
+    ];
+}
 
 /** Schedulers only have the schedule. */
 const schedulerNavItems: NavLeaf[] = [
@@ -231,7 +243,7 @@ function visibleSections(sections: NavSection[], can: Auth['can']): NavEntry[] {
 }
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
+    const { auth, openFeedback } = usePage().props;
     const picked = useWorkspace();
 
     // Kaleb's Shop, VDK-Equipment and VDK Equipment USA are each unlocked
@@ -254,7 +266,7 @@ export function AppSidebar() {
     }
 
     const items = visibleSections(
-        [...roleNavItems, ...adminNavItems],
+        [...roleNavItems, ...adminNavItems(openFeedback)],
         auth.can,
     );
 

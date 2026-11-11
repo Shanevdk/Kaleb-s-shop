@@ -15,6 +15,7 @@ import {
 import {
     SidebarGroup,
     SidebarMenu,
+    SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarMenuSub,
@@ -37,13 +38,22 @@ function NavLink({ item }: { item: NavItem }) {
             <SidebarMenuButton
                 asChild
                 isActive={isCurrentUrl(item.href)}
-                tooltip={{ children: item.title }}
+                tooltip={{
+                    children: item.badge
+                        ? `${item.title} (${item.badge})`
+                        : item.title,
+                }}
             >
                 <Link href={item.href} prefetch>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
                 </Link>
             </SidebarMenuButton>
+            {item.badge ? (
+                <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground rounded-full">
+                    {item.badge}
+                </SidebarMenuBadge>
+            ) : null}
         </SidebarMenuItem>
     );
 }

@@ -75,6 +75,17 @@ export type TeamMember = {
     is_current_user: boolean;
 };
 
+/** A problem or idea sent to the admins from the Feedback button. */
+export type FeedbackItem = {
+    id: string;
+    message: string;
+    page: string | null;
+    sender: { name: string; email: string } | null;
+    sent_at: string | null;
+    sent_ago: string | null;
+    is_resolved: boolean;
+};
+
 export type Passkey = {
     id: number;
     name: string;

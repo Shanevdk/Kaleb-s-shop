@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\EquipmentDivision;
+use App\Http\Controllers\Admin\FeedbackController as AdminFeedbackController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\ClosedDayController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\EquipmentPhotoController;
 use App\Http\Controllers\EquipmentScheduleController;
 use App\Http\Controllers\EquipmentScheduleJobController;
 use App\Http\Controllers\EquipmentServiceRecordController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionItemController;
 use App\Http\Controllers\InventoryItemController;
@@ -95,14 +97,22 @@ Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
         ->only(['index', 'create', 'store', 'update', 'destroy'])
         ->names('admin.users')
         ->parameters(['users' => 'user']);
+
+    Route::get('admin/feedback', [AdminFeedbackController::class, 'index'])->name('admin.feedback.index');
+    Route::patch('admin/feedback/{feedback}', [AdminFeedbackController::class, 'update'])
+        ->name('admin.feedback.update');
 });
 
-// Everyone on the team: the landing page and its data feed need no
-// permission of their own.
+// Everyone on the team: the landing page, its data feed and the Feedback
+// button need no permission of their own.
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('screen-saver/data', [ScreenSaverDataController::class, 'index'])->name('screen-saver.data');
+
+    Route::post('feedback', [FeedbackController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('feedback.store');
 });
 
 Route::middleware(['auth', 'verified', 'can:shopping-list'])->group(function () {

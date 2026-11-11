@@ -12,6 +12,8 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            /** Feedback still waiting on an admin; always 0 for everyone else. */
+            openFeedback: number;
             [key: string]: unknown;
         };
     }

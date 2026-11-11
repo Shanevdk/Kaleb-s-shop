@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Permission;
+use App\Models\Feedback;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -50,6 +51,10 @@ class HandleInertiaRequests extends Middleware
                     ->all(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            // Counted for the admins' sidebar only, so no one else pays for the query.
+            'openFeedback' => fn (): int => $request->user()?->can(Permission::ManageTeam->value)
+                ? Feedback::open()->count()
+                : 0,
         ];
     }
 }

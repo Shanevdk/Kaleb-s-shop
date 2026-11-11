@@ -21,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useKeyboardAwareDialog } from '@/hooks/use-keyboard-aware-dialog';
 import type { SelectOption } from '@/types';
 import type { RouteFormDefinition } from '@/wayfinder';
 
@@ -60,11 +61,15 @@ export default function QuickJobDialog({
 }) {
     const [open, setOpen] = useState(false);
     const canLeaveUnpicked = subject.unpickedLabel !== undefined;
+    const keyboardAwareStyle = useKeyboardAwareDialog(open);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{trigger}</DialogTrigger>
-            <DialogContent>
+            <DialogContent
+                className="top-4 translate-y-0 overflow-y-auto sm:top-[50%] sm:translate-y-[-50%]"
+                style={keyboardAwareStyle}
+            >
                 <DialogTitle>Quick add a job</DialogTitle>
                 <DialogDescription>
                     Just the basics — it goes straight on the queue as planned
