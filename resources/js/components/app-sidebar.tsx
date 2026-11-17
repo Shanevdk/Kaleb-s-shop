@@ -5,6 +5,7 @@ import {
     Car,
     ClipboardCheck,
     Cog,
+    KeyRound,
     LayoutGrid,
     MessageSquareWarning,
     Package,
@@ -37,6 +38,7 @@ import { index as inventory } from '@/routes/inventory';
 import { index as receiving } from '@/routes/receiving';
 import { index as schedule } from '@/routes/schedule';
 import { index as shoppingList } from '@/routes/shopping-list';
+import { index as apiKeys } from '@/routes/admin/api-keys';
 import { index as feedbackInbox } from '@/routes/admin/feedback';
 import { index as team } from '@/routes/admin/users';
 import { index as vehicles } from '@/routes/vehicles';
@@ -193,7 +195,10 @@ const workspaceNav: Record<
     },
 };
 
-/** The team, and the feedback it sends, with a count of what still needs an answer. */
+/**
+ * The team, the feedback it sends, with a count of what still needs an
+ * answer, and the keys other apps read the shop's data with.
+ */
 function adminNavItems(openFeedback: number): NavLeaf[] {
     return [
         { title: 'Team', href: team(), icon: Users, permission: 'manageTeam' },
@@ -203,6 +208,12 @@ function adminNavItems(openFeedback: number): NavLeaf[] {
             icon: MessageSquareWarning,
             permission: 'manageTeam',
             badge: openFeedback,
+        },
+        {
+            title: 'API keys',
+            href: apiKeys(),
+            icon: KeyRound,
+            permission: 'manageTeam',
         },
     ];
 }

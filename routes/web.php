@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\EquipmentDivision;
+use App\Http\Controllers\Admin\ApiKeyController;
 use App\Http\Controllers\Admin\FeedbackController as AdminFeedbackController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssistantController;
@@ -101,6 +102,11 @@ Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
     Route::get('admin/feedback', [AdminFeedbackController::class, 'index'])->name('admin.feedback.index');
     Route::patch('admin/feedback/{feedback}', [AdminFeedbackController::class, 'update'])
         ->name('admin.feedback.update');
+
+    Route::resource('admin/api-keys', ApiKeyController::class)
+        ->only(['index', 'store', 'destroy'])
+        ->names('admin.api-keys')
+        ->parameters(['api-keys' => 'apiKey']);
 });
 
 // Everyone on the team: the landing page, its data feed and the Feedback

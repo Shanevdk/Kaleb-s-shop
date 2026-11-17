@@ -37,6 +37,10 @@ function isResumablePath(path: string): boolean {
 }
 
 function isStandaloneDisplay(): boolean {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
     return (
         window.matchMedia?.('(display-mode: standalone)').matches ||
         (window.navigator as unknown as { standalone?: boolean }).standalone ===
@@ -63,50 +67,56 @@ if (isStandaloneDisplay() && window.location.pathname === START_URL) {
     }
 }
 
-router.on('navigate', (event) => {
-    const path = event.detail.page.url;
+if (!redirectingToLastPath) {
+    router.on('navigate', (event) => {
+        const path = event.detail.page.url;
 
-    if (isResumablePath(path)) {
-        try {
-            localStorage.setItem(LAST_PATH_STORAGE_KEY, path);
-        } catch {
-            // Ignore — resuming on relaunch is a nice-to-have, not critical.
+        if (isResumablePath(path)) {
+            try {
+                localStorage.setItem(LAST_PATH_STORAGE_KEY, path);
+            } catch {
+                // Ignore — resuming on relaunch is a nice-to-have, not critical.
+            }
         }
-    }
+    });
+}
+
+/**
+ * This has to stay a top-level statement: @inertiajs/vite only turns a
+ * top-level createInertiaApp() call into the SSR render function.
+ */
+void createInertiaApp({
+    title: (title) => (title ? `${title} - ${appName}` : appName),
+    layout: (name) => {
+        switch (true) {
+            case name === 'welcome' ||
+                name === 'phone-scanner' ||
+                name === 'work-order' ||
+                name.startsWith('errors/'):
+                return null;
+            case name.startsWith('auth/'):
+                return AuthLayout;
+            case name.startsWith('settings/'):
+                return [AppLayout, SettingsLayout];
+            default:
+                return AppLayout;
+        }
+    },
+    strictMode: true,
+    withApp(app) {
+        return (
+            <TooltipProvider delayDuration={0}>
+                {app}
+                <Toaster />
+            </TooltipProvider>
+        );
+    },
+    progress: {
+        color: '#4B5563',
+    },
 });
 
-if (!redirectingToLastPath) {
-    void createInertiaApp({
-        title: (title) => (title ? `${title} - ${appName}` : appName),
-        layout: (name) => {
-            switch (true) {
-                case name === 'welcome' ||
-                    name === 'phone-scanner' ||
-                    name === 'work-order' ||
-                    name.startsWith('errors/'):
-                    return null;
-                case name.startsWith('auth/'):
-                    return AuthLayout;
-                case name.startsWith('settings/'):
-                    return [AppLayout, SettingsLayout];
-                default:
-                    return AppLayout;
-            }
-        },
-        strictMode: true,
-        withApp(app) {
-            return (
-                <TooltipProvider delayDuration={0}>
-                    {app}
-                    <Toaster />
-                </TooltipProvider>
-            );
-        },
-        progress: {
-            color: '#4B5563',
-        },
-    });
-
+if (typeof window !== 'undefined' && !redirectingToLastPath) {
     prefetchOnIntent();
 
     // This will set light / dark mode on load...

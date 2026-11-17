@@ -86,6 +86,22 @@ export type FeedbackItem = {
     is_resolved: boolean;
 };
 
+export type ApiKeyItem = {
+    id: string;
+    name: string;
+    /** The start and last four characters of the key, to tell keys apart. */
+    hint: string;
+    made_by: string | null;
+    made_at: string | null;
+    last_used_ago: string | null;
+};
+
+/** A key just made, flashed back once so it can be copied. */
+export type NewApiKey = {
+    name: string;
+    token: string;
+};
+
 export type Passkey = {
     id: number;
     name: string;
