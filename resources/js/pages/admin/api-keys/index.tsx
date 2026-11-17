@@ -1,6 +1,7 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import { Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 import DeleteConfirm from '@/components/delete-confirm';
 import EmptyState from '@/components/empty-state';
 import InputError from '@/components/input-error';
@@ -28,17 +29,46 @@ type Props = {
     collections: string[];
 };
 
-/** A line of code with a button that copies it. */
+/**
+ * A line of code with a button that copies it. One click on the code itself
+ * selects all of it, and when the browser will not let the button copy (it
+ * only can over HTTPS), the code is selected so it can be copied by hand.
+ */
 function CopyableCode({ text, label }: { text: string; label: string }) {
     const [copiedText, copy] = useClipboard();
+    const codeRef = useRef<HTMLElement>(null);
+
+    const copyText = async () => {
+        if (await copy(text)) {
+            return;
+        }
+
+        const selection = window.getSelection();
+
+        if (codeRef.current && selection) {
+            const range = document.createRange();
+            range.selectNodeContents(codeRef.current);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        toast.error(
+            'This browser would not copy it. It is selected now: copy it with Ctrl+C (⌘C on a Mac) or the Copy menu.',
+        );
+    };
 
     return (
         <div className="bg-muted flex items-start gap-2 rounded-lg p-3">
-            <code className="flex-1 font-mono text-sm break-all">{text}</code>
+            <code
+                ref={codeRef}
+                className="flex-1 font-mono text-sm break-all select-all"
+            >
+                {text}
+            </code>
             <Button
                 size="sm"
                 variant="outline"
-                onClick={() => copy(text)}
+                onClick={copyText}
                 aria-label={label}
             >
                 {copiedText === text ? <Check /> : <Copy />}
@@ -181,8 +211,10 @@ export default function AdminApiKeysIndex({
 }: Props) {
     const { flash } = usePage();
 
-    // Set from the flash when the key is made. Seeded from it too, so the
-    // key still shows if the page is ever mounted afresh on that response.
+    // Set from the flash once the key is made, and kept until Done is
+    // clicked, even if the page reloads its props meanwhile. Read in the
+    // form's onSuccess: <Form> accepts an onFlash prop but never calls it.
+    // Seeded from the flash too, in case the page mounts afresh with it.
     const [newKey, setNewKey] = useState<NewApiKey | null>(
         (flash.newApiKey as NewApiKey | undefined) ?? null,
     );
@@ -201,10 +233,11 @@ export default function AdminApiKeysIndex({
                     <Form
                         {...store.form()}
                         resetOnSuccess
-                        onFlash={(flash) =>
+                        onSuccess={(page) =>
                             setNewKey(
-                                (flash.newApiKey as NewApiKey | undefined) ??
-                                    null,
+                                (page.flash.newApiKey as
+                                    | NewApiKey
+                                    | undefined) ?? null,
                             )
                         }
                         className="grid gap-2"
