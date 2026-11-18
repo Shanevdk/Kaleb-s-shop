@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\ExportShopData;
 use App\Enums\ApiCollection;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\RecordResource;
 use Carbon\CarbonInterface;
-use Generator;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -19,6 +17,8 @@ use Symfony\Component\HttpFoundation\StreamedJsonResponse;
  */
 class DataController extends Controller
 {
+    public function __construct(private ExportShopData $exportShopData) {}
+
     /**
      * List every collection, how many records it holds and where to read
      * it, so an app can find its way around.
@@ -46,18 +46,7 @@ class DataController extends Controller
             'updated_since' => ['nullable', 'date'],
         ]);
 
-        $updatedSince = $this->updatedSince($request);
-
-        $collections = [];
-
-        foreach (ApiCollection::cases() as $collection) {
-            $collections[$collection->value] = $this->stream($collection, $updatedSince);
-        }
-
-        return response()->streamJson([
-            'exported_at' => now()->toIso8601String(),
-            'collections' => $collections,
-        ]);
+        return response()->streamJson($this->exportShopData->everything($this->updatedSince($request)));
     }
 
     /**
@@ -73,7 +62,7 @@ class DataController extends Controller
         ]);
 
         return RecordResource::collection(
-            $this->query($collection, $this->updatedSince($request))
+            $this->exportShopData->query($collection, $this->updatedSince($request))
                 ->orderBy('id')
                 ->cursorPaginate($request->integer('per_page', 100))
                 ->withQueryString(),
@@ -95,29 +84,5 @@ class DataController extends Controller
     private function updatedSince(Request $request): ?CarbonInterface
     {
         return $request->date('updated_since')?->setTimezone((string) config('app.timezone'));
-    }
-
-    /**
-     * Start a query for a collection's records, keeping only those changed
-     * since the given time when there is one.
-     *
-     * @return Builder<Model>
-     */
-    private function query(ApiCollection $collection, ?CarbonInterface $updatedSince): Builder
-    {
-        return $collection->model()::query()
-            ->when($updatedSince, fn (Builder $query) => $query->where('updated_at', '>=', $updatedSince));
-    }
-
-    /**
-     * Read a collection's records a few hundred at a time, ready to send.
-     *
-     * @return Generator<int, array<string, mixed>>
-     */
-    private function stream(ApiCollection $collection, ?CarbonInterface $updatedSince): Generator
-    {
-        foreach ($this->query($collection, $updatedSince)->lazyById(500) as $record) {
-            yield (new RecordResource($record))->resolve();
-        }
     }
 }

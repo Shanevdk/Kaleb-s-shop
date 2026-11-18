@@ -2,6 +2,7 @@
 
 use App\Enums\EquipmentDivision;
 use App\Http\Controllers\Admin\ApiKeyController;
+use App\Http\Controllers\Admin\DataExportController;
 use App\Http\Controllers\Admin\FeedbackController as AdminFeedbackController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AssistantController;
@@ -107,6 +108,8 @@ Route::middleware(['auth', 'verified', 'can:manage-team'])->group(function () {
         ->only(['index', 'store', 'destroy'])
         ->names('admin.api-keys')
         ->parameters(['api-keys' => 'apiKey']);
+
+    Route::get('admin/data-export', [DataExportController::class, 'download'])->name('admin.data-export');
 });
 
 // Everyone on the team: the landing page, its data feed and the Feedback

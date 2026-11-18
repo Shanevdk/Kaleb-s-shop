@@ -1,5 +1,5 @@
 import { Form, Head, usePage } from '@inertiajs/react';
-import { Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, Download, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import DeleteConfirm from '@/components/delete-confirm';
@@ -18,6 +18,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { dataExport } from '@/routes/admin';
 import { destroy, index, store } from '@/routes/admin/api-keys';
 import type { ApiKeyItem, NewApiKey } from '@/types';
 
@@ -227,6 +228,16 @@ export default function AdminApiKeysIndex({
                 <PageHeader
                     title="API keys"
                     description="Give another app a key and it can read everything here: vehicles, jobs, checklists, parts, equipment and the team. Keys can only read; they never change anything."
+                    actions={
+                        // A plain link, not an Inertia visit: the server
+                        // answers with a file to save, not a page.
+                        <Button asChild variant="outline">
+                            <a href={dataExport.url()} download>
+                                <Download />
+                                Export all data
+                            </a>
+                        </Button>
+                    }
                 />
 
                 <div className="bg-card max-w-3xl rounded-xl border p-4 sm:p-6">
